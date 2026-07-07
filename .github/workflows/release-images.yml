@@ -1,0 +1,64 @@
+name: Release images
+
+# Build and push the three container images to Docker Hub on a version tag.
+# The publish flow pushes a `vX.Y.Z` tag to G-OTW, which triggers this. Images
+# are multi-arch (amd64 + arm64) so both x86 servers and Apple-silicon hosts run
+# the same tag. Compose keeps its `build:` blocks for local dev; the published
+# images are what the image-based install (docker-compose.images.yml) pulls.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. v0.0.1). Defaults to latest tag.'
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  NS: opentraderworld
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: otw-core
+            context: core
+          - name: otw-frontend
+            context: frontend
+          - name: otw-caddy
+            context: deploy/caddy
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version: the pushed tag, or the workflow_dispatch input, sans leading "v".
+      - name: Resolve version
+        id: ver
+        run: |
+          REF="${{ github.event.inputs.version || github.ref_name }}"
+          echo "version=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.NS }}/${{ matrix.name }}:${{ steps.ver.outputs.version }}
+            ${{ env.NS }}/${{ matrix.name }}:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

@@ -1,0 +1,133 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Default theme — design tokens.
+ *
+ * Theming is a swappable layer (spec M7): a theme = one token set scoped to a
+ * [data-theme] value. Switching themes later = ship another token file and flip
+ * the data-theme attribute on <html>. Components must consume these variables,
+ * never hardcode colors/spacing.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme='default'] {
+  /* Surfaces — deep blue-black, one subtle step per elevation */
+  --bg: #0a0c11;
+  --surface: #12151d;
+  --surface-2: #191e2a;
+  --border: #252b3b;
+
+  /* Text */
+  --text: #e7ebf4;
+  --muted: #8b93a7;
+
+  /* Accent / status */
+  --accent: #5b9dff;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #ef4444;
+
+  /* Categorical chart series (CVD-validated order against --surface; keep the order,
+     never cycle past 8 — fold extras into "Other"). */
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #c98500;
+  --chart-4: #008300;
+  --chart-5: #9085e9;
+  --chart-6: #e66767;
+  --chart-7: #d55181;
+  --chart-8: #d95926;
+
+  /* Depth */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.45);
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Radius & type */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  /* Layout */
+  --rail-width: 220px;
+  --topbar-height: 56px;
+}
+
+/* ── Global element polish (theme-scoped quality layer) ─────────────────────── */
+
+/* Native widgets (date pickers, checkboxes, selects, scrollbars) render dark. */
+html {
+  color-scheme: dark;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Thin, recessive scrollbars that match the surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus is always visible; pointer clicks stay clean. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Form controls inherit the app font (browsers default them to system UI). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Micro-transitions on interactive elements — snappy, never sluggish. */
+button,
+a {
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease;
+}
+
+/* Figures align in every data table. */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Click-to-copy log/error feedback (see $lib/ui/copyLog.js). */
+[data-copied] {
+  color: var(--green) !important;
+}
+[data-copied]::after {
+  content: ' ✓ copied';
+  color: var(--green);
+  font-size: 0.85em;
+}
