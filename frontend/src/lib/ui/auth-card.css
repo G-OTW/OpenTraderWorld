@@ -1,0 +1,53 @@
+/* Shared styling for the setup / login full-screen cards. */
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+}
+.auth-card h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.auth-card .sub {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.auth-card label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+  margin-top: var(--space-4);
+}
+.auth-card input {
+  width: 100%;
+  height: 38px;
+  font-size: 0.9rem;
+}
+.auth-card button {
+  width: 100%;
+  margin-top: var(--space-6);
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: var(--space-3);
+  cursor: pointer;
+}
+.auth-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.auth-card .err {
+  color: var(--red);
+  font-size: 0.8rem;
+  margin-top: var(--space-4);
+}

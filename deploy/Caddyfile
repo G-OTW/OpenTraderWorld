@@ -1,0 +1,32 @@
+# OpenTraderWorld reverse proxy.
+#
+# Serves the static SvelteKit frontend and proxies the API/WS to otw-core (spec §6).
+# {$OTW_DOMAIN} is Caddy's site address, from network.env (rewritten by Settings → Network).
+# `:80` (local/lan modes) = catch-all plain HTTP — no TLS, no self-signed-cert warnings,
+# matches any Host so LAN access by IP works. A real domain (Web/LAN+HTTPS modes) enables
+# Caddy's automatic HTTPS with real certificates. Container always listens on 80/443; the
+# host-side port and bind interface are controlled by the compose port mapping.
+#
+# {$OTW_ACME_GLOBAL} (from dns.env) is empty or `acme_dns <provider> <token>`: LAN + HTTPS
+# mode proves domain ownership via a DNS TXT record instead of an inbound HTTP challenge,
+# so a LAN-only host gets a publicly trusted certificate without exposing anything.
+
+{
+	{$OTW_ACME_GLOBAL:}
+}
+
+{$OTW_DOMAIN::80} {
+	# API + WebSocket → core service.
+	handle /api/* {
+		reverse_proxy core:8080
+	}
+
+	# Everything else → static frontend (SPA fallback to index.html).
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip zstd
+}
