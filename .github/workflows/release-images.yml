@@ -1,0 +1,115 @@
+name: Release images
+
+# Build and push the three container images to Docker Hub on a version tag.
+# The publish flow pushes a `vX.Y.Z` tag to G-OTW, which triggers this. Images
+# are multi-arch (amd64 + arm64) so both x86 servers and Apple-silicon hosts run
+# the same tag. Compose keeps its `build:` blocks for local dev; the published
+# images are what the image-based install (docker-compose.images.yml) pulls.
+#
+# Each arch is built on its OWN native runner (amd64 on ubuntu-latest, arm64 on
+# ubuntu-24.04-arm) — NOT via QEMU emulation, which made the arm64 Rust build of
+# otw-core take ~an hour. The build job pushes by-digest; the merge job then
+# stitches the two per-arch digests into the final multi-arch tags.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. v0.0.1). Defaults to latest tag.'
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  NS: opentraderworld
+
+jobs:
+  # ── Build each (image × arch) natively, push by digest ──────────────────────
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: otw-core,     context: core }
+          - { name: otw-frontend, context: frontend }
+          - { name: otw-caddy,    context: deploy/caddy }
+        platform:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push digest (${{ matrix.image.name }} / ${{ matrix.platform.arch }})
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          platforms: linux/${{ matrix.platform.arch }}
+          # Push by digest only (no tag); the merge job assembles the tagged manifest.
+          outputs: type=image,name=${{ env.NS }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests/${{ matrix.image.name }}
+          # Filename = the digest sans "sha256:" prefix; the merge job re-adds it.
+          touch "/tmp/digests/${{ matrix.image.name }}/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: /tmp/digests/${{ matrix.image.name }}/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── Merge the per-arch digests into the final multi-arch tags ───────────────
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        name: [otw-core, otw-frontend, otw-caddy]
+    steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          REF="${{ github.event.inputs.version || github.ref_name }}"
+          echo "version=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-${{ matrix.name }}-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch manifest for ${{ matrix.name }}
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ${NS}/${{ matrix.name }}:${{ steps.ver.outputs.version }} \
+            -t ${NS}/${{ matrix.name }}:latest \
+            $(printf "${NS}/${{ matrix.name }}@sha256:%s " *)
+
+      - name: Inspect (must list amd64 + arm64)
+        run: docker buildx imagetools inspect ${NS}/${{ matrix.name }}:${{ steps.ver.outputs.version }}

@@ -1,0 +1,18 @@
+/* Select-option chip colors. Imported globally where chips render. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.chip.slate  { background: color-mix(in srgb, #64748b 22%, transparent); color: #cbd5e1; }
+.chip.red    { background: color-mix(in srgb, #ef4444 22%, transparent); color: #fca5a5; }
+.chip.amber  { background: color-mix(in srgb, #f59e0b 24%, transparent); color: #fcd34d; }
+.chip.green  { background: color-mix(in srgb, #22c55e 22%, transparent); color: #86efac; }
+.chip.blue   { background: color-mix(in srgb, #3b82f6 24%, transparent); color: #93c5fd; }
+.chip.violet { background: color-mix(in srgb, #8b5cf6 24%, transparent); color: #c4b5fd; }
+.chip.pink   { background: color-mix(in srgb, #ec4899 24%, transparent); color: #f9a8d4; }

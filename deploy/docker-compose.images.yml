@@ -1,0 +1,26 @@
+# Image-based install — pull prebuilt images from Docker Hub instead of building
+# from source. No Rust/Node toolchain needed. Layer it over the base compose:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.images.yml \
+#     --env-file .env --env-file network.env up -d
+#
+# `!reset null` removes the `build:` blocks inherited from the base file, so Compose
+# has only `image:` to go on and pulls. Tags are pinned to the release version; bump
+# them per release (they must match a tag published by the release-images workflow).
+# The base file's `:latest` is fine for dev builds; here we pin for reproducibility.
+
+services:
+  caddy:
+    build: !reset null
+    image: opentraderworld/otw-caddy:0.0.2
+    pull_policy: missing
+
+  frontend:
+    build: !reset null
+    image: opentraderworld/otw-frontend:0.0.2
+    pull_policy: missing
+
+  core:
+    build: !reset null
+    image: opentraderworld/otw-core:0.0.2
+    pull_policy: missing

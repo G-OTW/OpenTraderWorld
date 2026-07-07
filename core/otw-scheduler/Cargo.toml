@@ -1,0 +1,18 @@
+[package]
+name = "otw-scheduler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld: Cron + interval scheduler and job dispatch (Redis-backed)"
+
+[dependencies]
+otw-store = { path = "../otw-store" }
+otw-feeds = { path = "../otw-feeds" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+sqlx = { version = "0.9", features = ["runtime-tokio", "postgres"] }
+uuid.workspace = true
