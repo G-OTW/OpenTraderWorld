@@ -1,0 +1,9 @@
+[package]
+name = "otw-modules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld: Module manifest parsing and install/activate/uninstall lifecycle"
+
+[dependencies]

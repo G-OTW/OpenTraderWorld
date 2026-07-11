@@ -1,0 +1,358 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Default theme — design tokens (Phase 7: light-first, dual-theme).
+ *
+ * Theming is a swappable layer: a theme = one token set. This file ships TWO —
+ * a light default (`:root` / `[data-theme='light']`) and a dark variant
+ * (`[data-theme='dark']`). The shell stamps `data-theme` on <html> from the
+ * user's choice (Light / Dark / System); `system` resolves to the OS preference
+ * via `prefers-color-scheme`. Components consume these variables, never hardcode
+ * colors/spacing.
+ *
+ * Accent is indigo. Neutrals carry a faint cool/indigo bias (not pure grey) so
+ * surfaces read as chosen, not defaulted. --green/--red are reserved for PnL and
+ * status semantics — never as an accent.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Light (default) ────────────────────────────────────────────────────────── */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces — white-first, cool neutral bias, one subtle step per elevation */
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f9;
+  --border: #e4e7f0;
+
+  /* Text */
+  --text: #171a21;
+  --muted: #667085;
+
+  /* Accent / status.
+     --accent + --accent-contrast are the only two the app-accent picker overrides
+     (as an inline style on <html>, which wins over these). --accent-hover and --glow
+     are DERIVED from --accent below so they follow any override for free — never hardcode
+     them, or a custom accent leaves the hover/glow on the old hue. Light: darken toward
+     black for hover; dark: lighten toward white (see the dark block). */
+  --accent: #4f46e5;
+  --accent-contrast: #ffffff; /* text/icon color that sits ON --accent */
+  --accent-hover: color-mix(in srgb, var(--accent) 84%, #000); /* darker for hover on light */
+  --green: #0f9d58;
+  --amber: #d97706;
+  --red: #dc2626;
+
+  /* Two derived forms every semantic hue needs, because one value cannot do both jobs:
+
+     --*-ink       the hue as TEXT on its own 10% tint (a .badge, a soft chip). The raw
+                   hue is picked to work as a *fill* (>=3:1); as 12px text on a pale tint
+                   it fails in light mode (amber 2.9:1, green 3.1:1). These are darkened
+                   until they clear 4.5:1 — computed, not eyeballed.
+     --*-contrast  the ink that sits ON a solid fill of the hue (a checked box, a count
+                   badge). White fails on both themes' green (3.5:1 / 2.3:1). */
+  --green-ink: #0c7c46;
+  --amber-ink: #a55a05;
+  --red-ink: #cd2323;
+  --green-contrast: #0b0d13;
+  --amber-contrast: #0b0d13;
+  --red-contrast: #ffffff;
+
+  /* Categorical chart series. Fixed order, assigned by entity — never cycled, never
+     reassigned when a filter changes the series count. A 9th series folds into "Other".
+     Validated against --surface (#ffffff): OKLCH lightness band, chroma floor, adjacent
+     -pair CVD separation, and >= 3:1 contrast. --chart-4 was #0e7490 (chroma 0.094 —
+     below the floor, it read as grey); the teal is now saturated enough to hold. */
+  --chart-1: #4f46e5;
+  --chart-2: #0f9d58;
+  --chart-3: #d97706;
+  --chart-4: #0082a2;
+  --chart-5: #7c3aed;
+  --chart-6: #dc2626;
+  --chart-7: #be185d;
+  --chart-8: #c2410c;
+
+  /* Diverging scale, for a quantity with a signed midpoint (a correlation matrix).
+     Two hues plus a NEUTRAL midpoint — never a hue at the middle, or zero reads as
+     a category of its own. The midpoint is a hair off --surface so a zero cell is
+     still visibly a cell. Cells carry no in-cell label: no single ink clears 4.5:1
+     across a ramp that passes through mid-lightness, so the value lives in the
+     tooltip and the visualMap legend instead. */
+  --diverge-neg: #2563eb;
+  --diverge-mid: #e8eaee;
+  --diverge-pos: #dc2626;
+
+  /* Depth — soft, tinted toward the accent so shadows read as light, not soot.
+     --shadow-2 lifts a dropdown a few millimetres off the page; --shadow-3 is
+     for a dialog floating over a dimmed backdrop, which needs real throw or it
+     reads as pasted on. */
+  --shadow-1: 0 1px 2px rgba(23, 26, 33, 0.06);
+  --shadow-2: 0 16px 40px -24px rgba(23, 26, 33, 0.28);
+  --shadow-3: 0 24px 64px -16px rgba(23, 26, 33, 0.4);
+
+  /* Ambient glow behind the top-left (see body). Derived from --accent so a custom
+     accent tints the glow too. */
+  --glow: color-mix(in srgb, var(--accent) 6%, transparent);
+
+  /* Spacing scale (unchanged; 5/7 intentionally absent) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Radius & type */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  /* Layout */
+  --rail-width: 220px;
+  --topbar-height: 56px;
+
+  /* ── Type scale ────────────────────────────────────────────────────────────
+     Tight ratio (~1.2): a dense tool needs contrast between body and figures,
+     not big headings. Body default is --text-base (14px) — 16px is a website
+     baseline, not an application one. Figures (StatCard, PnL) go to --text-xl;
+     that jump is what reads as "product". */
+  --text-xs: 0.75rem; /* 12px — table labels, meta, timestamps */
+  --text-sm: 0.8125rem; /* 13px — dense body, table cells */
+  --text-base: 0.875rem; /* 14px — app body default */
+  --text-md: 1rem; /* 16px — section subtitles */
+  --text-lg: 1.25rem; /* 20px — page titles */
+  --text-xl: 1.75rem; /* 28px — key figures */
+
+  /* Weights: three, never 700 (it shouts in a data UI). */
+  --fw-normal: 400;
+  --fw-medium: 500; /* labels, table headers */
+  --fw-semibold: 600; /* titles, key figures */
+
+  /* Line heights */
+  --lh-tight: 1.25; /* headings, figures */
+  --lh-base: 1.5; /* prose */
+
+  /* ── Density ───────────────────────────────────────────────────────────────
+     Table rows derive their height from these, never from padding — that is
+     what makes a table scannable. */
+  --row-h: 36px; /* dense (default) */
+  --row-h-lg: 44px; /* comfortable */
+
+  /* ── Motion ────────────────────────────────────────────────────────────────
+     Short and rare: nothing over 250ms in a tool used eight hours a day. */
+  --dur-fast: 120ms; /* hover, color shifts */
+  --dur-base: 200ms; /* panels, modals, disclosure */
+  --ease: ease-out;
+
+  /* ── Z-index scale ─────────────────────────────────────────────────────────
+     One ladder, four rungs. Never a raw z-index outside this scale. */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+/* ── Dark ───────────────────────────────────────────────────────────────────── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0b0d13;
+  --surface: #14171f;
+  --surface-2: #1b2029;
+  --border: #262c3a;
+
+  --text: #e8eaf2;
+  --muted: #939bb0;
+
+  --accent: #8b8bff;
+  --accent-contrast: #0b0d13;
+  --accent-hover: color-mix(in srgb, var(--accent) 82%, #fff); /* brighter for hover on dark */
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #f26769;
+
+  /* On the dark ground the raw hues already clear 4.5:1 as text on their own tint
+     (green 6.8, amber 7.1, red 5.2), so ink == hue. --red-contrast flips to a dark
+     ink here: white on this lighter red is only 3.0:1. */
+  --green-ink: #22c55e;
+  --amber-ink: #f59e0b;
+  --red-ink: #f26769;
+  --green-contrast: #0b0d13;
+  --amber-contrast: #0b0d13;
+  --red-contrast: #0b0d13;
+
+  /* Dark is chosen, not flipped: re-derived from the same hues, then validated
+     against the dark --surface (#14171f). The previous set sat above the dark
+     lightness band (L 0.48–0.67) and glared against the near-black ground. */
+  --chart-1: #7984fa;
+  --chart-2: #179e70;
+  --chart-3: #c68200;
+  --chart-4: #00a6b3;
+  --chart-5: #9883d5;
+  --chart-6: #e26565;
+  --chart-7: #db6493;
+  --chart-8: #d87343;
+
+  /* Diverging, re-derived for the dark ground: the arms lighten (they sit on
+     near-black, not white) and the neutral midpoint darkens to just above
+     --surface, so a zero cell reads as a cell and not as a hole in the matrix. */
+  --diverge-neg: #5b8def;
+  --diverge-mid: #2a3040;
+  --diverge-pos: #e05656;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 16px 40px -20px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, 0.75);
+
+  --glow: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* System preference: when no explicit choice is stamped, follow the OS. The
+   theme store writes data-theme='light'|'dark' for explicit picks; 'system'
+   removes the attribute so this fallback governs. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --bg: #0b0d13;
+    --surface: #14171f;
+    --surface-2: #1b2029;
+    --border: #262c3a;
+
+    --text: #e8eaf2;
+    --muted: #939bb0;
+
+    --accent: #8b8bff;
+    --accent-contrast: #0b0d13;
+    --accent-hover: color-mix(in srgb, var(--accent) 82%, #fff);
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #f26769;
+
+    --green-ink: #22c55e;
+    --amber-ink: #f59e0b;
+    --red-ink: #f26769;
+    --green-contrast: #0b0d13;
+    --amber-contrast: #0b0d13;
+    --red-contrast: #0b0d13;
+
+    --chart-1: #7984fa;
+    --chart-2: #179e70;
+    --chart-3: #c68200;
+    --chart-4: #00a6b3;
+    --chart-5: #9883d5;
+    --chart-6: #e26565;
+    --chart-7: #db6493;
+    --chart-8: #d87343;
+
+    --diverge-neg: #5b8def;
+    --diverge-mid: #2a3040;
+    --diverge-pos: #e05656;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 16px 40px -20px rgba(0, 0, 0, 0.6);
+    --shadow-3: 0 24px 64px -12px rgba(0, 0, 0, 0.75);
+    --glow: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+}
+
+/* ── Global element polish (theme-scoped quality layer) ─────────────────────── */
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Thin, recessive scrollbars that match the surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus is always visible; pointer clicks stay clean. Never `:focus`,
+   never a bare `outline: none` — this is the line between a tool and a toy. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Form controls inherit the app font (browsers default them to system UI). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Micro-transitions on interactive elements — snappy, never sluggish. */
+button,
+a {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* Respect the OS setting globally, not just for the two selectors above: any
+   component animation collapses to instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Figures align in every data table. `.num` opts any element outside a table
+   (StatCard values, inline PnL, totals) into the same alignment. */
+table,
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Elevation discipline ───────────────────────────────────────────────────
+ * Three levels, and a level picks ONE separation method:
+ *   0 — the page: --bg, nothing else.
+ *   1 — content sitting on it (cards, tables, panels): border, NO shadow.
+ *   2 — content floating over it (modal, dropdown, popover): shadow, NO border.
+ * Border + shadow together is the tell of a template. */
+.elev-1 {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.elev-2 {
+  background: var(--surface);
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+/* Click-to-copy log/error feedback (see $lib/ui/copyLog.js). */
+[data-copied] {
+  color: var(--green) !important;
+}
+[data-copied]::after {
+  content: ' ✓ copied';
+  color: var(--green);
+  font-size: 0.85em;
+}

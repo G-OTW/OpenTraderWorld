@@ -1,0 +1,587 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Component layer — the unified look for every interactive control.
+ *
+ * Loaded globally after default.css. Class names intentionally match the
+ * conventions modules already use (`primary`, `ghost`, `danger`, `icon`,
+ * `chip`, …) so adopting the layer means *deleting* local styles, not
+ * rewriting markup. Svelte-scoped rules still win when a module genuinely
+ * needs a variation — keep those rare.
+ *
+ * Controls sit on the type scale (--text-sm) at a compact 32px height.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --control-h: 32px;
+  --control-fs: var(--text-sm);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ── Text inputs / selects / textareas ──────────────────────────────────────
+ * Element-level defaults: any bare control is already on-theme. */
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+select,
+textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--control-fs);
+  padding: 0 var(--space-3);
+  height: var(--control-h);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+textarea {
+  height: auto;
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  line-height: 1.45;
+}
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+}
+input:not([type='checkbox']):not([type='radio']):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Native select: replace the OS arrow with a theme chevron. The chevron is a
+   currentColor mask (tinted to --muted) so it tracks light/dark automatically. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: calc(var(--space-3) + 18px);
+  background-image: none;
+  cursor: pointer;
+  position: relative;
+}
+.select-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.select-wrap::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* Bare selects (not wrapped) still get a chevron via a background mask fallback. */
+select:not([multiple]) {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 13px center,
+    right 8px center;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+.select-wrap select:not([multiple]) {
+  background-image: none;
+}
+select[multiple] {
+  height: auto;
+  background-image: none;
+  padding: var(--space-2);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+/* Date/time pickers inherit the root color-scheme (light or dark per theme),
+   so the native calendar/clock popup matches the active theme automatically. */
+
+/* ── Buttons ────────────────────────────────────────────────────────────────
+ * .btn = neutral. Variants stack on <button>: primary / danger / ghost / icon.
+ * `.sm` shrinks any of them. */
+
+.btn,
+button.primary,
+button.danger,
+button.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--control-fs);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 88%, var(--accent));
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+  color: var(--red);
+}
+button.danger:hover {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border-color: var(--red);
+}
+
+/* Solid destructive confirm (modals): primary weight, red hue. */
+button.primary.danger {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--red-contrast);
+}
+button.primary.danger:hover {
+  background: color-mix(in srgb, var(--red) 88%, #fff);
+  border-color: color-mix(in srgb, var(--red) 88%, #fff);
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+button.ghost:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+button.ghost.danger {
+  color: var(--red);
+}
+button.ghost.danger:hover {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+/* Square icon-only button (edit/delete/close row actions). */
+button.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--control-fs);
+}
+button.icon:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+button.icon.danger-hover:hover {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+}
+
+.btn.sm,
+button.sm {
+  height: 26px;
+  padding: 0 var(--space-3);
+  font-size: 0.78rem;
+}
+
+.btn:disabled,
+button.primary:disabled,
+button.danger:disabled,
+button.ghost:disabled,
+button.icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Inline text-link button (table row actions). */
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+button.link:hover {
+  text-decoration: underline;
+}
+button.link.danger {
+  color: var(--red);
+}
+
+/* ── Chips (pill filter toggles) ───────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.chip:hover {
+  border-color: var(--accent);
+}
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* ── Badges / tags (non-interactive pills) ─────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* The tint and border take the raw hue (they are fills, >=3:1 is the bar); the label
+   takes --*-ink. At --text-xs the label is small text, so it needs 4.5:1 — and the raw
+   hue on its own pale tint gives only 2.9:1 (amber) / 3.1:1 (green) / 4.1:1 (red) in the
+   light theme. The ink is the same hue darkened until it clears. */
+.badge.green {
+  color: var(--green-ink);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--border));
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+.badge.red {
+  color: var(--red-ink);
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+.badge.amber {
+  color: var(--amber-ink);
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--border));
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+.badge.accent {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* ── Data tables ───────────────────────────────────────────────────────── */
+
+/* Used by 15 files. Table.svelte is the primitive for tables that need sorting or
+   a sticky header; this layer stays for the plain ones, and the two are kept
+   visually identical (same row height, same hairlines, same figures) so a page
+   migrating from one to the other doesn't shift. */
+table.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+table.tbl th {
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: var(--muted);
+  line-height: var(--lh-tight);
+  height: var(--row-h);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table.tbl td {
+  height: var(--row-h);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  vertical-align: middle;
+}
+table.tbl tbody tr:hover {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+/* Right-aligned AND tabular: prices only line up when both are true. */
+table.tbl .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Cards / empty states / form scaffolding ───────────────────────────── */
+
+/* Level 1: rests on the page, so a border and no shadow. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+/* Section heading inside a card. Every settings panel was redeclaring this. */
+.card h3 {
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+
+/* A card's row list: one bordered row per item, action on the right.
+   <ul class="card-list"><li>…<button class="icon">…</button></li></ul> */
+.card-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.card-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+
+.empty {
+  color: var(--muted);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+/* Label-above-control field. <label class="field"><span>Name</span><input/></label> */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+.field > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+}
+
+/* Two-column responsive form grid. */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+/* Muted helper text. */
+.hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-base);
+}
+
+/* ── Filter bar ────────────────────────────────────────────────────────────
+ * One row of controls above a table or chart. Level 1 — it rests on the page.
+ *   <section class="filter-bar">
+ *     <input …><select …><label class="date">From <input type="date"></label>
+ *     <div class="filter-clear"><Button …/></div>
+ *   </section>
+ * The date labels are quiet: no uppercase, no letter-spacing — a filter row is
+ * scaffolding, and scaffolding should not shout over the data it filters. */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.filter-bar .date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: var(--muted);
+}
+/* Pushes the clear button to the far end of the row. */
+.filter-bar .filter-clear {
+  margin-left: auto;
+}
+
+/* ── Page header (title + subtitle + actions) ──────────────────────────────
+ * <div class="page-head"><div><h1>…</h1><p class="sub">…</p></div>
+ *   <div class="actions">…</div></div>
+ *
+ * Legacy layer: PageHeader.svelte is the primitive now. Kept on the scale so the
+ * not-yet-migrated pages match the ones that are; delete when the last page has
+ * moved to the component. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+.page-head > :first-child {
+  min-width: 0;
+}
+.page-head h1 {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--lh-tight);
+  margin: 0;
+}
+.page-head .sub {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  margin-top: 2px;
+}
+.page-head .actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* ── Stat card (KPI tile) ──────────────────────────────────────────────────
+ * <div class="stat"><span class="k">Label</span><span class="v">42</span>
+ *   <span class="d pos">▲ 3%</span></div>
+ * .pos/.neg tint the delta with PnL semantics (green/red only).
+ *
+ * Legacy layer: StatCard.svelte is the primitive now (and carries the sign as a
+ * glyph, which this does not). Kept on the scale for the pages still using it. */
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.stat .k {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+}
+.stat .v {
+  font-size: var(--text-xl);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+}
+.stat .d {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.pos {
+  color: var(--green);
+}
+.neg {
+  color: var(--red);
+}
+
+/* ── Tabs (see Tabs.svelte for the interactive wrapper) ────────────────────
+ * Underline style; the active tab carries the accent. */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: var(--text-base);
+  font-weight: var(--fw-medium);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tabs button:hover {
+  color: var(--text);
+}
+.tabs button[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Toast (see Toast.svelte) ──────────────────────────────────────────────
+ * Ephemeral status message. .ok / .err / .warn set the accent stripe. */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.toast.ok {
+  border-left-color: var(--green);
+}
+.toast.err {
+  border-left-color: var(--red);
+}
+.toast.warn {
+  border-left-color: var(--amber);
+}

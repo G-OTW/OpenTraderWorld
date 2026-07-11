@@ -1,0 +1,124 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Auth card — the shell for every signed-out screen (login, signup, setup,
+ * verify, reset, change-password). First thing a stranger sees, so it carries
+ * the design system rather than seven copies of a link style.
+ *
+ * The card is level 1: it rests on the page, so it takes a border and no shadow.
+ * Everything below sizes off the type scale; nothing here hardcodes a value.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+}
+
+.auth-card h1 {
+  color: var(--text);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+/* Lead paragraph under the title. Also carries the post-submit confirmations
+   ("we sent you a link"), so it reads as prose, not as a label. */
+.auth-card .sub {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-base);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.auth-card .sub strong {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.auth-card label {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  margin-bottom: var(--space-1);
+  margin-top: var(--space-4);
+}
+
+/* Taller than the app's compact 32px control: a signed-out form is the one place
+   with room to breathe, and a bigger target is friendlier on a phone. */
+.auth-card input {
+  width: 100%;
+  height: 38px;
+  font-size: var(--text-base);
+}
+
+/* The single primary action. Full width, because there is nothing to weigh it
+   against on this screen. Matched on the class, not on [type=submit]: a screen's
+   primary action isn't always a submit (reset-password's "Go to sign in" ends a
+   flow), and the rule should say the intent, not the HTML attribute. */
+.auth-card .primary {
+  width: 100%;
+  margin-top: var(--space-6);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: var(--radius);
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.auth-card .primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.auth-card .primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Error text sits under the fields, above the action: you read the problem
+   before you reach for the button again. The colour and size now come from
+   <ErrorText> (.ui-error, `compact`); only the spacing is the card's business. */
+.auth-card .ui-error {
+  margin-top: var(--space-4);
+}
+
+/* ── Links ──────────────────────────────────────────────────────────────────
+ * Every auth screen ends in one or two escape hatches ("forgot password?",
+ * "already have an account?"). They were copied per-page; they live here now.
+ *   .links — a row, space-between (login: reset | signup)
+ *   .alt   — one centered line
+ *   .link  — a lone inline link (verify-email's "back to sign in") */
+
+.auth-card .links {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.auth-card .alt {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+.auth-card .link {
+  display: inline-block;
+  margin-top: var(--space-4);
+}
+
+.auth-card .links a,
+.auth-card .alt a,
+.auth-card a.link {
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+.auth-card .links a:hover,
+.auth-card .alt a:hover,
+.auth-card a.link:hover {
+  text-decoration: underline;
+}
