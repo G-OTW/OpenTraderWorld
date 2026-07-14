@@ -1,0 +1,46 @@
+[package]
+name = "otw-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld core service: orchestrator + HTTP/WS API"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower = { workspace = true, features = ["util"] }
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "time"] }
+time = { version = "0.3", features = ["parsing", "formatting", "macros"] }
+reqwest.workspace = true
+async-trait = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+argon2 = { version = "0.5", features = ["std"] }
+getrandom = "0.3"
+tokio-util = { version = "0.7", features = ["io"] }
+uuid = { version = "1", features = ["v4"] }
+# Doc submission relay: inline /api/files/{id} images as data: URIs.
+base64 = "0.22"
+axum-extra = { version = "0.12", features = ["cookie"] }
+# FinanceDatabase import: download a zstd-compressed tarball of CSVs and bulk-load it.
+zstd = "0.13"
+tar = "0.4"
+csv = "1"
+# External reminder notifications: SMTP e-mail. rustls to match reqwest (no native-tls).
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+
+otw-scheduler = { path = "../otw-scheduler" }
+otw-runner = { path = "../otw-runner" }
+otw-modules = { path = "../otw-modules" }
+otw-store = { path = "../otw-store" }
+otw-queue = { path = "../otw-queue" }
+otw-i18n = { path = "../otw-i18n" }
+otw-theme = { path = "../otw-theme" }

@@ -1,0 +1,23 @@
+[package]
+name = "otw-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld: Durable persistence over PostgreSQL (registry, jobs, notes/doc page)"
+
+[dependencies]
+sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "time", "json"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+serde.workspace = true
+serde_json.workspace = true
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+anyhow.workspace = true
+tracing.workspace = true
+# For the fire-and-forget rate-tracking recorder (detached tokio::spawn).
+tokio.workspace = true
+
+# Secret encryption at rest (AEAD) + key derivation from the master key.
+chacha20poly1305 = "0.10"
+sha2 = "0.10"
+getrandom = "0.3"

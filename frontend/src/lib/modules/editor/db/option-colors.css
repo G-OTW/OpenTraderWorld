@@ -1,0 +1,94 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Select-option chip colors (database column options).
+ *
+ * These seven hues are a *functional* palette: a user assigns one to an option
+ * value and the name is user-facing ("red", "green"). They are deliberately not
+ * the --chart-* ramp, which is ordered and assigned by the app.
+ *
+ * `.opt-chip`, not `.chip`: this file is imported by Database.svelte but its
+ * rules are global, so a plain `.chip` silently restyled the filter pills that
+ * theme/components.css owns — on every page that happened to render a database.
+ *
+ * Each chip is a translucent wash of its hue over the page surface plus a text
+ * color that must clear 4.5:1 against that composite. One text color cannot do
+ * that on both surfaces: the original set (#cbd5e1, #fca5a5, …) was tuned for a
+ * dark ground and measured 1.1–1.4:1 on white — the chips were invisible in the
+ * light theme. So the ink is a per-theme token. Ratios below are against the
+ * composited background, not the raw hue.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme='light'] {
+  /* Dark ink on a pale wash. All >= 4.5:1. */
+  --chip-slate-ink: #566478;
+  --chip-red-ink: #b33333;
+  --chip-amber-ink: #935f07;
+  --chip-green-ink: #157839;
+  --chip-blue-ink: #2c60b6;
+  --chip-violet-ink: #6e49c2;
+  --chip-pink-ink: #aa346e;
+}
+
+[data-theme='dark'] {
+  /* Light ink on a dark wash. All >= 7:1. */
+  --chip-slate-ink: #cbd5e1;
+  --chip-red-ink: #fca5a5;
+  --chip-amber-ink: #fcd34d;
+  --chip-green-ink: #86efac;
+  --chip-blue-ink: #93c5fd;
+  --chip-violet-ink: #c4b5fd;
+  --chip-pink-ink: #f9a8d4;
+}
+
+/* Follow the OS when no explicit choice is stamped (see theme/default.css). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --chip-slate-ink: #cbd5e1;
+    --chip-red-ink: #fca5a5;
+    --chip-amber-ink: #fcd34d;
+    --chip-green-ink: #86efac;
+    --chip-blue-ink: #93c5fd;
+    --chip-violet-ink: #c4b5fd;
+    --chip-pink-ink: #f9a8d4;
+  }
+}
+
+.opt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.opt-chip.slate {
+  background: color-mix(in srgb, #64748b 22%, transparent);
+  color: var(--chip-slate-ink);
+}
+.opt-chip.red {
+  background: color-mix(in srgb, #ef4444 22%, transparent);
+  color: var(--chip-red-ink);
+}
+.opt-chip.amber {
+  background: color-mix(in srgb, #f59e0b 24%, transparent);
+  color: var(--chip-amber-ink);
+}
+.opt-chip.green {
+  background: color-mix(in srgb, #22c55e 22%, transparent);
+  color: var(--chip-green-ink);
+}
+.opt-chip.blue {
+  background: color-mix(in srgb, #3b82f6 24%, transparent);
+  color: var(--chip-blue-ink);
+}
+.opt-chip.violet {
+  background: color-mix(in srgb, #8b5cf6 24%, transparent);
+  color: var(--chip-violet-ink);
+}
+.opt-chip.pink {
+  background: color-mix(in srgb, #ec4899 24%, transparent);
+  color: var(--chip-pink-ink);
+}
