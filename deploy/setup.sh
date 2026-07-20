@@ -17,21 +17,43 @@ ENV_FILE="$SCRIPT_DIR/.env"
 
 # Install mode: pull published images (default) or build from source (--build).
 BUILD_FROM_SOURCE=0
+# Accept every prompt's default without a terminal (CI, `curl | bash` with no tty).
+ASSUME_DEFAULTS="${OTW_ASSUME_YES:-0}"
+# Remove leftover data volumes without asking. Destroys the previous database.
+WIPE_VOLUMES=0
 for arg in "$@"; do
   case "$arg" in
     --build) BUILD_FROM_SOURCE=1 ;;
+    -y|--yes) ASSUME_DEFAULTS=1 ;;
+    --wipe-volumes) WIPE_VOLUMES=1 ;;
     -h|--help) grep -E '^# (Usage|        )' "$0" | sed 's/^# //'; exit 0 ;;
     *) echo "Unknown option: $arg (see --help)" >&2; exit 1 ;;
   esac
 done
 
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
+die()  { printf 'error: %s\n' "$1" >&2; exit 1; }
 info() { printf '  %s\n' "$1"; }
 
 # Prompt with a default: prompt_default VAR "Question" "default"
+# On EOF (no terminal, e.g. `curl | bash` without a tty) `read` returns non-zero with an
+# empty answer, which is indistinguishable from the user pressing enter. Silently taking
+# defaults there invents an admin account and a network mode nobody chose, so stop instead
+# and point at the non-interactive escape hatch.
 prompt_default() {
   local __var="$1" __q="$2" __def="$3" __ans
-  read -r -p "$__q [$__def]: " __ans || true
+  if ! read -r -p "$__q [$__def]: " __ans; then
+    if [[ "$ASSUME_DEFAULTS" == "1" ]]; then
+      printf '\n'
+      info "No terminal — using default for \"$__q\": ${__def:-<empty>}"
+      printf -v "$__var" '%s' "$__def"
+      return 0
+    fi
+    printf '\n' >&2
+    die "no terminal to read \"$__q\" from.
+  Run setup from a terminal, or re-run with --yes to accept every default:
+    cd $SCRIPT_DIR && ./setup.sh --yes"
+  fi
   printf -v "$__var" '%s' "${__ans:-$__def}"
 }
 
@@ -81,7 +103,13 @@ if [[ -n "$EXISTING_VOLS" ]]; then
   info "Docker volumes from a previous install were found:"
   while IFS= read -r __v; do [[ -n "$__v" ]] && info "  - $__v"; done <<< "$EXISTING_VOLS"
   info "Wiping deletes all previous data (database, uploads) for a clean install."
-  prompt_default CLEAN_VOLS "Remove these volumes before installing? (y/N)" "N"
+  info "Keeping them only works if you also keep the previous .env (same DB password)."
+  if [[ "$WIPE_VOLUMES" == "1" ]]; then
+    info "--wipe-volumes given — removing without asking."
+    CLEAN_VOLS=y
+  else
+    prompt_default CLEAN_VOLS "Remove these volumes before installing? (y/N)" "N"
+  fi
   case "$CLEAN_VOLS" in
     [yY])
       info "Removing volumes…"
@@ -289,15 +317,21 @@ case "$START_NOW" in
       info "A database volume from a previous install exists (${COMPOSE_PROJECT}_postgres-data)."
       info "It still holds the OLD database password, which won't match the freshly generated"
       info "secrets — core would fail to start. A clean install must start from an empty volume."
-      prompt_default WIPE_VOL "Wipe existing data volumes for a clean install? (y/N)" "N"
+      if [[ "$WIPE_VOLUMES" == "1" ]]; then
+        WIPE_VOL=y
+      else
+        prompt_default WIPE_VOL "Wipe existing data volumes for a clean install? (y/N)" "N"
+      fi
       case "$WIPE_VOL" in
         [yY])
           info "Removing old volumes…"
           ( cd "$SCRIPT_DIR" && $COMPOSE down -v --remove-orphans >/dev/null 2>&1 || true )
           ;;
         *)
-          echo "Keeping the old volume — core will likely fail auth. Reuse the previous .env," >&2
-          echo "or re-run and choose to wipe. Aborting to avoid a broken stack." >&2
+          echo "Keeping the old volume — core will likely fail auth. Aborting to avoid a" >&2
+          echo "broken stack. To start clean (DELETES the previous database and uploads):" >&2
+          echo "    cd $SCRIPT_DIR && ./setup.sh --wipe-volumes" >&2
+          echo "To keep your data instead, restore the previous .env and re-run ./setup.sh." >&2
           exit 1
           ;;
       esac

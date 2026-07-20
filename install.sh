@@ -22,6 +22,8 @@ REPO="${OTW_REPO:-G-OTW/OpenTraderWorld}"
 REF="${OTW_REF:-master}"
 DIR="${OTW_DIR:-$PWD/opentraderworld}"
 BUILD=0
+# Flags forwarded verbatim to deploy/setup.sh.
+SETUP_ARGS=()
 
 bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 info() { printf '  %s\n' "$1"; }
@@ -48,6 +50,8 @@ while [[ $# -gt 0 ]]; do
     --dir)   [[ $# -ge 2 ]] || die "--dir needs a path"; DIR="$2"; shift 2 ;;
     --ref)   [[ $# -ge 2 ]] || die "--ref needs a branch or tag"; REF="$2"; shift 2 ;;
     --build) BUILD=1; shift ;;
+    -y|--yes) SETUP_ARGS+=(--yes); shift ;;
+    --wipe-volumes) SETUP_ARGS+=(--wipe-volumes); shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
@@ -73,10 +77,17 @@ fi
 # ── Target directory ──
 # Never touch an existing install: extracting over it would clobber network.env /
 # dns.env (rewritten in-app by Settings → Network). Re-runs go through setup.sh.
-if [[ -e "$DIR/deploy/setup.sh" ]]; then
-  die "an install already exists in $DIR — re-run its own setup instead: cd $DIR/deploy && ./setup.sh"
+# A configured install (.env written) is never touched — extracting over it would clobber
+# network.env / dns.env. Deploy files without an .env are a partial/aborted install, which
+# is safe to re-extract: that's the retry path after setup bailed out.
+if [[ -f "$DIR/deploy/.env" ]]; then
+  die "a configured install already exists in $DIR — re-run its own setup instead:
+    cd $DIR/deploy && ./setup.sh"
 fi
-if [[ -d "$DIR" ]] && [[ -n "$(ls -A "$DIR" 2>/dev/null)" ]]; then
+if [[ -e "$DIR/deploy/setup.sh" ]]; then
+  info "Found deploy files from an earlier attempt (no .env) — refreshing them."
+  rm -rf "$DIR/deploy"
+elif [[ -d "$DIR" ]] && [[ -n "$(ls -A "$DIR" 2>/dev/null)" ]]; then
   die "$DIR exists and is not empty — pick another location with --dir"
 fi
 
@@ -110,7 +121,7 @@ fi
 
 cd "$DIR"
 if [[ "$BUILD" == "1" ]]; then
-  exec bash deploy/setup.sh --build
+  exec bash deploy/setup.sh --build ${SETUP_ARGS+"${SETUP_ARGS[@]}"}
 else
-  exec bash deploy/setup.sh
+  exec bash deploy/setup.sh ${SETUP_ARGS+"${SETUP_ARGS[@]}"}
 fi
