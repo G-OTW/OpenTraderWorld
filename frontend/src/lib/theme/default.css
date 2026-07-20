@@ -1,0 +1,400 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Default theme — design tokens (institutional finance restyle).
+ *
+ * Direction: sober, dense, precise — terminal / fact-sheet, not dashboard-toy.
+ * No decorative elements, no gradients, no shadows, no glow, no hover-scale.
+ * Radius is 0 everywhere; separation is done with hairline filets. A single
+ * accent (muted gold) is spent ONLY on the active nav item, status dots, the
+ * equity curve, and the icon of a promoted cell — nowhere else.
+ *
+ * Theming is a swappable layer: a theme = one token set. This file ships TWO —
+ * a light institutional default (`:root` / `[data-theme='light']`) and the dark
+ * variant (`[data-theme='dark']`) whose palette is the exact prompt spec. The
+ * shell stamps `data-theme` on <html> from the user's choice (Light / Dark /
+ * System); `system` resolves via `prefers-color-scheme`. Components consume
+ * these variables, never hardcode colors/spacing.
+ *
+ * Shadows are kept as variables set to `none` so no rule that references them
+ * breaks — but they render nothing. Same for --glow (transparent).
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Fonts (self-hosted, /static/fonts) ─────────────────────────────────────── */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* ── Light (default) — institutional light derivation ───────────────────────── */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces — paper-white, one faint step for the active/hover cell. */
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f4f3ef; /* active / hover cell */
+
+  /* Filets. --border = separators; --border-control = control outlines. */
+  --border: #e2e1db;
+  --border-control: #d4d3cc;
+
+  /* Text ramp: principal → secondary → dim (labels) → faint (index/placeholder). */
+  --text: #1a1b1e;
+  --muted: #5c5f66;
+  --dim: #7a7d84; /* labels, descriptions */
+  --faint: #a8aab0; /* index, placeholders, empty values "—" */
+
+  /* Accent = gold, darkened for contrast on white. Positive = darkened sage,
+     negative = darkened brick. Never used as an accent for anything else. */
+  --accent: #9a7b34;
+  --accent-contrast: #ffffff; /* ink that sits ON an --accent fill */
+  --accent-hover: color-mix(in srgb, var(--accent) 84%, #000);
+  --green: #4f8a68; /* sage, darkened for light bg */
+  --amber: #9a7b34; /* aligned with gold family, desaturated */
+  --red: #b05548; /* brick, darkened for light bg */
+
+  /* --*-ink: the hue as small TEXT on its own tint. --*-contrast: ink on a solid
+     fill of the hue. On white these are the hues darkened just enough to read. */
+  --green-ink: #3f7256;
+  --amber-ink: #7d6329;
+  --red-ink: #964639;
+  --green-contrast: #ffffff;
+  --amber-contrast: #ffffff;
+  --red-contrast: #ffffff;
+
+  /* Categorical chart series — muted, desaturated tones only (no saturated
+     cyan/indigo). Fixed order, assigned by entity, never cycled; a 9th folds
+     into "Other". Gold leads (main series). */
+  --chart-1: #9a7b34; /* gold */
+  --chart-2: #4f8a68; /* sage */
+  --chart-3: #b05548; /* brick */
+  --chart-4: #5f6b7a; /* slate blue-grey */
+  --chart-5: #8a7d5c; /* khaki */
+  --chart-6: #6d6b74; /* mauve-grey */
+  --chart-7: #7c8a72; /* olive-grey */
+  --chart-8: #a08558; /* tan */
+
+  /* Diverging scale (signed midpoint) — muted brick ↔ neutral ↔ muted sage. */
+  --diverge-neg: #b05548;
+  --diverge-mid: #ecebe6;
+  --diverge-pos: #4f8a68;
+
+  /* Horizontal chart gridline. */
+  --grid-line: #ececea;
+
+  /* Depth: kept as variables, but institutional look has NO shadows. */
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+
+  /* No ambient glow. */
+  --glow: transparent;
+
+  /* Spacing scale (unchanged; 5/7 intentionally absent) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Radius & type. Font stacks follow the spec order exactly: the intended face
+     leads so it wins when present, falling back to platform faces. Aliases
+     --font-ui / --font-mono mirror the spec's token names. */
+  --radius: 0;
+  --radius-lg: 0;
+  --font: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --font-ui: var(--font);
+  --font-mono: var(--mono);
+
+  /* ── Filets (spec) ─────────────────────────────────────────────────────────
+     Hairline separators are 0.5px; the active-item rule (side/underline) 1.5px. */
+  --hairline: 0.5px;
+  --active-rule: 1.5px;
+
+  /* ── Spec type scale ───────────────────────────────────────────────────────
+     Semantic, exact-px sizes from the design spec. Kept alongside the general
+     --text-* ramp (below): components that must match the spec pixel-for-pixel
+     reference these; the ramp remains for existing generic body/table text. */
+  --fs-page-title: 18px; /* page titles — weight 500 */
+  --fs-item-title: 13.5px; /* item titles — weight 500, ls 0.02em */
+  --fs-body: 12px; /* nav, controls */
+  --fs-desc: 11.5px; /* descriptions — color var(--dim) */
+  --fs-metric-label: 10px; /* UPPERCASE, ls 0.06em, color var(--dim) */
+  --fs-metric-value: 15px; /* monospace */
+  --fs-brand: 12.5px; /* UPPERCASE, ls 0.14em */
+  --fs-section: 9.5px; /* sidebar section titles — mono, UPPER, ls 0.12em */
+  --fs-axis: 10px; /* chart axes — mono, color var(--dim) */
+
+  /* ── Spec spacing (paddings) ───────────────────────────────────────────────── */
+  --pad-tile: 20px 24px; /* module grid cells */
+  --pad-metric: 14px 16px; /* metric cells */
+  --pad-nav: 8px 18px; /* sidebar items */
+  --pad-header: 16px 28px;
+
+  /* Layout */
+  --rail-width: 220px;
+  --topbar-height: 56px;
+
+  /* ── Type scale ──────────────────────────────────────────────────────────── */
+  --text-xs: 0.75rem; /* 12px — table labels, meta, timestamps */
+  --text-sm: 0.8125rem; /* 13px — dense body, table cells */
+  --text-base: 0.875rem; /* 14px — app body default */
+  --text-md: 1rem; /* 16px — section subtitles */
+  --text-lg: 1.1875rem; /* 19px — page titles */
+  --text-xl: 1.25rem; /* 20px — key figures (mono) */
+
+  /* Weights: two only — 400 and 500. NEVER 600/700. --fw-semibold aliases 500
+     so any legacy reference stays on-system. */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 500;
+  /* Spec token names (two weights only). --w-regular = 400, --w-medium = 500. */
+  --w-regular: var(--fw-normal);
+  --w-medium: var(--fw-medium);
+
+  /* Line heights */
+  --lh-tight: 1.25;
+  --lh-base: 1.5;
+
+  /* ── Density ─────────────────────────────────────────────────────────────── */
+  --row-h: 34px;
+  --row-h-lg: 42px;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────── */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease: ease-out;
+
+  /* ── Z-index scale ───────────────────────────────────────────────────────── */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+/* ── Dark — EXACT prompt palette ────────────────────────────────────────────── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0c0d10;
+  --surface: #0c0d10;
+  --surface-2: #101115; /* active / hover cell */
+
+  --border: #24262c; /* separators / filets */
+  --border-control: #2a2d34; /* control outlines */
+
+  --text: #edebe6;
+  --muted: #8b8e96;
+  --dim: #6e7178; /* labels, descriptions */
+  --faint: #4a4d54; /* index, placeholders, empty values "—" */
+
+  --accent: #c9a45c; /* gold */
+  --accent-contrast: #0c0d10;
+  --accent-hover: color-mix(in srgb, var(--accent) 82%, #fff);
+  --green: #7fb894; /* sage */
+  --amber: #b79a6b; /* desaturated */
+  --red: #c9776b; /* brick */
+
+  --green-ink: #7fb894;
+  --amber-ink: #b79a6b;
+  --red-ink: #c9776b;
+  --green-contrast: #0c0d10;
+  --amber-contrast: #0c0d10;
+  --red-contrast: #0c0d10;
+
+  --chart-1: #c9a45c; /* gold */
+  --chart-2: #7fb894; /* sage */
+  --chart-3: #c9776b; /* brick */
+  --chart-4: #7d8a99; /* slate blue-grey */
+  --chart-5: #b7a878; /* khaki */
+  --chart-6: #9a95a3; /* mauve-grey */
+  --chart-7: #93a389; /* olive-grey */
+  --chart-8: #bfa06f; /* tan */
+
+  --diverge-neg: #c9776b;
+  --diverge-mid: #1b1d22;
+  --diverge-pos: #7fb894;
+
+  --grid-line: #1b1d22;
+
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: none;
+  --glow: transparent;
+}
+
+/* System preference: when no explicit choice is stamped, follow the OS — aligned
+   with the dark block above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --bg: #0c0d10;
+    --surface: #0c0d10;
+    --surface-2: #101115;
+
+    --border: #24262c;
+    --border-control: #2a2d34;
+
+    --text: #edebe6;
+    --muted: #8b8e96;
+    --dim: #6e7178;
+    --faint: #4a4d54;
+
+    --accent: #c9a45c;
+    --accent-contrast: #0c0d10;
+    --accent-hover: color-mix(in srgb, var(--accent) 82%, #fff);
+    --green: #7fb894;
+    --amber: #b79a6b;
+    --red: #c9776b;
+
+    --green-ink: #7fb894;
+    --amber-ink: #b79a6b;
+    --red-ink: #c9776b;
+    --green-contrast: #0c0d10;
+    --amber-contrast: #0c0d10;
+    --red-contrast: #0c0d10;
+
+    --chart-1: #c9a45c;
+    --chart-2: #7fb894;
+    --chart-3: #c9776b;
+    --chart-4: #7d8a99;
+    --chart-5: #b7a878;
+    --chart-6: #9a95a3;
+    --chart-7: #93a389;
+    --chart-8: #bfa06f;
+
+    --diverge-neg: #c9776b;
+    --diverge-mid: #1b1d22;
+    --diverge-pos: #7fb894;
+
+    --grid-line: #1b1d22;
+
+    --shadow-1: none;
+    --shadow-2: none;
+    --shadow-3: none;
+    --glow: transparent;
+  }
+}
+
+/* ── Global element polish (theme-scoped quality layer) ─────────────────────── */
+
+/* Monospace utility: opt any element into the figure font + tabular alignment. */
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Discreet selection — no bright accent wash. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Thin, recessive scrollbars that match the surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus: a single hairline of accent, no offset. Never a bare
+   `outline: none`. */
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 0;
+}
+
+/* Form controls inherit the app font (browsers default them to system UI). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Micro-transitions on interactive elements — snappy, never sluggish. */
+button,
+a {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* Respect the OS setting globally: any component animation collapses to instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Figures align in every data table. `.num` opts any element outside a table
+   into the same alignment. */
+table,
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Elevation discipline ───────────────────────────────────────────────────
+ * Institutional: separation is ALWAYS a hairline filet — never a shadow.
+ *   1 — content sitting on the page: 0.5px border.
+ *   2 — content floating over it (modal/dropdown): 0.5px border, no shadow. */
+.elev-1 {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+}
+.elev-2 {
+  background: var(--surface);
+  border: 0.5px solid var(--border-control);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+
+/* Click-to-copy log/error feedback (see $lib/ui/copyLog.js). */
+[data-copied] {
+  color: var(--green) !important;
+}
+[data-copied]::after {
+  content: ' ✓ copied';
+  color: var(--green);
+  font-size: 0.85em;
+}
