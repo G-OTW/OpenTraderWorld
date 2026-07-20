@@ -111,13 +111,14 @@ info "Installed deploy files into $DIR"
 echo
 
 # ── Hand off to setup ──
-# Under `curl | bash` stdin is the pipe, not the terminal; reattach it so the
-# setup prompts work. Truly headless (no tty at all): setup.sh falls back to its
-# defaults on every prompt, which yields a localhost install.
-if [[ ! -t 0 ]] && { exec 3</dev/tty; } 2>/dev/null; then
-  exec <&3 3<&-
+# stdin is deliberately left alone: under `curl | bash` it is the pipe, and
+# reattaching it process-wide here did not survive the exec into setup.sh.
+# setup.sh's prompt_default reads from /dev/tty per prompt instead, which works
+# whether or not stdin is a terminal. With no tty at all it stops and points at
+# --yes rather than silently taking defaults.
+if [[ ! -t 0 ]] && ! { : </dev/tty; } 2>/dev/null; then
+  info "No terminal available — setup will stop at its first prompt; re-run with --yes to accept defaults."
 fi
-[[ -t 0 ]] || info "No terminal detected — setup will use its defaults (localhost install)."
 
 cd "$DIR"
 if [[ "$BUILD" == "1" ]]; then

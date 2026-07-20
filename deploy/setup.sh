@@ -42,6 +42,17 @@ info() { printf '  %s\n' "$1"; }
 # and point at the non-interactive escape hatch.
 prompt_default() {
   local __var="$1" __q="$2" __def="$3" __ans
+  # Read straight from the controlling terminal when stdin isn't one. Under
+  # `curl | bash` stdin is the pipe, but a real terminal is still reachable at
+  # /dev/tty — per-read redirection is far more robust than reattaching stdin
+  # process-wide, which breaks across the exec into this script.
+  if [[ ! -t 0 ]] && { : </dev/tty; } 2>/dev/null; then
+    printf '%s [%s]: ' "$__q" "$__def" > /dev/tty 2>/dev/null
+    if IFS= read -r __ans < /dev/tty; then
+      printf -v "$__var" '%s' "${__ans:-$__def}"
+      return 0
+    fi
+  fi
   if ! read -r -p "$__q [$__def]: " __ans; then
     if [[ "$ASSUME_DEFAULTS" == "1" ]]; then
       printf '\n'
