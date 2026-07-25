@@ -1,0 +1,73 @@
+# ── Secrets & config (M3: config files kept secret) ──────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+secrets/
+**/secrets/
+*.key
+*.pem
+*.secret
+dns.env
+# Demo sandbox env (throwaway values + the $0-credit LLM key) — only the .example ships.
+demo.env
+# User-managed at runtime (Settings → Network rewrites it). Not tracked, so
+# `git reset --hard` on update never clobbers the operator's chosen bind/port/domain.
+network.env
+
+# ── Runtime data / volumes ───────────────────────────────────────────────────
+data/
+**/data/
+postgres-data/
+redis-data/
+caddy-data/
+caddy-config/
+
+# ── Rust ─────────────────────────────────────────────────────────────────────
+/core/target/
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# ── Node / SvelteKit frontend ────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+.svelte-kit/
+frontend/build/
+frontend/.vercel/
+dist/
+*.tsbuildinfo
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.git/
+.claude/
+.vscode/
+__pycache__/
+.gitleaks.toml
+CLAUDE.md
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── ProjectSpecs ─────────────────────────────────────────────────────────────────────
+ProjectSpecs/
+
+# ── FinanceDatabase data archive (built by scripts/build-findb.sh, shipped as a
+#    GitHub Release asset — never committed) ───────────────────────────────────
+findb.tar.zst
+
+# ── Backup ─────────────────────────────────────────────────────────────────────
+otw-backup-*.sql.gpg
+
+# Docs site (VitePress)
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
