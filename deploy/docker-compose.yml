@@ -1,0 +1,148 @@
+# OpenTraderWorld — Phase 0 stack.
+#
+#   cp .env.example .env   # then edit secrets
+#   docker compose --env-file .env --env-file network.env up --build
+#
+# Always pass BOTH env files: .env holds secrets; network.env holds the (secret-free)
+# bind/port/domain that the app rewrites from Settings → Network. Compose interpolates the
+# port mapping from network.env, so it must be on the --env-file list.
+#
+# Brings up: caddy (proxy/TLS) → frontend (static) + core (Rust API) → postgres.
+
+name: opentraderworld
+
+services:
+  # ── Reverse proxy / TLS, serves the SPA and proxies /api to core ─────────────
+  caddy:
+    # Custom image = stock caddy + ACME DNS-challenge plugins (see caddy/Dockerfile),
+    # required by the "LAN + HTTPS" network mode. Built automatically on first `up`.
+    # `image:` names the locally built tag; the image-based install (docker-compose.images.yml)
+    # pulls this same name from Docker Hub instead of building.
+    image: opentraderworld/otw-caddy:latest
+    build:
+      context: ./caddy
+    restart: unless-stopped
+    depends_on:
+      core:
+        condition: service_started
+      frontend:
+        condition: service_completed_successfully
+      dns-proxy:
+        condition: service_started
+    # Network exposure (bind interface, ports, domain) is owned by network.env, which the
+    # app rewrites from Settings → Network. These ${VARS} are interpolated by compose from
+    # network.env — pass it with `--env-file` (see deploy header / restart command).
+    # Defaults below = localhost-only on :5454 if the file is missing.
+    ports:
+      - "${OTW_BIND:-127.0.0.1}:${OTW_HTTP_PORT:-5454}:80"
+      - "${OTW_HTTPS_BIND:-127.0.0.1}:${OTW_HTTPS_PORT:-8443}:443"
+    environment:
+      OTW_DOMAIN: ${OTW_DOMAIN:-:80}
+    # dns.env carries OTW_ACME_GLOBAL (empty, or `acme_dns <provider> <token>` in
+    # LAN + HTTPS mode). Separate from network.env so that file stays secret-free.
+    env_file:
+      - path: ./dns.env
+        required: false
+    # Resolve through the DoH forwarder below (service-name resolution is unaffected):
+    # ISP/router resolvers with DNS-rebind protection silently drop answers pointing
+    # at private IPs — exactly what the domain resolves to in LAN + HTTPS mode — and
+    # some networks also block plain port-53 DNS to third parties, which breaks the
+    # ACME DNS-01 challenge. DNS over HTTPS (port 443) gets past both.
+    dns:
+      - 172.28.53.53
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - web-assets:/srv/www:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # ── Static frontend: builds assets into the shared web-assets volume, then exits ─
+  frontend:
+    image: opentraderworld/otw-frontend:latest
+    build:
+      context: ../frontend
+    volumes:
+      - web-assets:/www
+
+  # ── Core service: Rust/Axum orchestrator + API ──────────────────────────────
+  core:
+    image: opentraderworld/otw-core:latest
+    build:
+      context: ../core
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OTW_CORE_HOST: 0.0.0.0
+      OTW_CORE_PORT: "8080"
+      OTW_LOG: ${OTW_LOG:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      OTW_UPLOAD_DIR: /data/uploads
+      # Secret-free network config core rewrites from Settings → Network (bind-mounted below).
+      OTW_NETWORK_ENV: /config/network.env
+      # ACME DNS-challenge line for Caddy, also rewritten from Settings → Network.
+      OTW_DNS_ENV: /config/dns.env
+      OTW_SECRET_KEY: ${OTW_SECRET_KEY:?set OTW_SECRET_KEY in .env}
+      # First-boot admin bootstrap (headless install). Core creates this admin if none
+      # exists yet; empty/unset = no-op (use the browser wizard instead). Set by setup.sh.
+      OTW_ADMIN_USER: ${OTW_ADMIN_USER:-}
+      OTW_ADMIN_PASSWORD: ${OTW_ADMIN_PASSWORD:-}
+      # FinanceDatabase module: where to fetch the instrument catalog archive on install.
+      # Default points at a GitHub Release asset; GITHUB_TOKEN authenticates private repos.
+      FINDB_ARCHIVE_URL: ${FINDB_ARCHIVE_URL:-}
+      FINDB_ARCHIVE_VERSION: ${FINDB_ARCHIVE_VERSION:-findb-data}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Bearer token added when relaying editor doc submissions to the review site.
+      DOC_SUBMISSION_TOKEN: ${DOC_SUBMISSION_TOKEN:-}
+    volumes:
+      - uploads:/data/uploads
+      # Bind-mount the two app-rewritable network files. The real .env (DB/crypto
+      # secrets) is deliberately NOT mounted here.
+      - ./network.env:/config/network.env
+      - ./dns.env:/config/dns.env
+    expose:
+      - "8080"
+
+  # ── DNS-over-HTTPS forwarder: caddy's resolver (see the `dns:` key up there) ─
+  dns-proxy:
+    image: adguard/dnsproxy:latest
+    restart: unless-stopped
+    command: --listen=0.0.0.0 --port=53 --upstream=https://1.1.1.1/dns-query --upstream=https://1.0.0.1/dns-query
+    networks:
+      default:
+        ipv4_address: 172.28.53.53
+
+  # ── Durable data: modules registry, jobs, notes/doc page ────────────────────
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-otw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-opentraderworld}
+    volumes:
+      # Postgres 18+ expects the mount at /var/lib/postgresql (it stores data in a
+      # version-specific subdirectory). Mounting the old .../data path makes 18 refuse
+      # to start. See docker-library/postgres#37 and PR #1259.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-otw} -d ${POSTGRES_DB:-opentraderworld}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  web-assets:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+  uploads:
+
+# Fixed subnet so dns-proxy can have the pinned address caddy's `dns:` points at
+# (docker's dns option takes an IP, not a service name).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.53.0/24

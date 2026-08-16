@@ -1,0 +1,45 @@
+# Public demo reverse proxy — HTTPS from a PREISSUED origin certificate.
+#
+# NOT the default path. Direct hosting needs none of this: set OTW_DOMAIN and the normal
+# ../Caddyfile issues a Let's Encrypt certificate itself. Use this file only when a CDN or
+# proxy terminates TLS in front and connects to the origin over HTTPS with a certificate
+# it accepts (e.g. Cloudflare Origin CA in SSL mode "Full (strict)").
+#
+# Selected with OTW_CADDYFILE=./Caddyfile.demo in deploy/demo/.env, with the keypair at
+# deploy/demo/certs/origin.pem + origin.key.
+#
+# No ACME here, so nothing renews — the certificate's own lifetime is the deadline.
+#
+# X-Forwarded-For: the proxy in front sends the visitor IP as the first hop and Caddy
+# appends the edge IP, so core's per-IP demo limiter sees the real client. That is only
+# trustworthy while the origin refuses connections from anywhere but that proxy —
+# otherwise anyone can spoof the header and evade the limiter.
+
+{
+	# Caddy would otherwise bind :80 to redirect; the proxy in front handles that.
+	auto_https disable_redirects
+}
+
+{$OTW_DOMAIN} {
+	tls /certs/origin.pem /certs/origin.key
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Content-Security-Policy "frame-ancestors 'none'"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy core:8080
+	}
+
+	handle {
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip zstd
+}
