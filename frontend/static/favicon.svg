@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="OpenTraderWorld">
+  <!-- Concept 2 — Trend line + world: indigo-violet gradient circle, rising trend arrow
+       exiting through a gap at the top-right. -->
+  <defs>
+    <linearGradient id="otw" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Circle with a gap where the arrow exits (arc from 65° around to 25°) -->
+  <path d="M21.49 4.22 A 13 13 0 1 0 27.78 10.51"
+        fill="none" stroke="url(#otw)" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Rising zigzag trend line -->
+  <path d="M5.8 22.2 L12.2 15.8 L15.8 19.4 L24.4 9.6"
+        fill="none" stroke="url(#otw)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Arrowhead poking through the gap -->
+  <path d="M27.5 6.5 L26.08 10.74 L23.26 7.92 Z" fill="#8b5cf6"/>
+</svg>
