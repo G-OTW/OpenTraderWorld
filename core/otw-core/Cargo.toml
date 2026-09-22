@@ -40,7 +40,7 @@ hmac = "0.12"
 # TOTP second factor (RFC 6238, auth::totp): HMAC-SHA1 over a base32 secret, compared in
 # constant time. All three are already transitive dependencies, so this adds no download and
 # no unaudited one-time-password crate.
-sha1 = "0.10"
+sha1 = "0.11"
 data-encoding = "2"
 subtle = "2"
 # Broker accounts: IBKR Flex statements are XML.
