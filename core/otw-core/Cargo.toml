@@ -1,0 +1,95 @@
+[package]
+name = "otw-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld core service: orchestrator + HTTP/WS API"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower = { workspace = true, features = ["util"] }
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "time"] }
+time = { version = "0.3", features = ["parsing", "formatting", "macros"] }
+reqwest.workspace = true
+async-trait = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+# Live market data: WebSocket client. rustls to match reqwest/lettre (no native-tls).
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+argon2 = { version = "0.5", features = ["std"] }
+getrandom = "0.3"
+tokio-util = { version = "0.7", features = ["io", "compat"] }
+uuid = { version = "1", features = ["v4"] }
+# MCP catalog: JSON Schemas for request bodies, generated from the handler structs.
+schemars.workspace = true
+# Doc submission relay: inline /api/files/{id} images as data: URIs.
+base64 = "0.22"
+# Mailbox OAuth: PKCE code challenge; broker account signatures (Binance, Kraken).
+sha2 = "0.10"
+# Broker accounts: the signed-request schemes every exchange uses (HMAC-SHA256/512).
+hmac = "0.12"
+# TOTP second factor (RFC 6238, auth::totp): HMAC-SHA1 over a base32 secret, compared in
+# constant time. All three are already transitive dependencies, so this adds no download and
+# no unaudited one-time-password crate.
+sha1 = "0.10"
+data-encoding = "2"
+subtle = "2"
+# Broker accounts: IBKR Flex statements are XML.
+quick-xml = "0.41"
+# Broker accounts: Coinbase signs one Ed25519 JWT per request (ring is already in the tree
+# under rustls; the key it issues is the seed+public pair `from_seed_and_public_key` takes).
+ring = "0.17"
+axum-extra = { version = "0.12", features = ["cookie"] }
+# FinanceDatabase import: download a zstd-compressed tarball of CSVs and bulk-load it.
+zstd = "0.13"
+tar = "0.4"
+csv = "1"
+# External reminder notifications: SMTP e-mail. rustls to match reqwest (no native-tls).
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+# Mailbox module: IMAP ingest. async-imap speaks futures-io, so tokio streams are bridged
+# with tokio-util's compat layer; TLS is rustls (ring) like everything else here.
+async-imap = { version = "0.11", default-features = false, features = ["runtime-tokio"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
+# Interactive Brokers connector: the TWS/IB Gateway socket protocol. Async (tokio) build;
+# the sync/crossbeam half of the crate is left out.
+#
+# Pinned to 2.x on purpose. The 3.x line negotiates the API handshake as `v213..225`, so it
+# only talks to a very recent gateway and stays silent against anything older (IB Gateway
+# 10.30 included). 2.12 asks for `v100..200`, which every gateway since 2017 answers and a
+# newer one negotiates down to. Compatibility with the installed base beats the protobuf
+# features 3.x adds, none of which this connector uses.
+ibapi = { version = "2.12", default-features = false, features = ["async"] }
+# MIME parsing + HTML sanitising of stored mail bodies.
+mail-parser = "0.11"
+ammonia = "4"
+# Parquet import/export for OHLCV. Arrow is deliberately left out: the row API reads a file
+# into the same string grid every other import uses, and the low-level column writer emits
+# one, so the 40-crate arrow tree buys nothing here. Snappy and zstd are the two codecs a
+# price-history file in the wild is actually written with.
+parquet = { version = "56", default-features = false, features = ["zstd", "snap"] }
+# Parquet's reader takes a `ChunkReader`; `Bytes` is the one an in-memory upload satisfies.
+bytes = "1"
+
+otw-scheduler = { path = "../otw-scheduler" }
+otw-runner = { path = "../otw-runner" }
+otw-modules = { path = "../otw-modules" }
+otw-store = { path = "../otw-store" }
+otw-queue = { path = "../otw-queue" }
+otw-i18n = { path = "../otw-i18n" }
+otw-theme = { path = "../otw-theme" }
+# Automator schedules: IANA timezone database (the workspace uses `time`, which has none).
+time-tz = { version = "2", features = ["db"] }
+
+[dev-dependencies]
+wiremock = "0.6.5"

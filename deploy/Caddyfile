@@ -1,0 +1,68 @@
+# OpenTraderWorld reverse proxy.
+#
+# Serves the static SvelteKit frontend and proxies the API/WS to otw-core (spec §6).
+# {$OTW_DOMAIN} is Caddy's site address, from network.env (rewritten by Settings → Network).
+# `:80` (local/lan modes) = catch-all plain HTTP — no TLS, no self-signed-cert warnings,
+# matches any Host so LAN access by IP works. A real domain (Web/LAN+HTTPS modes) enables
+# Caddy's automatic HTTPS with real certificates. Container always listens on 80/443; the
+# host-side port and bind interface are controlled by the compose port mapping.
+#
+# {$OTW_ACME_GLOBAL} (from dns.env) is empty or `acme_dns <provider> <token>`: LAN + HTTPS
+# mode proves domain ownership via a DNS TXT record instead of an inbound HTTP challenge,
+# so a LAN-only host gets a publicly trusted certificate without exposing anything.
+
+{
+	{$OTW_ACME_GLOBAL:}
+}
+
+{$OTW_DOMAIN::80} {
+	# Access log. Without it an exposed instance cannot answer "did anyone try": the app's
+	# own log records what it did, not what was attempted against it. JSON to stdout, so
+	# `docker compose logs caddy` has it and any collector can parse it.
+	log {
+		output stdout
+		format json
+	}
+
+	# Response hardening, applied to every route (SPA, API, uploaded files).
+	# HSTS is only honoured by browsers over HTTPS, so it is inert — not harmful — in the
+	# plain-HTTP local/lan modes and needs no per-mode switch.
+	#
+	# Note what is NOT here: Content-Security-Policy. The app's real policy is emitted as a
+	# <meta> tag in the built index.html (see frontend/svelte.config.js), because SvelteKit
+	# injects one inline script whose hash changes with every build and a hand-written header
+	# could not keep up — a header here would *intersect* with that meta policy and block the
+	# app's own bootstrap. Only `frame-ancestors` has to be a header (browsers ignore it in a
+	# meta tag), and it is set per route below rather than here: this block wraps the routes,
+	# so a value set here is written last and would overwrite theirs.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	# API + WebSocket → core service.
+	handle /api/* {
+		# Nothing under /api is a document: it is JSON, an event stream, or a stored file
+		# that `files.rs` already forces to octet-stream + attachment. Say so, so a browser
+		# navigated straight at an uploaded file can execute nothing even if some future
+		# content type slips through. `sandbox` is deliberately absent: `default-src 'none'`
+		# already stops any script in such a document, and sandbox has edge cases around
+		# navigations that resolve into downloads, which is exactly what the data export is.
+		header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		reverse_proxy core:8080
+	}
+
+	# Everything else → static frontend (SPA fallback to index.html).
+	handle {
+		# Clickjacking: the app embeds others, never the reverse.
+		header Content-Security-Policy "frame-ancestors 'none'"
+		root * /srv/www
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip zstd
+}

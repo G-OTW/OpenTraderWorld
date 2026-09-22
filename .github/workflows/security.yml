@@ -1,0 +1,104 @@
+# Supply-chain and static-analysis checks.
+#
+# The repository is public and ships container images, so the question "is there a known
+# vulnerability in what we publish" has to have an automated answer. Four tools, each
+# covering something the others cannot see:
+#
+#   cargo audit   RustSec advisories against Cargo.lock. Several hundred transitive crates
+#                 sit behind the zip, feed, IMAP, CSV and JSON parsers, all of which read
+#                 hostile input. This is the most important job here.
+#   npm audit     the frontend build chain. The SPA is static, so the runtime risk is low,
+#                 but a compromised build dependency writes straight into the shipped bundle.
+#   trivy         the built images. distroless still carries glibc; caddy, postgres and the
+#                 DNS proxy carry a full alpine userland. cargo audit cannot see any of it.
+#   codeql        static analysis of the JavaScript. Free for public repositories.
+#
+# Everything runs on a schedule as well as on push: an advisory published on a Tuesday
+# concerns code that has not changed since.
+name: security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Mondays, 05:17 UTC. Off the hour so it does not queue behind everyone else's cron.
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit the dependency graph
+        working-directory: core
+        run: cargo audit --deny warnings
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      # Build dependencies are the realistic attack path here, so dev deps are included.
+      # `high` is the gate: moderate findings in a build-only package are noise that would
+      # train everyone to ignore this job.
+      - name: Audit npm dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  image-scan:
+    name: trivy (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: core
+            context: core
+          - service: frontend
+            context: frontend
+          - service: caddy
+            context: deploy/caddy
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image
+        run: docker build -t otw-${{ matrix.service }}:scan ${{ matrix.context }}
+      - name: Scan it
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: otw-${{ matrix.service }}:scan
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+  codeql:
+    name: codeql (javascript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3

@@ -1,0 +1,238 @@
+# OpenTraderWorld — Phase 0 stack.
+#
+#   cp .env.example .env   # then edit secrets
+#   docker compose --env-file .env --env-file network.env up --build
+#
+# Always pass BOTH env files: .env holds secrets; network.env holds the (secret-free)
+# bind/port/domain that the app rewrites from Settings → Network. Compose interpolates the
+# port mapping from network.env, so it must be on the --env-file list.
+#
+# Brings up: caddy (proxy/TLS) → frontend (static) + core (Rust API) → postgres.
+
+name: opentraderworld
+
+services:
+  # ── Reverse proxy / TLS, serves the SPA and proxies /api to core ─────────────
+  caddy:
+    # Custom image = stock caddy + ACME DNS-challenge plugins (see caddy/Dockerfile),
+    # required by the "LAN + HTTPS" network mode. Built automatically on first `up`.
+    # `image:` names the locally built tag; the image-based install (docker-compose.images.yml)
+    # pulls this same name from Docker Hub instead of building.
+    image: opentraderworld/otw-caddy:latest
+    build:
+      context: ./caddy
+    restart: unless-stopped
+    depends_on:
+      core:
+        condition: service_started
+      frontend:
+        condition: service_completed_successfully
+      dns-proxy:
+        condition: service_started
+    # Network exposure (bind interface, ports, domain) is owned by network.env, which the
+    # app rewrites from Settings → Network. These ${VARS} are interpolated by compose from
+    # network.env — pass it with `--env-file` (see deploy header / restart command).
+    # Defaults below = localhost-only on :5454 if the file is missing.
+    ports:
+      - "${OTW_BIND:-127.0.0.1}:${OTW_HTTP_PORT:-5454}:80"
+      - "${OTW_HTTPS_BIND:-127.0.0.1}:${OTW_HTTPS_PORT:-8443}:443"
+    environment:
+      OTW_DOMAIN: ${OTW_DOMAIN:-:80}
+    # dns.env carries OTW_ACME_GLOBAL (empty, or `acme_dns <provider> <token>` in
+    # LAN + HTTPS mode). Separate from network.env so that file stays secret-free.
+    env_file:
+      - path: ./dns.env
+        required: false
+    # Resolve through the DoH forwarder below (service-name resolution is unaffected):
+    # ISP/router resolvers with DNS-rebind protection silently drop answers pointing
+    # at private IPs — exactly what the domain resolves to in LAN + HTTPS mode — and
+    # some networks also block plain port-53 DNS to third parties, which breaks the
+    # ACME DNS-01 challenge. DNS over HTTPS (port 443) gets past both.
+    dns:
+      - 172.28.53.53
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - web-assets:/srv/www:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    # Sandbox. `no-new-privileges` stops a setuid binary inside the image from ever
+    # regaining what `cap_drop` took away, so the two belong together everywhere below.
+    # NET_BIND_SERVICE is the one capability that has to come back: caddy listens on 80
+    # and 443, and a container root with no capabilities cannot bind a port under 1024.
+    # No `read_only` here: caddy writes its certificates and its autosaved config into
+    # /data and /config, and the ACME account key is created on first start.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    mem_limit: 512m
+    pids_limit: 256
+
+  # ── Static frontend: builds assets into the shared web-assets volume, then exits ─
+  frontend:
+    image: opentraderworld/otw-frontend:latest
+    build:
+      context: ../frontend
+    volumes:
+      - web-assets:/www
+    # A one-shot `cp` into the volume above and nothing else, so it needs no capability
+    # and no writable root filesystem. The assets are already built into the image.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    mem_limit: 256m
+    pids_limit: 128
+
+  # ── Core service: Rust/Axum orchestrator + API ──────────────────────────────
+  core:
+    image: opentraderworld/otw-core:latest
+    build:
+      context: ../core
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OTW_CORE_HOST: 0.0.0.0
+      OTW_CORE_PORT: "8080"
+      OTW_LOG: ${OTW_LOG:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      OTW_UPLOAD_DIR: /data/uploads
+      # Secret-free network config core rewrites from Settings → Network (bind-mounted below).
+      OTW_NETWORK_ENV: /config/network.env
+      # ACME DNS-challenge line for Caddy, also rewritten from Settings → Network.
+      OTW_DNS_ENV: /config/dns.env
+      OTW_SECRET_KEY: ${OTW_SECRET_KEY:?set OTW_SECRET_KEY in .env}
+      # First-boot admin bootstrap (headless install). Core creates this admin if none
+      # exists yet; empty/unset = no-op (use the browser wizard instead). Set by setup.sh.
+      OTW_ADMIN_USER: ${OTW_ADMIN_USER:-}
+      OTW_ADMIN_PASSWORD: ${OTW_ADMIN_PASSWORD:-}
+      # FinanceDatabase module: where to fetch the instrument catalog archive on install.
+      # Default points at a GitHub Release asset; GITHUB_TOKEN authenticates private repos.
+      FINDB_ARCHIVE_URL: ${FINDB_ARCHIVE_URL:-}
+      # Snapshot manifest (findb.json). Blank = the archive URL's own directory, which is
+      # where the release publishes it; it names the snapshot and drives the update check.
+      FINDB_MANIFEST_URL: ${FINDB_MANIFEST_URL:-}
+      # Fallback version recorded when no manifest is reachable (a bare mirror, a local file).
+      FINDB_ARCHIVE_VERSION: ${FINDB_ARCHIVE_VERSION:-findb-data}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Bearer token added when relaying editor doc submissions to the review site.
+      DOC_SUBMISSION_TOKEN: ${DOC_SUBMISSION_TOKEN:-}
+    volumes:
+      - uploads:/data/uploads
+      # Backup reports. A host-side backup script drops a small last-backup.json here and
+      # Settings shows its age; core only ever READS it. Empty on a hand-backed-up install,
+      # which is why the volume is harmless: no file, no card, nothing to configure.
+      - backup-status:/data/backup:ro
+      # Bind-mount the two app-rewritable network files. The real .env (DB/crypto
+      # secrets) is deliberately NOT mounted here.
+      #
+      # These two are writable on purpose (Settings → Network rewrites its own host
+      # configuration), and that is an accepted risk, stated so nobody has to rediscover
+      # it: code running as core can change what compose reads at the next `up`, which
+      # includes the bind address and the published ports. It cannot take effect on its
+      # own (someone has to run `up`), it needs a step-up password to reach through the
+      # API, and the alternative (a host-side script approving each switch) would put the
+      # network mode back behind an SSH session. Everything else core touches is a volume.
+      - ./network.env:/config/network.env
+      - ./dns.env:/config/dns.env
+    # The Interactive Brokers connector talks to an IB Gateway or TWS the user runs on the
+    # host, and inside this container "localhost" is the container. Docker Desktop resolves
+    # host.docker.internal on its own; Linux needs it mapped explicitly, which is what this
+    # does. Harmless everywhere else.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Pinned so the IB Gateway allow-list has a stable answer. TWS's "Trusted IPs" takes
+    # single addresses, not a subnet, and a dynamically assigned container IP would have to
+    # be re-added after a restart. On Docker Engine (Linux) the gateway sees this address;
+    # on Docker Desktop the call is proxied and arrives from the host loopback instead, so
+    # there "Allow connections from localhost only" already covers it.
+    networks:
+      default:
+        ipv4_address: 172.28.53.10
+    expose:
+      - "8080"
+    # Already distroless and already non-root (core/Dockerfile, USER 65532). The rest of
+    # the sandbox: no capabilities at all (it binds 8080, which needs none), and a
+    # read-only root filesystem: every path core writes is a mount, /data/uploads and
+    # /config above. /tmp is a tmpfs so a future library that wants scratch space gets
+    # RAM it cannot keep, rather than a failure.
+    #
+    # The memory ceiling is a DoS bound, not a tuning knob: a runaway backtest or a
+    # pathological import should die alone instead of taking the host's OOM killer on a
+    # tour of the other containers. Raise OTW_CORE_MEM in .env if a legitimate sweep
+    # needs more than the default.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    mem_limit: ${OTW_CORE_MEM:-4g}
+    pids_limit: 512
+
+  # ── DNS-over-HTTPS forwarder: caddy's resolver (see the `dns:` key up there) ─
+  dns-proxy:
+    # Pinned by digest, not by a floating tag: this container has outbound network access
+    # and a fixed address every other service resolves through, so "whatever :latest was
+    # the day someone rebuilt" is not a supply chain anyone should inherit. Bump the tag
+    # and the digest together.
+    image: adguard/dnsproxy:v0.84.2@sha256:947f677c949acded008a938e7cd1b666579b16b56db5f53eb8136a63d2783e5a
+    restart: unless-stopped
+    command: --listen=0.0.0.0 --port=53 --upstream=https://1.1.1.1/dns-query --upstream=https://1.0.0.1/dns-query
+    networks:
+      default:
+        ipv4_address: 172.28.53.53
+    # Port 53 is privileged, so NET_BIND_SERVICE comes back and nothing else does. It
+    # forwards queries and writes nothing.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    mem_limit: 128m
+    pids_limit: 128
+
+  # ── Durable data: modules registry, jobs, notes/doc page ────────────────────
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-otw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-opentraderworld}
+    volumes:
+      # Postgres 18+ expects the mount at /var/lib/postgresql (it stores data in a
+      # version-specific subdirectory). Mounting the old .../data path makes 18 refuse
+      # to start. See docker-library/postgres#37 and PR #1259.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-otw} -d ${POSTGRES_DB:-opentraderworld}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # The image's entrypoint starts as root, prepares the data directory and then drops to
+    # the postgres user, so it keeps exactly the capabilities that needs and nothing else:
+    # CHOWN/FOWNER/DAC_OVERRIDE to own the volume on first init, SETUID/SETGID to step
+    # down. No `read_only`: postgres writes its socket and its lock files outside the
+    # volume, and the entrypoint's own scripts need a writable /tmp and /var/run.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    mem_limit: ${OTW_PG_MEM:-2g}
+    pids_limit: 512
+
+volumes:
+  web-assets:
+  backup-status:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+  uploads:
+
+# Fixed subnet so dns-proxy can have the pinned address caddy's `dns:` points at
+# (docker's dns option takes an IP, not a service name), and so core keeps the stable
+# address an IB Gateway allow-list can name.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.53.0/24

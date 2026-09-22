@@ -1,0 +1,2123 @@
+//! Demo fixtures — `otw-core --seed-demo`.
+//!
+//! Fills the database pointed at by DATABASE_URL with a small curated showcase dataset
+//! (demo account, journal trades, prompts, watchlist, todos/goals, an OpenRouter provider
+//! with **no key** — the key comes from the host env at run time). The demo deploy runs
+//! this once against a scratch database, then keeps it as the `otw_seed` template that the
+//! 15-minute reset restores from. Idempotent: an existing `demo` user short-circuits.
+//!
+//! Everything here ships in the public repo — no secrets, ever.
+
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::auth;
+
+pub async fn seed(pool: &PgPool) -> anyhow::Result<()> {
+    if otw_store::find_user_by_username(pool, "demo").await?.is_some() {
+        println!("demo user already present — nothing to do");
+        return Ok(());
+    }
+
+    // The demo account. Auto-login bypasses the password in demo mode; the value is
+    // public and irrelevant, it only needs to satisfy the hasher.
+    let hash = auth::hash_password("demo-sandbox-resets-every-15min")?;
+    otw_store::create_admin(pool, "demo", &hash, false).await?;
+
+    // One statement per query (sqlx prepared statements are single-statement).
+    for sql in STATEMENTS {
+        sqlx::query(*sql).execute(pool).await?;
+    }
+    trades(pool).await?;
+    agent_token(pool).await?;
+    portfolio(pool).await?;
+    watchlist_quotes(pool).await?;
+    documents(pool).await?;
+    news(pool).await?;
+    av_key(pool).await?;
+    datasets(pool).await?;
+    backtest_runs(pool).await?;
+    chart(pool).await?;
+    automator(pool).await?;
+    managers(pool).await?;
+    Ok(())
+}
+
+/// The instruments the chart workspace opens on: the four the seed downloads, each with
+/// the studies a trader would actually have on that timeframe. `studies` is the pane's
+/// `instances` array, exactly as the editor writes it.
+///
+/// (provider, asset_type, ticker, timeframe, display name, studies)
+const CHART_INSTRUMENTS: &[(&str, &str, &str, &str, &str, &str)] = &[
+    (
+        "binance",
+        "crypto",
+        "BTCUSDT",
+        "1h",
+        "Bitcoin",
+        r#"[{"id":1,"type":"ema","params":{"period":50},"style":{},"visible":true},
+            {"id":2,"type":"ema","params":{"period":200},"style":{},"visible":true},
+            {"id":3,"type":"rsi","params":{"period":14},"style":{},"visible":true}]"#,
+    ),
+    (
+        "binance",
+        "crypto",
+        "ETHUSDT",
+        "15m",
+        "Ether",
+        r#"[{"id":1,"type":"bollinger","params":{"period":20,"mult":2},"style":{},"visible":true},
+            {"id":2,"type":"macd","params":{"fast":12,"slow":26,"signal":9},"style":{},"visible":true}]"#,
+    ),
+    (
+        "yahoo",
+        "equity",
+        "NVDA",
+        "1h",
+        "NVIDIA",
+        r#"[{"id":1,"type":"vwap","params":{"period":20},"style":{},"visible":true},
+            {"id":2,"type":"atr","params":{"period":14},"style":{},"visible":true}]"#,
+    ),
+    (
+        "yahoo",
+        "equity",
+        "AAPL",
+        "1d",
+        "Apple",
+        r#"[{"id":1,"type":"sma","params":{"period":50},"style":{},"visible":true},
+            {"id":2,"type":"sma","params":{"period":200},"style":{},"visible":true},
+            {"id":3,"type":"rsi","params":{"period":14},"style":{},"visible":true}]"#,
+    ),
+];
+
+/// The chart module: what the workspace opens on, and the rail beside it.
+///
+/// Runs after [`datasets`] because everything here is measured from the bars that landed:
+/// the drawn levels and the alert thresholds come from the seeded series rather than from
+/// prices written down in this file, which would be wrong the week after they were typed.
+/// An instrument whose download was skipped is simply left out.
+async fn chart(pool: &PgPool) -> anyhow::Result<()> {
+    // The chart reads through the broker like every data module, and the connectors the
+    // migration ships are granted to Historical Data only. The two keyless providers the
+    // seed already downloaded from are the two the sandbox can spend freely, so they are
+    // the two the chart and the watchlists get: symbol search, panes and alerts all resolve
+    // through them, and no credential is involved.
+    sqlx::query(
+        "INSERT INTO connector_modules (connector_id, module)
+         SELECT c.id, m.module
+         FROM histdata_connectors c
+         CROSS JOIN (VALUES ('histviz'), ('watchlists')) AS m(module)
+         WHERE c.provider IN ('binance', 'yahoo')
+         ON CONFLICT DO NOTHING",
+    )
+    .execute(pool)
+    .await?;
+
+    let wanted = CHART_INSTRUMENTS;
+
+    let mut panes: Vec<serde_json::Value> = Vec::new();
+    let mut crypto: Vec<serde_json::Value> = Vec::new();
+    let mut equity: Vec<serde_json::Value> = Vec::new();
+
+    for (i, (provider, asset_type, ticker, timeframe, name, studies)) in
+        wanted.iter().enumerate()
+    {
+        let Some((hi, lo)) = range(pool, provider, asset_type, ticker, timeframe).await? else {
+            eprintln!("chart: {ticker} {timeframe} has no bars — left out of the workspace");
+            continue;
+        };
+        let instances: serde_json::Value = serde_json::from_str(studies)?;
+        // Two horizontal lines on the quarter's extremes: the drawing layer, on levels the
+        // data actually has, rather than a demo that opens on a bare candlestick chart.
+        let drawings = json_drawings(hi, lo);
+        sqlx::query(
+            "INSERT INTO histviz_instrument_layouts (coord_key, layout)
+             VALUES ($1, $2)
+             ON CONFLICT (coord_key) DO NOTHING",
+        )
+        .bind(coord_key(provider, asset_type, ticker, timeframe))
+        .bind(serde_json::json!({
+            "type": "candlestick",
+            "brick": 0,
+            "instances": instances,
+            "drawings": drawings,
+        }))
+        .execute(pool)
+        .await?;
+
+        let coords = serde_json::json!({
+            "provider": provider,
+            "asset_type": asset_type,
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "name": name,
+        });
+        panes.push(serde_json::json!({
+            "id": format!("p{}", i + 1),
+            "coords": coords,
+            "type": "candlestick",
+            "brick": 0,
+            "instances": [],
+            // The two crypto panes move together; the two equities keep their own span.
+            "link": if *asset_type == "crypto" { "amber" } else { "" },
+            "connector_id": null,
+        }));
+        let entry = serde_json::json!({
+            "provider": provider,
+            "asset_type": asset_type,
+            "ticker": ticker,
+            "timeframe": timeframe,
+            "connector_id": null,
+            "name": name,
+        });
+        if *asset_type == "crypto" {
+            crypto.push(entry);
+        } else {
+            equity.push(entry);
+        }
+    }
+
+    if panes.is_empty() {
+        eprintln!("chart: no dataset landed — workspace, lists and alerts skipped");
+        return Ok(());
+    }
+
+    // A 2x2, because that is what the module is for: four instruments at once, on one
+    // screen, two of them linked.
+    let rows = if panes.len() > 2 { 2 } else { 1 };
+    let cols = if panes.len() > 1 { 2 } else { 1 };
+    sqlx::query(
+        "INSERT INTO histviz_workspaces (name, grid_rows, grid_cols, panes, settings, position)
+         VALUES ($1, $2, $3, $4, $5, 0)",
+    )
+    .bind("Majors")
+    .bind(rows)
+    .bind(cols)
+    .bind(serde_json::Value::Array(panes.clone()))
+    .bind(serde_json::json!({
+        "row_sizes": vec![1; rows as usize],
+        "col_sizes": vec![1; cols as usize],
+        "active": panes[0]["id"].clone(),
+    }))
+    .execute(pool)
+    .await?;
+
+    for (position, (name, items)) in
+        [("Crypto majors", crypto), ("US tech", equity)].into_iter().enumerate()
+    {
+        if items.is_empty() {
+            continue;
+        }
+        sqlx::query("INSERT INTO histviz_lists (name, items, position) VALUES ($1, $2, $3)")
+            .bind(name)
+            .bind(serde_json::Value::Array(items))
+            .bind(position as i32)
+            .execute(pool)
+            .await?;
+    }
+
+    alerts(pool).await?;
+    println!("chart: workspace, lists and layouts seeded");
+    Ok(())
+}
+
+/// `provider|asset_type|ticker|timeframe`, the key `histviz_instrument_layouts` is filed
+/// under: provider/asset/timeframe lowercased, the ticker verbatim (case matters, and only
+/// to the provider).
+fn coord_key(provider: &str, asset_type: &str, ticker: &str, timeframe: &str) -> String {
+    format!(
+        "{}|{}|{}|{}",
+        provider.to_lowercase(),
+        asset_type.to_lowercase(),
+        ticker,
+        timeframe.to_lowercase()
+    )
+}
+
+/// The high and low of the last 90 days of a seeded instrument, or `None` when the download
+/// was skipped. Cast to float8: the column is NUMERIC and nothing here needs its precision.
+async fn range(
+    pool: &PgPool,
+    provider: &str,
+    asset_type: &str,
+    ticker: &str,
+    timeframe: &str,
+) -> anyhow::Result<Option<(f64, f64)>> {
+    let row: Option<(Option<f64>, Option<f64>)> = sqlx::query_as(
+        "SELECT max(b.high)::float8, min(b.low)::float8
+         FROM histdata_bars b
+         JOIN histdata_datasets d ON d.id = b.dataset_id
+         WHERE d.provider = $1 AND d.asset_type = $2 AND d.ticker = $3 AND d.timeframe = $4
+           AND b.ts > now() - interval '90 days'",
+    )
+    .bind(provider)
+    .bind(asset_type)
+    .bind(ticker)
+    .bind(timeframe)
+    .fetch_optional(pool)
+    .await?;
+    Ok(match row {
+        Some((Some(hi), Some(lo))) if hi > lo => Some((hi, lo)),
+        _ => None,
+    })
+}
+
+/// The quarter's range as two horizontal lines, in the drawing model's own coordinates
+/// (`x` an epoch-ms instant, `y` a price). An hline only reads its `y`, but the anchor is
+/// stored whole so the row is the same shape the editor writes.
+fn json_drawings(hi: f64, lo: f64) -> serde_json::Value {
+    let now_ms = time::OffsetDateTime::now_utc().unix_timestamp() * 1000;
+    serde_json::json!([
+        { "id": "d-range-high", "tool": "hline", "a": { "x": now_ms, "y": round_level(hi) },
+          "b": null, "style": { "color": "", "width": 0 } },
+        { "id": "d-range-low", "tool": "hline", "a": { "x": now_ms, "y": round_level(lo) },
+          "b": null, "style": { "color": "", "width": 0 } },
+    ])
+}
+
+/// A level a human would have drawn: three significant digits, so 108_437.21 becomes
+/// 108_000 and 236.83 becomes 237.
+fn round_level(v: f64) -> f64 {
+    if v <= 0.0 {
+        return v;
+    }
+    let magnitude = 10f64.powf(v.abs().log10().floor() - 2.0);
+    (v / magnitude).round() * magnitude
+}
+
+/// Two chart alerts, on levels outside the seeded range.
+///
+/// Deliberately *outside* it: an alert placed where the market already is fires on the
+/// first pass, and every 15-minute reset would replay that same notification. Placed a few
+/// percent beyond the quarter's extremes it demonstrates the feature — the row, the level,
+/// the evaluation bookkeeping — and stays quiet unless the market really gets there.
+async fn alerts(pool: &PgPool) -> anyhow::Result<()> {
+    // (ticker, provider, asset_type, timeframe, name, op, level from the range)
+    let wanted: &[(&str, &str, &str, &str, &str, &str, f64, bool)] = &[
+        ("BTCUSDT", "binance", "crypto", "1h", "BTC breaks the quarter's high", "above", 1.05, true),
+        ("AAPL", "yahoo", "equity", "1d", "AAPL loses the quarter's low", "below", 0.95, false),
+    ];
+    for (ticker, provider, asset_type, timeframe, name, op, factor, from_high) in wanted {
+        let Some((hi, lo)) = range(pool, provider, asset_type, ticker, timeframe).await? else {
+            continue;
+        };
+        let level = round_level(if *from_high { hi * factor } else { lo * factor });
+        sqlx::query(
+            "INSERT INTO histviz_alerts
+                 (name, provider, asset_type, ticker, timeframe, kind, source, op, value,
+                  repeat, cooldown_secs, enabled)
+             VALUES ($1, $2, $3, $4, $5, 'price', 'close', $6, $7, false, 3600, true)",
+        )
+        .bind(name)
+        .bind(provider)
+        .bind(asset_type)
+        .bind(ticker)
+        .bind(timeframe)
+        .bind(op)
+        .bind(level)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// One workflow, its first revision, a schedule and two runs of history.
+///
+/// The graph is **validated here** rather than trusted: a block config that stops being
+/// valid must fail the seed loudly, not ship a workflow the editor refuses to save. The
+/// schedule is left inactive on purpose — in the sandbox the automator is read-only, so
+/// nothing can run it by hand, and an active rule would fire on the demo host every night
+/// for a visitor who left hours ago.
+/// The seeded workflow's graph, in the shape the editor saves.
+///
+/// Split out so it can be validated in a test as well as at seed time: the demo must never
+/// ship a workflow the module itself would refuse.
+fn briefing_graph() -> serde_json::Value {
+    serde_json::json!({
+        "nodes": [
+            { "id": "news", "kind": "api", "name": "Overnight headlines",
+              "config": { "method": "GET", "path": "/api/feed-items?limit=8" },
+              "pos": { "x": 40, "y": 40 } },
+            { "id": "risk", "kind": "api", "name": "Open risk",
+              "config": { "method": "GET", "path": "/api/journal/exposure" },
+              "pos": { "x": 40, "y": 240 } },
+            { "id": "worth_sending", "kind": "if", "name": "Anything to say?",
+              "config": { "match": "any", "conditions": [
+                  { "left": "{{steps.news.output.body.items}}", "op": "not_empty" }
+              ] },
+              "pos": { "x": 320, "y": 140 } },
+            { "id": "brief", "kind": "agent", "name": "Write the briefing",
+              "config": {
+                  "input": "Write a six-line pre-market note for a discretionary trader.\n\nHeadlines: {{steps.news.output.body.items}}\n\nOpen risk right now: {{steps.risk.output.body}}\n\nSay what changed overnight, then what it means for the positions already on. No preamble.",
+                  "output": "text"
+              },
+              "pos": { "x": 600, "y": 80 } },
+            { "id": "push", "kind": "notify", "name": "Send it",
+              "config": { "title": "Pre-market briefing", "body": "{{steps.brief.output.text}}" },
+              "pos": { "x": 880, "y": 80 } }
+        ],
+        "edges": [
+            { "from": "news", "to": "worth_sending", "port": "out" },
+            { "from": "risk", "to": "worth_sending", "port": "out" },
+            { "from": "worth_sending", "to": "brief", "port": "true" },
+            { "from": "brief", "to": "push", "port": "out" }
+        ]
+    })
+}
+
+/// A second workflow, and the only one the sandbox lets run on its own.
+///
+/// Everything in it is an internal read: two `api` blocks and a branch, no agent block, no
+/// notification, no outbound URL. That is what makes an *active* schedule acceptable here.
+/// The briefing below spends the shared LLM key and pushes to a channel, so its schedule
+/// stays switched off, which in turn leaves the agenda empty; this one gives the calendar
+/// and the upcoming-runs card something real without the sandbox ever reaching outside.
+fn coverage_graph() -> serde_json::Value {
+    serde_json::json!({
+        "nodes": [
+            { "id": "datasets", "kind": "api", "name": "Stored series",
+              "config": { "method": "GET", "path": "/api/histdata/datasets" },
+              "pos": { "x": 40, "y": 40 } },
+            { "id": "positions", "kind": "api", "name": "What is open",
+              "config": { "method": "GET", "path": "/api/journal/exposure" },
+              "pos": { "x": 40, "y": 240 } },
+            { "id": "covered", "kind": "if", "name": "Anything to price?",
+              "config": { "match": "all", "conditions": [
+                  { "left": "{{steps.datasets.output.body.datasets}}", "op": "not_empty" }
+              ] },
+              "pos": { "x": 340, "y": 140 } }
+        ],
+        "edges": [
+            { "from": "datasets", "to": "covered", "port": "out" },
+            { "from": "positions", "to": "covered", "port": "out" }
+        ]
+    })
+}
+
+async fn automator(pool: &PgPool) -> anyhow::Result<()> {
+    let graph = briefing_graph();
+    let parsed = crate::automator::Graph::parse(&graph)
+        .map_err(|e| anyhow::anyhow!("demo workflow: {e}"))?;
+    crate::automator::validate(&parsed).map_err(|e| anyhow::anyhow!("demo workflow: {e}"))?;
+
+    let workflow = Uuid::new_v4();
+    let version = Uuid::new_v4();
+    // The same read-only envelope the demo agent runs under: the two `api` blocks read, and
+    // nothing in the catalog can be written through this workflow.
+    let perms = serde_json::Value::Object(
+        crate::mcp::catalog::MODULES
+            .iter()
+            .map(|(id, _)| ((*id).to_string(), serde_json::Value::String("r".into())))
+            .collect(),
+    );
+    let (token, _plaintext_discarded) =
+        otw_store::mcp::create_token(pool, "Demo workflow (internal, read-only)", &perms, None, false)
+            .await?;
+
+    sqlx::query(
+        "INSERT INTO automator_workflows
+             (id, name, description, graph, mcp_token_id, favorite, enabled, max_runtime_secs)
+         VALUES ($1, $2, $3, $4, $5, TRUE, TRUE, 120)",
+    )
+    .bind(workflow)
+    .bind("Pre-market briefing")
+    .bind("Reads the overnight headlines and the open risk, has the agent write the note, pushes it to the notification channels.")
+    .bind(&graph)
+    .bind(token.id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "INSERT INTO automator_versions (id, workflow_id, rev, graph, note)
+         VALUES ($1, $2, 1, $3, 'First version')",
+    )
+    .bind(version)
+    .bind(workflow)
+    .bind(&graph)
+    .execute(pool)
+    .await?;
+    sqlx::query("UPDATE automator_workflows SET version_id = $1 WHERE id = $2")
+        .bind(version)
+        .bind(workflow)
+        .execute(pool)
+        .await?;
+
+    // Inactive, and with no `next_run_at`: the row shows how a workflow is scheduled, and
+    // the scheduler never claims it.
+    sqlx::query(
+        "INSERT INTO automator_schedules
+             (id, workflow_id, kind, timezone, at_hour, at_minute, weekdays, active)
+         VALUES ($1, $2, 'weekly', 'Europe/Paris', 8, 30, 31, FALSE)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(workflow)
+    .execute(pool)
+    .await?;
+
+    workflow_runs(pool, workflow, version).await?;
+    coverage_workflow(pool, &perms).await?;
+    println!("automator: workflows, revisions, schedules and run history seeded");
+    Ok(())
+}
+
+/// The read-only companion to the briefing, with a schedule that is actually armed.
+async fn coverage_workflow(pool: &PgPool, perms: &serde_json::Value) -> anyhow::Result<()> {
+    let graph = coverage_graph();
+    let parsed = crate::automator::Graph::parse(&graph)
+        .map_err(|e| anyhow::anyhow!("demo coverage workflow: {e}"))?;
+    crate::automator::validate(&parsed)
+        .map_err(|e| anyhow::anyhow!("demo coverage workflow: {e}"))?;
+
+    let workflow = Uuid::new_v4();
+    let version = Uuid::new_v4();
+    let (token, _plaintext_discarded) = otw_store::mcp::create_token(
+        pool,
+        "Demo coverage workflow (internal, read-only)",
+        perms,
+        None,
+        false,
+    )
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO automator_workflows
+             (id, name, description, graph, mcp_token_id, favorite, enabled, max_runtime_secs)
+         VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, 60)",
+    )
+    .bind(workflow)
+    .bind("Data coverage check")
+    .bind("Reads the stored series and the open positions, and branches on whether everything held can be priced.")
+    .bind(&graph)
+    .bind(token.id)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "INSERT INTO automator_versions (id, workflow_id, rev, graph, note)
+         VALUES ($1, $2, 1, $3, 'First version')",
+    )
+    .bind(version)
+    .bind(workflow)
+    .bind(&graph)
+    .execute(pool)
+    .await?;
+    sqlx::query("UPDATE automator_workflows SET version_id = $1 WHERE id = $2")
+        .bind(version)
+        .bind(workflow)
+        .execute(pool)
+        .await?;
+
+    // Monday to Friday at 07:00 Paris (weekday bitmask, Monday = bit 0), armed. `next_run_at`
+    // is left for the scheduler to resolve on boot, so a restored snapshot never carries a
+    // stale instant from whenever the template happened to be built.
+    sqlx::query(
+        "INSERT INTO automator_schedules
+             (id, workflow_id, kind, timezone, at_hour, at_minute, weekdays, active)
+         VALUES ($1, $2, 'weekly', 'Europe/Paris', 7, 0, 31, TRUE)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(workflow)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Two finished runs, so the history and the step trace are not an empty table.
+async fn workflow_runs(pool: &PgPool, workflow: Uuid, version: Uuid) -> anyhow::Result<()> {
+    // (days ago, status, the branch the condition took)
+    let runs: &[(i32, &str, bool)] = &[(1, "ok", true), (8, "ok", false)];
+    for (days, status, sent) in runs {
+        let run = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO automator_runs
+                 (id, workflow_id, version_id, trigger, mode, status, started_at, finished_at,
+                  duration_ms)
+             VALUES ($1, $2, $3, 'schedule', 'live', $4,
+                     now() - ($5 || ' days')::interval,
+                     now() - ($5 || ' days')::interval + interval '9 seconds', 9120)",
+        )
+        .bind(run)
+        .bind(workflow)
+        .bind(version)
+        .bind(status)
+        .bind(days.to_string())
+        .execute(pool)
+        .await?;
+
+        let mut steps: Vec<(&str, &str, &str, serde_json::Value)> = vec![
+            ("news", "Overnight headlines", "api",
+             serde_json::json!({ "status": 200, "body": { "items": if *sent { 8 } else { 0 } } })),
+            ("risk", "Open risk", "api",
+             serde_json::json!({ "status": 200, "body": { "positions": 2, "risk_pct": 1.8 } })),
+            ("worth_sending", "Anything to say?", "if", serde_json::json!({ "result": sent })),
+        ];
+        if *sent {
+            steps.push((
+                "brief",
+                "Write the briefing",
+                "agent",
+                serde_json::json!({ "text": "Overnight: risk-on, majors up with the open. Two positions on, 1.8% of the book at risk; the BTC leg is the one that moves if the level breaks." }),
+            ));
+            steps.push((
+                "push",
+                "Send it",
+                "notify",
+                serde_json::json!({ "sent": 1 }),
+            ));
+        }
+        for (seq, (node_id, node_name, kind, output)) in steps.into_iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO automator_run_steps
+                     (id, run_id, node_id, node_name, kind, seq, status, request, output,
+                      duration_ms, started_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9,
+                         now() - ($10 || ' days')::interval)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(run)
+            .bind(node_id)
+            .bind(node_name)
+            .bind(kind)
+            .bind(seq as i32)
+            // The condition's No branch skips nothing here: the blocks after it simply
+            // never ran, which is what an absent step means in the trace.
+            .bind("ok")
+            .bind(output)
+            .bind(400 + (seq as i32) * 900)
+            .bind(days.to_string())
+            .execute(pool)
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+/// Scrape the Dataroma superinvestor cache once, at seed time.
+///
+/// The module is normally filled by `mportfolios_job` (twice-weekly, jittered). In the demo
+/// that loop is useless — every 15-minute reset would throw its work away — so we sync here
+/// instead: the rows land in the `otw_seed` template and each reset restores them intact,
+/// with no runtime egress to Dataroma from the shared host.
+///
+/// Best-effort, exactly like `datasets`: an upstream that is down or has changed its markup
+/// must not fail the whole seed.
+async fn managers(pool: &PgPool) -> anyhow::Result<()> {
+    let lock = crate::mportfolios_job::new_lock();
+    match crate::mportfolios_job::refresh(pool, &lock).await {
+        Ok(()) => {
+            let n: i64 = sqlx::query_scalar("SELECT count(*) FROM manager_portfolios")
+                .fetch_one(pool)
+                .await?;
+            println!("managers' portfolios: {n} synced");
+        }
+        Err(e) => eprintln!("managers' portfolios: skipped ({e:#})"),
+    }
+    Ok(())
+}
+
+/// Historical datasets for the backtester, downloaded from the **keyless** providers at
+/// seed time (Binance for crypto, Yahoo for equities) so the seed ships no credential and
+/// no multi-MB blob in git. ~58k bars total, a few MB — cheap to keep in `otw_seed` and
+/// therefore restored intact by every 15-minute reset, with no runtime egress.
+///
+/// Best-effort per dataset: a provider that is down or rate-limiting must not fail the
+/// whole seed (the demo is still worth shipping without one series), so each failure is
+/// logged and skipped. A dataset that ends up empty is deleted rather than left as an
+/// empty entry in the backtester's picker.
+async fn datasets(pool: &PgPool) -> anyhow::Result<()> {
+    // (provider, asset_type, ticker, timeframe, days back)
+    let wanted: &[(&str, &str, &str, &str, i64)] = &[
+        ("binance", "crypto", "BTCUSDT", "1h", 730),
+        ("binance", "crypto", "ETHUSDT", "15m", 365),
+        ("yahoo", "equity", "NVDA", "1h", 730),
+        ("yahoo", "equity", "AAPL", "1d", 3650),
+    ];
+    for (provider, asset_type, ticker, timeframe, days) in wanted {
+        match one_dataset(pool, provider, asset_type, ticker, timeframe, *days).await {
+            Ok(n) => println!("dataset {ticker} {timeframe}: {n} bars"),
+            Err(e) => eprintln!("dataset {ticker} {timeframe}: skipped ({e:#})"),
+        }
+    }
+    Ok(())
+}
+
+async fn one_dataset(
+    pool: &PgPool,
+    provider: &str,
+    asset_type: &str,
+    ticker: &str,
+    timeframe: &str,
+    days: i64,
+) -> anyhow::Result<i64> {
+    use time::OffsetDateTime;
+
+    let connector = crate::histdata::connector_for(provider)?;
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; OpenTraderWorld demo seed)")
+        .timeout(std::time::Duration::from_secs(60))
+        .build()?;
+    let secrets = std::collections::HashMap::new();
+
+    let to = OffsetDateTime::now_utc();
+    let from = to - time::Duration::days(days);
+    let dataset = otw_store::histdata::upsert_dataset(pool, provider, asset_type, ticker, timeframe)
+        .await?;
+
+    // Connectors return at most `max_bars_per_req` per call, so page forward until the
+    // window is covered. A chunk that returns nothing means the provider has no more
+    // history (Yahoo caps intraday depth) — stop rather than spin.
+    let mut cursor = from;
+    let mut total = 0i64;
+    while cursor < to {
+        let chunk = match connector
+            .fetch_chunk(&client, &secrets, ticker, asset_type, timeframe, cursor, to)
+            .await
+        {
+            Ok(c) => c,
+            // Yahoo answers a window containing no session (a weekend, a holiday, or a
+            // range past its intraday depth) with a result that simply omits the
+            // `timestamp` array, which the connector reports as "no timestamps". For a
+            // paging loop that means "nothing here", not a failure — treat it as the end
+            // of available history instead of throwing away the bars already fetched.
+            Err(e) if e.to_string().contains("no timestamps") => break,
+            Err(e) => return Err(e),
+        };
+        if chunk.bars.is_empty() {
+            break;
+        }
+        let last = chunk.bars.last().map(|b| b.ts).unwrap_or(cursor);
+        total += otw_store::histdata::write_bars(pool, dataset, &chunk.bars).await? as i64;
+        // Strictly advance past the last bar; equal timestamps would loop forever.
+        let next = last + time::Duration::seconds(1);
+        if next <= cursor {
+            break;
+        }
+        cursor = next;
+        // Be a polite guest on keyless public endpoints.
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    if total == 0 {
+        sqlx::query("DELETE FROM histdata_datasets WHERE id = $1")
+            .bind(dataset)
+            .execute(pool)
+            .await?;
+        anyhow::bail!("provider returned no bars");
+    }
+    sqlx::query("UPDATE histdata_datasets SET status = 'complete' WHERE id = $1")
+        .bind(dataset)
+        .execute(pool)
+        .await?;
+    Ok(total)
+}
+
+/// A saved run, described by the handful of numbers a result is actually judged on. The
+/// rest of the `stats` blob is derived from these in [`run_stats`], so a card, a scope
+/// table and a headline never disagree with each other.
+struct RunSpec {
+    name: &'static str,
+    /// Dataset coordinates. A run whose dataset failed to download is skipped, not faked:
+    /// a row pointing at nothing reruns into an error the moment a visitor clicks it.
+    provider: &'static str,
+    asset_type: &'static str,
+    ticker: &'static str,
+    timeframe: &'static str,
+    /// Strategy the run was produced from. Its stored settings become the run's own, so
+    /// "rerun" replays something the engine can actually parse.
+    strategy: &'static str,
+    days_ago: i32,
+    trades: u32,
+    wins: u32,
+    /// Of `trades`, how many were taken long. The remainder are the short scope.
+    long_trades: u32,
+    /// Summed winning PnL and summed losing PnL (positive magnitude), account currency.
+    gross_profit: f64,
+    gross_loss: f64,
+    fees: f64,
+    capital: f64,
+    sharpe: f64,
+    sortino: f64,
+    max_dd_pct: f64,
+    buy_hold_pct: f64,
+    avg_bars_held: f64,
+}
+
+/// One `SideStats` scope. Money is split across the All / Long / Short scopes in proportion
+/// to their trade counts, which keeps the three internally consistent without pretending
+/// this file knows a per-trade list it never had.
+fn side_stats(trades: u32, wins: u32, gross_profit: f64, gross_loss: f64, fees: f64, avg_bars: f64) -> serde_json::Value {
+    if trades == 0 {
+        return serde_json::json!({
+            "trades": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "net_pnl": 0.0,
+            "gross_profit": 0.0, "gross_loss": 0.0, "profit_factor": 0.0, "total_fees": 0.0,
+            "avg_trade": 0.0, "avg_win": 0.0, "avg_loss": 0.0, "payoff_ratio": 0.0,
+            "largest_win": 0.0, "largest_loss": 0.0, "max_consec_wins": 0,
+            "max_consec_losses": 0, "avg_bars_held": 0.0, "expectancy_pct": 0.0, "breakeven": 0
+        });
+    }
+    let losses = trades - wins;
+    let net = gross_profit - gross_loss - fees;
+    let avg_win = if wins > 0 { gross_profit / wins as f64 } else { 0.0 };
+    let avg_loss = if losses > 0 { -(gross_loss / losses as f64) } else { 0.0 };
+    serde_json::json!({
+        "trades": trades,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round2(wins as f64 / trades as f64 * 100.0),
+        "net_pnl": round2(net),
+        "gross_profit": round2(gross_profit),
+        "gross_loss": round2(gross_loss),
+        "profit_factor": if gross_loss > 0.0 { round2(gross_profit / gross_loss) } else { 0.0 },
+        "total_fees": round2(fees),
+        "avg_trade": round2(net / trades as f64),
+        "avg_win": round2(avg_win),
+        "avg_loss": round2(avg_loss),
+        "payoff_ratio": if avg_loss < 0.0 { round2(avg_win / avg_loss.abs()) } else { 0.0 },
+        // A best and a worst trade a few multiples out from the average: a run whose
+        // extremes equal its mean would read as a constant, which no trade list ever is.
+        "largest_win": round2(avg_win * 2.4),
+        "largest_loss": round2(avg_loss * 1.9),
+        "max_consec_wins": (wins as f64 / 2.5).ceil() as u32,
+        "max_consec_losses": (losses as f64 / 2.0).ceil().max(1.0) as u32,
+        "avg_bars_held": avg_bars,
+        "expectancy_pct": round2(net / trades as f64 / (gross_profit + gross_loss) * 100.0),
+        "breakeven": 0
+    })
+}
+
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+/// The `stats` JSON a saved run carries, shaped exactly like `backtest::Stats`.
+fn run_stats(r: &RunSpec) -> serde_json::Value {
+    let net = r.gross_profit - r.gross_loss - r.fees;
+    let losses = r.trades - r.wins;
+    let short_trades = r.trades - r.long_trades;
+    let share = |n: u32| n as f64 / r.trades as f64;
+    // Winners and losers split across the two sides in the same proportion as the trades,
+    // so Long + Short adds back up to All.
+    let scope = |n: u32| {
+        let f = share(n);
+        side_stats(
+            n,
+            (r.wins as f64 * f).round() as u32,
+            r.gross_profit * f,
+            r.gross_loss * f,
+            r.fees * f,
+            r.avg_bars_held,
+        )
+    };
+    serde_json::json!({
+        "engine_version": crate::backtest::ENGINE_VERSION,
+        "trades": r.trades,
+        "wins": r.wins,
+        "losses": losses,
+        "win_rate": round2(r.wins as f64 / r.trades as f64 * 100.0),
+        "net_pnl": round2(net),
+        "return_pct": round2(net / r.capital * 100.0),
+        "total_fees": round2(r.fees),
+        "max_drawdown_pct": r.max_dd_pct,
+        "max_drawdown": round2(r.capital * r.max_dd_pct / 100.0),
+        "profit_factor": round2(r.gross_profit / r.gross_loss),
+        "avg_trade": round2(net / r.trades as f64),
+        "final_equity": round2(r.capital + net),
+        "buy_hold_return_pct": r.buy_hold_pct,
+        "sharpe": r.sharpe,
+        "sortino": r.sortino,
+        "expectancy_pct": round2(net / r.trades as f64 / (r.gross_profit + r.gross_loss) * 100.0),
+        // Roughly how a stop/target strategy actually closes: most at one of the two
+        // brackets, the rest on the exit signal, one left open at the end of the window.
+        "exit_reasons": {
+            "take_profit": r.wins,
+            "stop_loss": (losses as f64 * 0.7).round() as u32,
+            "signal": losses - (losses as f64 * 0.7).round() as u32,
+            "end": 1
+        },
+        "all": scope(r.trades),
+        "long": scope(r.long_trades),
+        "short": scope(short_trades)
+    })
+}
+
+/// Saved backtest runs: the module's history, and what the dashboard's Backtest cards rank.
+///
+/// Runs after [`datasets`] on purpose: a run names the dataset it was produced on, and one
+/// pointing at a series the seed could not download would rerun into an error rather than a
+/// result. Each row borrows the settings of the strategy it came from, so "Rerun" replays a
+/// configuration the engine can parse instead of a blob written by hand here.
+async fn backtest_runs(pool: &PgPool) -> anyhow::Result<()> {
+    let runs: &[RunSpec] = &[
+        RunSpec {
+            name: "Trend pullback on AAPL daily", provider: "yahoo", asset_type: "equity",
+            ticker: "AAPL", timeframe: "1d", strategy: "Trend pullback (daily)",
+            days_ago: 16, trades: 64, wins: 37, long_trades: 64,
+            gross_profit: 21_480.0, gross_loss: 12_260.0, fees: 940.0, capital: 25_000.0,
+            sharpe: 1.42, sortino: 2.05, max_dd_pct: 11.8, buy_hold_pct: 96.4, avg_bars_held: 9.3,
+        },
+        RunSpec {
+            name: "Trend pullback on BTC 1h", provider: "binance", asset_type: "crypto",
+            ticker: "BTCUSDT", timeframe: "1h", strategy: "Trend pullback (daily)",
+            days_ago: 12, trades: 118, wins: 58, long_trades: 118,
+            gross_profit: 18_930.0, gross_loss: 13_410.0, fees: 1_520.0, capital: 25_000.0,
+            sharpe: 0.96, sortino: 1.31, max_dd_pct: 18.4, buy_hold_pct: 61.2, avg_bars_held: 14.7,
+        },
+        RunSpec {
+            name: "Mean reversion on ETH 15m", provider: "binance", asset_type: "crypto",
+            ticker: "ETHUSDT", timeframe: "15m", strategy: "Mean reversion (intraday)",
+            days_ago: 9, trades: 212, wins: 132, long_trades: 212,
+            gross_profit: 9_640.0, gross_loss: 7_180.0, fees: 1_180.0, capital: 10_000.0,
+            sharpe: 0.74, sortino: 1.02, max_dd_pct: 9.6, buy_hold_pct: -4.8, avg_bars_held: 5.1,
+        },
+        RunSpec {
+            name: "Mean reversion on NVDA 1h", provider: "yahoo", asset_type: "equity",
+            ticker: "NVDA", timeframe: "1h", strategy: "Mean reversion (intraday)",
+            days_ago: 6, trades: 87, wins: 54, long_trades: 87,
+            gross_profit: 6_310.0, gross_loss: 3_890.0, fees: 620.0, capital: 10_000.0,
+            sharpe: 1.18, sortino: 1.67, max_dd_pct: 7.4, buy_hold_pct: 44.9, avg_bars_held: 6.8,
+        },
+        RunSpec {
+            name: "Breakout continuation on NVDA 1h", provider: "yahoo", asset_type: "equity",
+            ticker: "NVDA", timeframe: "1h", strategy: "Breakout continuation (1h)",
+            days_ago: 4, trades: 41, wins: 19, long_trades: 41,
+            gross_profit: 7_950.0, gross_loss: 4_730.0, fees: 410.0, capital: 25_000.0,
+            sharpe: 1.06, sortino: 1.48, max_dd_pct: 12.9, buy_hold_pct: 44.9, avg_bars_held: 11.2,
+        },
+        RunSpec {
+            name: "Range fade on BTC 1h (tighter stop)", provider: "binance", asset_type: "crypto",
+            ticker: "BTCUSDT", timeframe: "1h", strategy: "Range fade, both sides",
+            days_ago: 2, trades: 96, wins: 51, long_trades: 52,
+            gross_profit: 11_240.0, gross_loss: 9_870.0, fees: 1_310.0, capital: 25_000.0,
+            sharpe: 0.21, sortino: 0.28, max_dd_pct: 16.2, buy_hold_pct: 61.2, avg_bars_held: 8.4,
+        },
+    ];
+
+    let mut kept = 0;
+    for r in runs {
+        let dataset: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM histdata_datasets
+             WHERE provider = $1 AND asset_type = $2 AND ticker = $3 AND timeframe = $4",
+        )
+        .bind(r.provider)
+        .bind(r.asset_type)
+        .bind(r.ticker)
+        .bind(r.timeframe)
+        .fetch_optional(pool)
+        .await?;
+        let Some(dataset) = dataset else { continue };
+
+        sqlx::query(
+            "INSERT INTO backtest_runs
+               (id, name, dataset_id, dataset_ids, ticker, timeframe, settings, stats,
+                engine_version, strategy_id, pinned, created_at)
+             SELECT gen_random_uuid(), $1, $2, ARRAY[$2]::uuid[], $3, $4, s.settings, $5,
+                    $6, s.id, TRUE, now() - make_interval(days => $7)
+             FROM backtest_strategies s WHERE s.name = $8",
+        )
+        .bind(r.name)
+        .bind(dataset)
+        .bind(r.ticker)
+        .bind(r.timeframe)
+        .bind(run_stats(r))
+        .bind(crate::backtest::ENGINE_VERSION as i32)
+        .bind(r.days_ago)
+        .bind(r.strategy)
+        .execute(pool)
+        .await?;
+        kept += 1;
+    }
+    println!("backtest: {kept} saved runs");
+    Ok(())
+}
+
+/// Fill the news module before the snapshot is taken.
+///
+/// The seeded RSS sources are real endpoints and the running instance does poll them, but
+/// the demo database is a *template*: every 15-minute reset restores it exactly as it was
+/// built, so whatever the instance fetched in between is thrown away and the news page is
+/// blank again until the next poll lands. Polling once here puts real headlines *inside*
+/// the template, so a reset comes back populated instead of empty.
+///
+/// Best-effort per feed, like the datasets: a publisher that is down must not fail the
+/// seed. Only the enabled RSS sources are polled (the AlphaVantage one is armed later, and
+/// polling it before its key is sealed would only record an auth error), and `next_run_at`
+/// is re-parked afterwards so the template keeps the egress budget the statements set.
+async fn news(pool: &PgPool) -> anyhow::Result<()> {
+    let Some(master) = std::env::var("OTW_SECRET_KEY").ok().filter(|k| !k.trim().is_empty()) else {
+        println!("OTW_SECRET_KEY unset, news feeds left unpolled");
+        return Ok(());
+    };
+    let cipher = otw_store::crypto::SecretCipher::from_master(&master)?;
+    let scheduler = otw_scheduler::Scheduler::new(pool.clone(), cipher);
+    let mut total = 0u64;
+    for feed in otw_store::feeds::list_feeds(pool).await? {
+        if !feed.enabled || feed.kind != "rss" {
+            continue;
+        }
+        match scheduler.poll_feed_id(feed.id).await {
+            Ok(n) => total += n,
+            Err(e) => eprintln!("feed {}: skipped ({e:#})", feed.name),
+        }
+    }
+    // A poll stamps its own `next_run_at`; put the parking back, or the template comes
+    // back due the instant a reset restores it.
+    sqlx::query("UPDATE feeds SET next_run_at = now() + interval '1 hour'")
+        .execute(pool)
+        .await?;
+    println!("news: {total} headlines seeded");
+    Ok(())
+}
+
+/// Arm the AlphaVantage feed if `OTW_DEMO_AV_KEY` is set on the seeding host.
+///
+/// The key is sealed into `feed_secrets` (AEAD, same path as the UI) and the feed's
+/// config only ever references `{{secret:api_key}}` — so nothing secret reaches the
+/// repo, the seed SQL, or `otw_seed`'s public description. No env var, no key: the feed
+/// simply stays disabled rather than polling with a broken credential.
+async fn av_key(pool: &PgPool) -> anyhow::Result<()> {
+    let Some(key) = std::env::var("OTW_DEMO_AV_KEY").ok().filter(|k| !k.trim().is_empty()) else {
+        println!("OTW_DEMO_AV_KEY unset — AlphaVantage feed left disabled");
+        return Ok(());
+    };
+    let master = std::env::var("OTW_SECRET_KEY")
+        .map_err(|_| anyhow::anyhow!("OTW_SECRET_KEY is required to seal the AlphaVantage key"))?;
+    let cipher = otw_store::crypto::SecretCipher::from_master(&master)?;
+
+    let id: Uuid = sqlx::query_scalar("SELECT id FROM feeds WHERE name = $1")
+        .bind("AlphaVantage — Market news")
+        .fetch_one(pool)
+        .await?;
+    otw_store::feeds::set_secret(pool, &cipher, id, "api_key", key.trim()).await?;
+    sqlx::query("UPDATE feeds SET enabled = TRUE WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    // The dashboard link is what makes the scheduler poll it (`claim_due_feeds` joins
+    // through dashboard_sources and does NOT check `enabled`) — which is exactly why the
+    // link is added here and not in the statement block: without a key the feed must stay
+    // unlinked, or the scheduler would hammer AlphaVantage with `{{secret:api_key}}`.
+    sqlx::query(
+        "INSERT INTO dashboard_sources (dashboard_id, feed_id, interval_secs, position)
+         SELECT d.id, $1, 3600, 99 FROM feed_dashboards d WHERE d.is_default
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
+
+    // `next_run_at` is a seeded column, so the 15-minute reset restores whatever value is
+    // frozen here. Left at the default (now, i.e. in the past by restore time) the feed is
+    // due the instant the snapshot lands and polls 96×/day — blowing the 25/day free tier
+    // before breakfast. Parking it a full interval ahead means a poll only happens when a
+    // demo instance stays up past the reset, capping real egress at ~24/day.
+    sqlx::query("UPDATE feeds SET next_run_at = now() + interval '1 hour' WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    println!("AlphaVantage feed armed (key sealed, hourly)");
+    Ok(())
+}
+
+/// Give the demo agent its tools: a read-only MCP token wired to the default agent.
+/// The plaintext is minted and **discarded** — it exists nowhere, so the token can never
+/// authenticate an external `/api/mcp` call (which the demo gate blocks anyway); only the
+/// in-process agent dispatch, which resolves the token by id, can use it. Because the row
+/// lives in the `otw_seed` template, every 15-minute reset restores the exact same token.
+async fn agent_token(pool: &PgPool) -> anyhow::Result<()> {
+    let perms = serde_json::Value::Object(
+        crate::mcp::catalog::MODULES
+            .iter()
+            .map(|(id, _)| ((*id).to_string(), serde_json::Value::String("r".into())))
+            .collect(),
+    );
+    let (row, _plaintext_discarded) =
+        otw_store::mcp::create_token(pool, "Demo agent (internal, read-only)", &perms, None, false)
+            .await?;
+    sqlx::query("UPDATE agent_agents SET mcp_token_id = $1 WHERE is_default")
+        .bind(row.id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+const STATEMENTS: &[&str] = &[
+    // ── Journal: categories, capital, strategies, fees ───────────────────────
+    "INSERT INTO journal_categories (id, name, color, position)
+     VALUES (gen_random_uuid(), 'Crypto', '#f7931a', 1)",
+    "INSERT INTO journal_capital_events (id, category_id, kind, amount, currency, occurred_at)
+     SELECT gen_random_uuid(), id, 'initial', 10000, 'USD', now() - interval '90 days'
+     FROM journal_categories WHERE is_default",
+    "INSERT INTO journal_capital_events (id, category_id, kind, amount, currency, occurred_at)
+     SELECT gen_random_uuid(), id, 'initial', 5000, 'USD', now() - interval '90 days'
+     FROM journal_categories WHERE name = 'Crypto'",
+    "INSERT INTO journal_strategies (id, name, description, signals, position) VALUES
+       (gen_random_uuid(), 'Breakout', 'Range break with volume confirmation',
+        '[\"Range break\", \"Volume surge\"]'::jsonb, 0),
+       (gen_random_uuid(), 'Mean reversion', 'Fade extended moves back to VWAP',
+        '[\"VWAP fade\", \"RSI extreme\"]'::jsonb, 1)",
+    "INSERT INTO journal_fee_schedules (id, name, amount, amount_kind, per, currency, position)
+     VALUES (gen_random_uuid(), 'Broker flat', 1.5, 'fixed', 'trade', 'USD', 0)",
+    // Discipline tags: a short list of things this demo trader actually does, so the
+    // analytics screen has a real cost-of-mistakes figure instead of an empty panel.
+    "INSERT INTO journal_tags (id, name, kind, description, position) VALUES
+       (gen_random_uuid(), 'Moved my stop', 'mistake', 'Widened the stop once it was hit', 0),
+       (gen_random_uuid(), 'Exited early', 'mistake', 'Closed before the plan said to', 1),
+       (gen_random_uuid(), 'Overtraded', 'mistake', 'Took a trade with no edge, out of boredom', 2),
+       (gen_random_uuid(), 'Followed the plan', 'rule', 'Entry, stop and exit as written', 3),
+       (gen_random_uuid(), 'Breakout continuation', 'setup', 'Second push after a clean range break', 4)",
+    // ── Prompt store: prompts + their version-1 history rows ─────────────────
+    "WITH new_prompts AS (
+         INSERT INTO prompt_store_prompts (id, name, body, tags, vote)
+         VALUES
+           (gen_random_uuid(), 'Trade post-mortem',
+            E'Analyze this closed trade like a trading coach.\\n\\nSetup: {{setup}}\\nOutcome: {{outcome}}\\n\\nList: what was done well, what broke the plan, and one rule to add.',
+            ARRAY['journal','review'], 1),
+           (gen_random_uuid(), 'Earnings summary',
+            E'Summarize the following earnings report in 5 bullets: revenue vs consensus, margin trend, guidance, one risk, one catalyst.\\n\\n{{report}}',
+            ARRAY['research'], 1),
+           (gen_random_uuid(), 'Risk check',
+            E'Given account size {{size}}, risk per trade {{risk_pct}}% and stop distance {{stop}}, compute position size and validate against max exposure rules.',
+            ARRAY['risk','sizing'], 0)
+         RETURNING id, name, body, tags
+     )
+     INSERT INTO prompt_store_versions (id, prompt_id, version, name, body, tags)
+     SELECT gen_random_uuid(), id, 1, name, body, tags FROM new_prompts",
+    // ── Watchlist (sync off: the sandbox never polls providers on its own) ───
+    "WITH wl AS (
+         INSERT INTO watchlists (id, name, description, sync_enabled, position)
+         VALUES (gen_random_uuid(), 'Core holdings',
+                 'Demo watchlist — seeded quotes; hit refresh for live prices', FALSE, 0)
+         RETURNING id
+     )
+     INSERT INTO watchlist_items (id, watchlist_id, asset_class, provider, provider_id, symbol, name, position)
+     SELECT gen_random_uuid(), wl.id, v.class, v.provider, v.pid, v.symbol, v.name, v.pos
+     FROM wl, (VALUES
+         ('crypto', 'coingecko', 'bitcoin',  'BTC',  'Bitcoin',     0.0),
+         ('crypto', 'coingecko', 'ethereum', 'ETH',  'Ethereum',    1.0),
+         ('stock',  'yahoo',     'AAPL',     'AAPL', 'Apple',       2.0),
+         ('etf',    'yahoo',     'SPY',      'SPY',  'S&P 500 ETF', 3.0),
+         ('stock',  'yahoo',     'NVDA',     'NVDA', 'NVIDIA',      4.0),
+         ('stock',  'yahoo',     'MSFT',     'MSFT', 'Microsoft',   5.0),
+         ('stock',  'yahoo',     'AMZN',     'AMZN', 'Amazon',      6.0),
+         ('stock',  'yahoo',     'META',     'META', 'Meta',        7.0),
+         ('etf',    'yahoo',     'QQQ',      'QQQ',  'Nasdaq 100',  8.0),
+         ('crypto', 'coingecko', 'solana',   'SOL',  'Solana',      9.0)
+     ) AS v(class, provider, pid, symbol, name, pos)",
+    // Price alerts on the watchlist, every level a few percent away from the seeded quote.
+    // Deliberately out of reach, like the chart alerts: one sitting where the market
+    // already is would fire on the first evaluation and replay that same notification
+    // after every 15-minute reset. The list's own sync is off, so nothing evaluates them
+    // here anyway; what they populate is the alert table and the "closest to trigger"
+    // card, which rank on the distance between the cached quote and the threshold.
+    "INSERT INTO watchlist_alerts (id, item_id, metric, direction, threshold, basis, note, repeat)
+     SELECT gen_random_uuid(), i.id, v.metric, v.direction, v.threshold, 'anchor', v.note, v.repeat
+     FROM watchlist_items i
+     JOIN (VALUES
+        ('SPY',  'price', 'below', 600.0,    'Index loses the range low: stand down for the session.', FALSE),
+        ('AAPL', 'price', 'below', 225.0,    'Below the 50d, the swing thesis is done.', FALSE),
+        ('NVDA', 'price', 'above', 195.0,    'New high: start the continuation checklist.', TRUE),
+        ('BTC',  'price', 'above', 115000.0, 'Quarter high broken, size down and let it run.', TRUE),
+        ('ETH',  'price', 'above', 3600.0,   'Reclaims the breakdown level.', FALSE),
+        ('SOL',  'price', 'below', 160.0,    'Trend line gone.', FALSE)
+     ) AS v(symbol, metric, direction, threshold, note, repeat) ON i.symbol = v.symbol",
+    // One percentage alert too, so the module shows both kinds it supports: a rolling
+    // window answers "whenever it moves 6% in a day", not "when it reaches a price".
+    "INSERT INTO watchlist_alerts
+       (id, item_id, metric, direction, threshold, basis, window_secs, note, repeat)
+     SELECT gen_random_uuid(), i.id, 'pct', 'move', 6.0, 'rolling', 86400,
+            'Any 6% daily swing: re-read the position before doing anything.', TRUE
+     FROM watchlist_items i WHERE i.symbol = 'BTC'",
+    // Community Docs: two starter references come from the migration, and pinning both puts
+    // the quick-access card on something instead of an empty list.
+    "INSERT INTO community_docs_favorites (slug, favorited_at)
+     SELECT slug, now() - interval '9 days' FROM community_docs
+     ON CONFLICT DO NOTHING",
+    // ── Subscriptions (a trader's recurring tool spend, mixed currencies/cadences) ──
+    "INSERT INTO subscriptions (id, name, platform, url, price, currency, frequency, category, started_on) VALUES
+       (gen_random_uuid(), 'TradingView Premium', 'TradingView', 'https://tradingview.com',
+        59.95, 'USD', 'monthly', 'Charting', current_date - 400),
+       (gen_random_uuid(), 'Interactive Brokers market data', 'IBKR', NULL,
+        14.00, 'USD', 'monthly', 'Market data', current_date - 300),
+       (gen_random_uuid(), 'Koyfin Plus', 'Koyfin', 'https://koyfin.com',
+        468.00, 'USD', 'yearly', 'Research', current_date - 210),
+       (gen_random_uuid(), 'Financial Times', 'FT', 'https://ft.com',
+        39.00, 'EUR', 'monthly', 'News', current_date - 150),
+       (gen_random_uuid(), 'VPS — strategy runner', 'Hetzner', NULL,
+        16.50, 'EUR', 'monthly', 'Infrastructure', current_date - 120),
+       (gen_random_uuid(), 'Notion', 'Notion', NULL,
+        10.00, 'USD', 'monthly', 'Notes', current_date - 500),
+       (gen_random_uuid(), 'Substack — macro letter', NULL, NULL,
+        180.00, 'USD', 'yearly', 'Research', current_date - 95),
+       (gen_random_uuid(), 'Old backtesting tool', NULL, NULL,
+        29.00, 'USD', 'monthly', 'Research', current_date - 620)",
+    // One cancelled sub so the active/inactive split is visible.
+    "UPDATE subscriptions SET active = FALSE WHERE name = 'Old backtesting tool'",
+    // ── News feeds ───────────────────────────────────────────────────────────
+    // Real public RSS endpoints — the scheduler polls these in the demo, so the news
+    // module fills with genuine headlines instead of canned rows. Feed *management* is
+    // read-only in demo (SSRF via the scheduler), so a visitor can browse and refresh
+    // but never repoint one of these at an arbitrary URL.
+    "INSERT INTO feeds (id, name, kind, config, enabled, interval_secs) VALUES
+       (gen_random_uuid(), 'Reuters — Business', 'rss',
+        '{\"url\":\"https://ir.thomsonreuters.com/rss/news-releases.xml?items=15\"}'::jsonb,
+        TRUE, 3600),
+       (gen_random_uuid(), 'Federal Reserve — Press releases', 'rss',
+        '{\"url\":\"https://www.federalreserve.gov/feeds/press_all.xml\"}'::jsonb,
+        TRUE, 3600),
+       (gen_random_uuid(), 'ECB — Press releases', 'rss',
+        '{\"url\":\"https://www.ecb.europa.eu/rss/press.html\"}'::jsonb,
+        TRUE, 3600)",
+    // AlphaVantage NEWS_SENTIMENT as an `api` feed. The key is NOT here: config
+    // references `{{secret:api_key}}`, which the fetcher substitutes from the encrypted
+    // `feed_secrets` row written by `seed_av_key()` from OTW_DEMO_AV_KEY (host env).
+    // Disabled when that env var is absent, so a keyless deploy shows no broken feed.
+    // Hourly: the free tier allows 25 requests/day, and 24 polls fits under it — but see
+    // the `next_run_at` parking below, without which the reset cadence sets the real rate.
+    "INSERT INTO feeds (id, name, kind, config, enabled, interval_secs) VALUES
+       (gen_random_uuid(), 'AlphaVantage — Market news', 'api',
+        '{\"url\":\"https://www.alphavantage.co/query\",
+          \"method\":\"GET\",
+          \"query\":{\"function\":\"NEWS_SENTIMENT\",\"topics\":\"financial_markets\",
+                     \"sort\":\"LATEST\",\"limit\":\"25\",\"apikey\":\"{{secret:api_key}}\"},
+          \"items_path\":\"feed\",
+          \"title_path\":\"title\",
+          \"url_path\":\"url\",
+          \"date_path\":\"time_published\",
+          \"summary_path\":\"summary\",
+          \"source_path\":\"source\"}'::jsonb,
+        FALSE, 3600)",
+    // A *started* dashboard is what actually drives polling: `claim_due_feeds` joins
+    // through `dashboard_sources` and ignores a feed's own `enabled` flag, so a source
+    // with no started dashboard is never fetched. Migration 0030 already creates the
+    // started default dashboard (and links whatever feeds existed then — none, since it
+    // runs before this seed), so rename it and link ours rather than inserting a second
+    // default, which the `uq_feed_dashboards_default` partial index rejects.
+    // The per-link interval_secs (not the feed column) sets the cadence for an instance
+    // that stays up: 3600s. What bounds total egress across resets is `next_run_at`.
+    "UPDATE feed_dashboards SET name = 'Markets', started = TRUE, favorite = TRUE
+     WHERE is_default",
+    "INSERT INTO dashboard_sources (dashboard_id, feed_id, interval_secs, position)
+     SELECT d.id, f.id, 3600,
+            row_number() OVER (ORDER BY f.name)::int
+     FROM feed_dashboards d, feeds f
+     WHERE d.is_default AND f.enabled
+     ON CONFLICT DO NOTHING",
+    // Park every seeded feed one interval out. `next_run_at` is restored verbatim by the
+    // 15-minute reset, so a seed-time default (already in the past) makes each feed due the
+    // moment the snapshot lands — 96 fetches/day per publisher instead of 24, from a public
+    // demo, which is a good way to get the demo's IP blocked by Reuters/the Fed/the ECB.
+    "UPDATE feeds SET next_run_at = now() + interval '1 hour'",
+    // ── Todos & goals ────────────────────────────────────────────────────────
+    "INSERT INTO todos (id, name, due_date, details, done) VALUES
+       (gen_random_uuid(), 'Review last week''s trades', current_date + 1, 'Tag each with a strategy and one lesson.', FALSE),
+       (gen_random_uuid(), 'Update watchlist for earnings season', current_date + 3, '', FALSE),
+       (gen_random_uuid(), 'Backtest the breakout tweak', current_date + 7, 'Wider stop, same target — check expectancy.', FALSE),
+       (gen_random_uuid(), 'Journal the ETH loss', current_date - 2, 'Done during weekend review.', TRUE)",
+    "INSERT INTO goals (id, name, deadline, details, kpis) VALUES
+       (gen_random_uuid(), 'Positive expectancy quarter', current_date + 60,
+        'Three consecutive months with positive expectancy across all strategies.',
+        '[{\"name\":\"Win rate\",\"target\":\"55%\"},{\"name\":\"Avg R\",\"target\":\"1.8\"}]'::jsonb),
+       (gen_random_uuid(), 'Journal every trade', current_date + 30,
+        'No unlogged fills for 30 days straight.',
+        '[{\"name\":\"Logged trades\",\"target\":\"100%\"}]'::jsonb)",
+    // ── MyWealth: a small net-worth sheet across asset types ─────────────────
+    // Assets are template-less (the module's reserved price/quantity live on the revision),
+    // mixed currencies so the FX-converted breakdown has something to convert, and each one
+    // carries several revisions so the net-worth curve is a curve and not a single point.
+    "INSERT INTO wealth_assets (id, name, asset_type, currency, category) VALUES
+       (gen_random_uuid(), 'Cash — main account', 'money',  'USD', 'Liquid'),
+       (gen_random_uuid(), 'Cash — EUR savings',  'money',  'EUR', 'Liquid'),
+       (gen_random_uuid(), 'Brokerage — ETF sleeve', 'stock',  'USD', 'Invested'),
+       (gen_random_uuid(), 'Cold wallet — BTC',   'crypto', 'USD', 'Invested'),
+       (gen_random_uuid(), 'Apartment',           'house',  'EUR', 'Real estate'),
+       (gen_random_uuid(), 'Speedmaster',         'watch',  'EUR', 'Collectibles')",
+    // Quarterly revisions over the last year. `value` is what the breakdown sums; price and
+    // quantity are set only where they mean something (BTC, the ETF sleeve).
+    "INSERT INTO wealth_revisions (id, asset_id, valued_at, price, quantity, value, note)
+     SELECT gen_random_uuid(), a.id, current_date - v.days_ago,
+            v.price, v.qty, v.value, v.note
+     FROM wealth_assets a, (VALUES
+         ('Cash — main account',    360, NULL::float8, NULL::float8, 18400.0, 'Opening balance'),
+         ('Cash — main account',    270, NULL, NULL, 21250.0, ''),
+         ('Cash — main account',    180, NULL, NULL, 19800.0, 'Paid the tax bill'),
+         ('Cash — main account',     90, NULL, NULL, 24600.0, ''),
+         ('Cash — main account',      5, NULL, NULL, 26150.0, ''),
+         ('Cash — EUR savings',     360, NULL, NULL, 12000.0, ''),
+         ('Cash — EUR savings',     180, NULL, NULL, 14500.0, ''),
+         ('Cash — EUR savings',       5, NULL, NULL, 16250.0, ''),
+         ('Brokerage — ETF sleeve', 360, 118.20, 85.0, 10047.0, ''),
+         ('Brokerage — ETF sleeve', 180, 129.60, 85.0, 11016.0, ''),
+         ('Brokerage — ETF sleeve',   5, 141.75, 85.0, 12048.75, 'Same line as the tracker'),
+         ('Cold wallet — BTC',      360, 68400.0, 0.35, 23940.0, ''),
+         ('Cold wallet — BTC',      180, 91200.0, 0.35, 31920.0, ''),
+         ('Cold wallet — BTC',        5, 108400.0, 0.35, 37940.0, ''),
+         ('Apartment',              360, NULL, NULL, 268000.0, 'Notary estimate'),
+         ('Apartment',                5, NULL, NULL, 279000.0, 'Local comparables'),
+         ('Speedmaster',            360, NULL, NULL, 5200.0, ''),
+         ('Speedmaster',              5, NULL, NULL, 5650.0, '')
+     ) AS v(asset, days_ago, price, qty, value, note)
+     WHERE a.name = v.asset",
+    // ── Calendar: personal events around the trading week ────────────────────
+    // Anchored on current_date so the month view always opens on a populated month, with a
+    // mix of past and upcoming, timed and all-day, plus one multi-day block.
+    "INSERT INTO calendar_events (id, title, start_at, end_at, all_day, category, color, location, notes)
+     VALUES
+       (gen_random_uuid(), 'Weekly review',
+        (current_date - 4 + time '17:00') AT TIME ZONE 'UTC',
+        (current_date - 4 + time '18:00') AT TIME ZONE 'UTC',
+        FALSE, 'Routine', '#3b82f6', '', 'Tag every fill, update the playbook.'),
+       (gen_random_uuid(), 'CPI release',
+        (current_date + 1 + time '13:30') AT TIME ZONE 'UTC',
+        (current_date + 1 + time '14:00') AT TIME ZONE 'UTC',
+        FALSE, 'Macro', '#ef4444', '', 'Flat into the print — no new risk 30 min before.'),
+       (gen_random_uuid(), 'NVDA earnings',
+        (current_date + 3 + time '21:00') AT TIME ZONE 'UTC',
+        (current_date + 3 + time '22:00') AT TIME ZONE 'UTC',
+        FALSE, 'Earnings', '#f59e0b', '', 'After the close.'),
+       (gen_random_uuid(), 'FOMC decision',
+        (current_date + 8 + time '18:00') AT TIME ZONE 'UTC',
+        (current_date + 8 + time '19:00') AT TIME ZONE 'UTC',
+        FALSE, 'Macro', '#ef4444', '', ''),
+       (gen_random_uuid(), 'Monthly journal export',
+        current_date + 12, NULL, TRUE, 'Routine', '#22c55e', '', 'Archive the month and back it up.'),
+       (gen_random_uuid(), 'Quant workshop',
+        current_date + 18, current_date + 21, TRUE, 'Learning', '#8b5cf6', 'Amsterdam',
+        'Three days — no discretionary trading.'),
+       (gen_random_uuid(), 'Broker statement reconciliation',
+        (current_date - 11 + time '09:30') AT TIME ZONE 'UTC',
+        (current_date - 11 + time '10:30') AT TIME ZONE 'UTC',
+        FALSE, 'Admin', '#64748b', '', 'Matched against the journal — two fees adjusted.')",
+    // ── Time tracker: projects with a week of closed entries ─────────────────
+    // Budgets and hourly rates are set so the breakdown shows both progress bars and valued
+    // time. One archived project keeps the active/archived split visible. No open entry: a
+    // timer left running would show absurd elapsed time on a sandbox reset every 15 minutes.
+    "INSERT INTO time_projects (id, name, category, color, planned_end, time_budget_hours, hourly_rate, rate_currency, position) VALUES
+       (gen_random_uuid(), 'Strategy research', 'Trading', '#3b82f6', current_date + 45, 120, 90, 'USD', 0),
+       (gen_random_uuid(), 'Journal & review',  'Trading', '#22c55e', NULL, 40, 90, 'USD', 1),
+       (gen_random_uuid(), 'Platform tinkering', 'Ops',    '#8b5cf6', current_date + 20, 60, 0, 'USD', 2),
+       (gen_random_uuid(), 'Client reporting',  'Work',    '#f59e0b', current_date + 10, 25, 140, 'EUR', 3),
+       (gen_random_uuid(), 'Old data migration', 'Ops',    '#64748b', NULL, NULL, NULL, 'USD', 4)",
+    "UPDATE time_projects SET archived = TRUE WHERE name = 'Old data migration'",
+    "INSERT INTO time_entries (id, project_id, started_at, ended_at, note)
+     SELECT gen_random_uuid(), p.id,
+            (current_date - v.days_ago + v.start_h) AT TIME ZONE 'UTC',
+            (current_date - v.days_ago + v.start_h + make_interval(mins => v.mins)) AT TIME ZONE 'UTC',
+            v.note
+     FROM time_projects p, (VALUES
+         ('Strategy research',  12, time '09:00', 145, 'Post-earnings drift sample'),
+         ('Strategy research',  11, time '14:00',  95, 'Liquidity floor rework'),
+         ('Strategy research',   9, time '10:30', 170, 'Mid-cap re-run'),
+         ('Strategy research',   6, time '09:15', 120, ''),
+         ('Strategy research',   4, time '15:00',  75, 'Correlation vs the breakout book'),
+         ('Strategy research',   1, time '11:00', 110, ''),
+         ('Journal & review',    7, time '18:00',  60, 'Weekly review'),
+         ('Journal & review',    5, time '17:45',  35, ''),
+         ('Journal & review',    2, time '18:15',  50, 'Tagged the ETH loss'),
+         ('Platform tinkering', 10, time '20:00',  90, 'Watchlist layout'),
+         ('Platform tinkering',  8, time '21:00', 130, 'Feed dashboard'),
+         ('Platform tinkering',  3, time '20:30',  65, ''),
+         ('Client reporting',    6, time '08:30', 100, 'Monthly pack'),
+         ('Client reporting',    2, time '09:00',  80, 'Revisions')
+     ) AS v(project, days_ago, start_h, mins, note)
+     WHERE p.name = v.project",
+    // ── Trading routines & mindset: a believable operating cadence ──────────
+    "INSERT INTO trader_routine_categories (id, name, color, position) VALUES
+       (gen_random_uuid(), 'Pre-market', '#3b82f6', 0),
+       (gen_random_uuid(), 'Execution', '#f59e0b', 1),
+       (gen_random_uuid(), 'Review', '#22c55e', 2)",
+    "INSERT INTO trader_routines
+       (id, name, session, weekdays, position, description, notes, category_id, schedule, start_date)
+     SELECT gen_random_uuid(), v.name, v.session, v.weekdays, v.position, v.description, v.notes,
+            c.id, v.schedule::jsonb, current_date - 90
+     FROM (VALUES
+       ('Opening preparation', 'pre', 31, 0.0, 'A short, repeatable read before adding risk.',
+        '<p>Finish this before the cash open. If a macro release is due, reduce size or wait.</p>',
+        '{\"kind\":\"weekly\",\"weekdays\":31,\"interval\":1}'),
+       ('In-session discipline', 'live', 31, 1.0, 'Checks that stop impulsive adds and revenge trades.',
+        '<p>Use this when attention drifts or a position moves quickly.</p>',
+        '{\"kind\":\"weekly\",\"weekdays\":31,\"interval\":1}'),
+       ('Closing review', 'post', 31, 2.0, 'Capture decisions while the tape is still fresh.',
+        '<p>Journal the decision, not just the P&amp;L.</p>',
+        '{\"kind\":\"weekly\",\"weekdays\":31,\"interval\":1}'),
+       -- Saturday and Sunday (mask 32 + 64). The three session routines are weekday-only,
+       -- which is right for them and leaves the board empty on a weekend, when half the
+       -- people opening the demo are looking at it.
+       ('Weekend review', 'post', 96, 3.0, 'The slower read: the week as a whole, not one session.',
+        '<p>No live market, no excuses. Read the week before planning the next one.</p>',
+        '{\"kind\":\"weekly\",\"weekdays\":96,\"interval\":1}')
+     ) AS v(name, session, weekdays, position, description, notes, schedule)
+     JOIN trader_routine_categories c ON c.name = CASE v.session
+       WHEN 'pre' THEN 'Pre-market' WHEN 'live' THEN 'Execution' ELSE 'Review' END",
+    "INSERT INTO trader_routine_items (id, routine_id, label, position, note, url, link_label)
+     SELECT gen_random_uuid(), r.id, v.label, v.position, v.note, v.url, v.link_label
+     FROM trader_routines r
+     JOIN (VALUES
+       ('Opening preparation', 'Read the economic calendar', 0.0, 'Flag high-impact releases and earnings before placing orders.', '', ''),
+       ('Opening preparation', 'Mark overnight high, low and VWAP', 1.0, 'Levels first; opinions second.', '', ''),
+       ('Opening preparation', 'Write the two best setups', 2.0, 'A setup needs entry, invalidation and target.', '', ''),
+       ('In-session discipline', 'Confirm risk before every new entry', 0.0, 'Total open risk stays inside the daily limit.', '', ''),
+       ('In-session discipline', 'No averaging a losing position', 1.0, 'Add only when the original plan explicitly allows it.', '', ''),
+       ('In-session discipline', 'Take a five-minute break after two losses', 2.0, 'Reset before looking for the next opportunity.', '', ''),
+       ('Closing review', 'Log every closed trade', 0.0, 'Include setup, execution quality and one lesson.', '', ''),
+       ('Closing review', 'Screenshot notable charts', 1.0, 'Keep examples for the weekly playbook review.', '', ''),
+       ('Closing review', 'Set tomorrow’s alerts', 2.0, 'Only alerts linked to a written scenario stay active.', '', ''),
+       ('Weekend review', 'Read every trade of the week again', 0.0, 'Look for the pattern, not the individual result.', '', ''),
+       ('Weekend review', 'Update the playbook', 1.0, 'One setup added, changed or retired, with the reason written down.', '', ''),
+       ('Weekend review', 'Rebuild next week''s watchlist', 2.0, 'Earnings, macro dates, and the names that actually moved.', '', ''),
+       ('Weekend review', 'Check the risk budget', 3.0, 'Open risk, correlation and what is left of the monthly allowance.', '', '')
+     ) AS v(routine, label, position, note, url, link_label) ON r.name = v.routine",
+    "INSERT INTO trader_routine_checks (item_id, check_date, checked_at)
+     SELECT i.id, current_date - v.days_ago, now() - make_interval(days => v.days_ago, hours => v.hours)
+     FROM trader_routine_items i
+     JOIN (VALUES
+       ('Read the economic calendar', 1, 8), ('Mark overnight high, low and VWAP', 1, 8),
+       ('Write the two best setups', 1, 8), ('Confirm risk before every new entry', 1, 3),
+       ('Log every closed trade', 1, 1), ('Screenshot notable charts', 2, 1),
+       ('Set tomorrow’s alerts', 2, 1), ('Read the economic calendar', 3, 8),
+       ('Write the two best setups', 3, 8), ('Log every closed trade', 3, 1),
+       ('Read the economic calendar', 4, 8), ('Confirm risk before every new entry', 4, 3),
+       ('Log every closed trade', 5, 1), ('Set tomorrow’s alerts', 5, 1)
+     ) AS v(label, days_ago, hours) ON i.label = v.label",
+    "INSERT INTO trader_tasks (id, title, note, priority, due_date, done, done_at) VALUES
+       (gen_random_uuid(), 'Check CPI scenario levels', 'Write both risk-on and risk-off responses before the release.', 'high', current_date + 1, FALSE, NULL),
+       (gen_random_uuid(), 'Archive August screenshots', 'Move tagged examples into the research folder.', 'normal', current_date + 2, FALSE, NULL),
+       (gen_random_uuid(), 'Compare fills with broker report', 'Check commissions and partial fills.', 'normal', current_date - 1, TRUE, now() - interval '1 day'),
+       (gen_random_uuid(), 'Clean stale alerts', 'Keep only levels with a current thesis.', 'low', current_date + 5, FALSE, NULL)",
+    "INSERT INTO mindset_categories (id, name, color, position) VALUES
+       (gen_random_uuid(), 'Daily practice', '#8b5cf6', 0),
+       (gen_random_uuid(), 'Weekly reflection', '#ec4899', 1)",
+    "INSERT INTO mindset_templates (id, name, description, notes, category_id, phase, position)
+     SELECT gen_random_uuid(), v.name, v.description, v.notes, c.id, v.phase, v.position
+     FROM (VALUES
+       ('Pre-market intention', 'Set an intention before the session begins.', '<p>Trade the plan, not the first feeling.</p>', 'Daily practice', 'pre', 0.0),
+       ('After-close debrief', 'Separate process quality from the result.', '<p>A losing trade can still be well executed.</p>', 'Daily practice', 'post', 1.0),
+       ('Weekly reset', 'Review energy, discipline and recurring errors.', '<p>One adjustment for next week is enough.</p>', 'Weekly reflection', 'post', 2.0)
+     ) AS v(name, description, notes, category, phase, position)
+     JOIN mindset_categories c ON c.name = v.category",
+    "INSERT INTO mindset_prompts (id, template_id, phase, kind, label, hint, config, position)
+     SELECT gen_random_uuid(), t.id, t.phase, v.kind, v.label, v.hint, v.config::jsonb, v.position
+     FROM mindset_templates t JOIN (VALUES
+       ('Pre-market intention', 'scale', 'How focused do you feel?', '1 = scattered, 5 = calm and prepared', '{\"low\":\"scattered\",\"high\":\"calm\"}', 0.0),
+       ('Pre-market intention', 'text', 'What would make today a good process day?', 'Keep it concrete and controllable.', '{}', 1.0),
+       ('After-close debrief', 'scale', 'How closely did you follow the plan?', 'Score execution, not P&amp;L.', '{\"low\":\"impulsive\",\"high\":\"disciplined\"}', 0.0),
+       ('After-close debrief', 'tags', 'What influenced your decisions?', 'Choose every factor that applied.', '{\"options\":[\"FOMO\",\"Patience\",\"Fatigue\",\"News\",\"Good preparation\"]}', 1.0),
+       ('Weekly reset', 'text', 'What pattern deserves attention next week?', 'One practical adjustment is enough.', '{}', 0.0)
+     ) AS v(template, kind, label, hint, config, position) ON t.name = v.template",
+    "INSERT INTO mindset_entries (id, entry_date, phase, template_id, answers)
+     SELECT gen_random_uuid(), current_date - v.days_ago, t.phase, t.id, v.answers::jsonb
+     FROM mindset_templates t JOIN (VALUES
+       ('Pre-market intention', 1, '{\"note\":\"Wait for confirmation at the opening range; no chasing.\"}'),
+       ('After-close debrief', 1, '{\"note\":\"Followed size rules. Passed on two marginal setups.\"}'),
+       ('Pre-market intention', 2, '{\"note\":\"Energy is low: half size and only A setups.\"}'),
+       ('After-close debrief', 3, '{\"note\":\"Moved a stop once. Add a hard-alert reminder.\"}'),
+       ('Weekly reset', 4, '{\"note\":\"Best decisions came after written scenarios; keep doing that.\"}')
+     ) AS v(template, days_ago, answers) ON t.name = v.template",
+    "INSERT INTO mindset_day_marks (day, mark) VALUES
+       (current_date - 1, 'full'), (current_date - 2, 'full'), (current_date - 3, 'action'),
+       (current_date - 4, 'full'), (current_date - 5, 'full'), (current_date - 8, 'action'),
+       (current_date - 9, 'full'), (current_date - 10, 'full')",
+    // ── Tax, reminders, resources and inbound alerts ────────────────────────
+    "INSERT INTO taxcalc_profiles
+       (id, name, country, region, currency, person_type, regime, allowances, loss_carry, holding_period_rules, wealth_tax, notes)
+     VALUES
+       (gen_random_uuid(), 'Swiss private investor', 'CH', 'ZH', 'CHF', 'individual', 'ch_private',
+        '{\"capital_gains\":0,\"dividends\":0}'::jsonb, '{\"years\":7,\"ring_fenced\":false}'::jsonb,
+        '[]'::jsonb, '[{\"up_to\":1000000,\"rate\":0.25},{\"up_to\":null,\"rate\":0.45}]'::jsonb,
+        'Illustrative estimate only; verify the canton rules with an adviser.'),
+       (gen_random_uuid(), 'US taxable account', 'US', 'NY', 'USD', 'individual', 'us_federal',
+        '{\"capital_gains\":0,\"dividends\":0}'::jsonb, '{\"years\":3,\"ring_fenced\":false}'::jsonb,
+        '[{\"min_days\":365,\"rate\":15}]'::jsonb, NULL,
+        'Planning profile for a diversified long-term sleeve.')",
+    "INSERT INTO taxcalc_scenarios (id, profile_id, name, tax_year, mode, context, currency, inputs, result)
+     SELECT gen_random_uuid(), p.id, v.name, 2026, v.mode, v.context, p.currency, v.inputs::jsonb, v.result::jsonb
+     FROM taxcalc_profiles p JOIN (VALUES
+       ('Swiss private investor', 'Core portfolio estimate', 'summary', 'investing',
+        '{\"proceeds\":18400,\"cost_basis\":15100,\"dividends\":620,\"withholding_tax\":80,\"portfolio_value\":386000}',
+        '{\"estimated_tax\":965,\"effective_rate\":4.92,\"currency\":\"CHF\"}'),
+       ('Swiss private investor', 'Active trading sensitivity', 'summary', 'trading',
+        '{\"proceeds\":42000,\"cost_basis\":37600,\"fees\":820,\"portfolio_value\":386000}',
+        '{\"estimated_tax\":1240,\"effective_rate\":34.44,\"currency\":\"CHF\"}'),
+       ('US taxable account', '2026 realised gains', 'itemized', 'investing',
+        '{\"rows\":[{\"ticker\":\"AAPL\",\"gain\":2800,\"holding_days\":410},{\"ticker\":\"BTC\",\"gain\":1600,\"holding_days\":120}]}',
+        '{\"estimated_tax\":804,\"effective_rate\":18.27,\"currency\":\"USD\"}')
+     ) AS v(profile, name, mode, context, inputs, result) ON p.name = v.profile",
+    "INSERT INTO resource_categories (id, name) VALUES
+       (gen_random_uuid(), 'Market structure'), (gen_random_uuid(), 'Research'),
+       (gen_random_uuid(), 'Risk management'), (gen_random_uuid(), 'Useful tools')",
+    "INSERT INTO resources (id, category_id, name, link, description)
+     SELECT gen_random_uuid(), c.id, v.name, v.link, v.description
+     FROM resource_categories c JOIN (VALUES
+       ('Market structure', 'Federal Reserve data', 'https://fred.stlouisfed.org', 'Macro time series and policy data.'),
+       ('Market structure', 'CFTC Commitments of Traders', 'https://www.cftc.gov/MarketReports/CommitmentsofTraders', 'Positioning reports for futures markets.'),
+       ('Research', 'Aswath Damodaran', 'https://pages.stern.nyu.edu/~adamodar/', 'Valuation lectures, data and spreadsheets.'),
+       ('Research', 'AQR research library', 'https://www.aqr.com/Insights/Research', 'Factor and market research papers.'),
+       ('Risk management', 'Expected Shortfall notes', 'https://www.bis.org', 'Reference material for tail-risk concepts.'),
+       ('Risk management', 'Position sizing checklist', '', 'Internal checklist: risk per trade, correlation, liquidity and event risk.'),
+       ('Useful tools', 'Koyfin', 'https://www.koyfin.com', 'Macro dashboards and company data.'),
+       ('Useful tools', 'SEC EDGAR', 'https://www.sec.gov/edgar', 'Primary US company filings.'),
+       ('Useful tools', 'Trading Economics', 'https://tradingeconomics.com/calendar', 'Economic calendar cross-check.')
+     ) AS v(category, name, link, description) ON c.name = v.category",
+    "INSERT INTO reminders (id, name, kind, linked_id, details, frequency, start_date, max_count, fired_count, next_fire_at, active)
+     VALUES
+       (gen_random_uuid(), 'Friday risk review', 'custom', NULL, 'Review gross exposure, correlation and weekend event risk.', 'weekly', current_date - 28, NULL, 4, now() + interval '2 days', TRUE),
+       (gen_random_uuid(), 'CPI preparation', 'custom', NULL, 'Re-read scenarios and reduce size before the release.', 'once', current_date, 1, 0, now() + interval '1 day', TRUE),
+       (gen_random_uuid(), 'Journal streak', 'custom', NULL, 'Log every fill before ending the trading day.', 'daily', current_date - 14, NULL, 11, now() + interval '6 hours', TRUE),
+       (gen_random_uuid(), 'Archive monthly statement', 'custom', NULL, 'Download and reconcile the broker statement.', 'monthly', current_date - 60, NULL, 2, now() + interval '18 days', TRUE)",
+    "INSERT INTO notifications (id, reminder_id, name, kind, details, read_at, created_at)
+     SELECT gen_random_uuid(), r.id, r.name, r.kind, v.details, v.read_at, now() - make_interval(hours => v.hours_ago)
+     FROM reminders r JOIN (VALUES
+       ('Friday risk review', 'Exposure checked: BTC and equities are still positively correlated.', NULL::timestamptz, 20),
+       ('Journal streak', 'Two trades still need screenshots and execution notes.', NULL::timestamptz, 5),
+       ('Archive monthly statement', 'July statement reconciliation completed.', now() - interval '1 day', 48)
+     ) AS v(name, details, read_at, hours_ago) ON r.name = v.name",
+    "INSERT INTO webhook_endpoints (id, name, token_hash, prefix, target, config, enabled, received_count, last_received_at)
+     VALUES
+       (gen_random_uuid(), 'TradingView breakout alerts', 'a4f19a9c1b03bb6f9f30669a77de5a90fc8e6c0dd65ed9a385a3e8219a30d9d1', 'whk_a4f1…', 'remindme', '{}'::jsonb, TRUE, 3, now() - interval '7 hours'),
+       (gen_random_uuid(), 'Risk dashboard heartbeat', '6d9f7a0cb9d74a3e8a6f0a1f6d7b2c9e8f3a1d6c5b9e0a4d3c7f1b8e6a2d4c9f', 'whk_6d9f…', 'remindme', '{}'::jsonb, TRUE, 12, now() - interval '2 days')",
+    "INSERT INTO webhook_events (id, endpoint_id, status, detail, payload, received_at)
+     SELECT gen_random_uuid(), e.id, v.status, v.detail, v.payload, now() - make_interval(hours => v.hours_ago)
+     FROM webhook_endpoints e JOIN (VALUES
+       ('TradingView breakout alerts', 'ok', 'Reminder created from alert payload.', '{\"ticker\":\"NVDA\",\"signal\":\"range_break\",\"price\":186.4}', 7),
+       ('TradingView breakout alerts', 'ok', 'Reminder created from alert payload.', '{\"ticker\":\"BTCUSDT\",\"signal\":\"breakout\",\"price\":108200}', 31),
+       ('Risk dashboard heartbeat', 'ok', 'Payload accepted.', '{\"gross_risk_pct\":1.8,\"positions\":4}', 48),
+       ('Risk dashboard heartbeat', 'ignored', 'Endpoint disabled during scheduled maintenance.', '{\"gross_risk_pct\":2.1}', 120)
+     ) AS v(endpoint, status, detail, payload, hours_ago) ON e.name = v.endpoint",
+    // Saved strategy library: the datasets themselves land later in the seed, while these
+    // presets are immediately useful in the Backtest strategy picker, and they are what
+    // `backtest_runs` borrows its settings from, so every saved run reruns into a real
+    // result. Tags are what the library card and the dashboard's tag bars rank on.
+    "INSERT INTO backtest_strategies (id, name, description, tags, settings) VALUES
+       (gen_random_uuid(), 'Trend pullback (daily)', 'Long-only EMA trend filter with a defined stop and target.',
+        ARRAY['trend', 'swing', 'long-only'],
+        '{\"kind\":\"signals\",\"mode\":\"long\",\"long\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"price\",\"field\":\"close\"},\"op\":\"crosses_above\",\"right\":{\"kind\":\"indicator\",\"indicator\":\"ema\",\"period\":20}},{\"left\":{\"kind\":\"indicator\",\"indicator\":\"ema\",\"period\":20},\"op\":\"above\",\"right\":{\"kind\":\"indicator\",\"indicator\":\"ema\",\"period\":50}}]},\"exit\":{\"logic\":\"all\",\"conditions\":[]},\"stop_loss_pct\":0.035,\"take_profit_pct\":0.08,\"exit_on_reverse\":true},\"short\":{\"entry\":{\"logic\":\"all\",\"conditions\":[]},\"exit\":{\"logic\":\"all\",\"conditions\":[]}},\"pyramiding\":1,\"sizing\":{\"mode\":\"percent_equity\",\"percent\":25.0},\"starting_capital\":25000.0,\"leverage\":1,\"spread_pct\":0.0005,\"fees\":{\"amount_kind\":\"pct\",\"per\":\"trade\",\"amount\":0.08},\"risk\":{},\"filters\":{\"tz_offset_min\":0,\"weekdays\":[],\"sessions\":[],\"include_dates\":[],\"exclude_dates\":[],\"on_window_end\":\"hold\",\"block_adds\":true}}'::jsonb),
+       (gen_random_uuid(), 'Mean reversion (intraday)', 'Small, fast mean-reversion setup for liquid instruments only.',
+        ARRAY['mean-reversion', 'intraday', 'rsi'],
+        '{\"kind\":\"signals\",\"mode\":\"long\",\"long\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"indicator\",\"indicator\":\"rsi\",\"period\":14},\"op\":\"below\",\"right\":{\"kind\":\"const\",\"value\":30}}]},\"exit\":{\"logic\":\"any\",\"conditions\":[{\"left\":{\"kind\":\"indicator\",\"indicator\":\"rsi\",\"period\":14},\"op\":\"above\",\"right\":{\"kind\":\"const\",\"value\":55}}]},\"stop_loss_pct\":0.012,\"take_profit_pct\":0.024,\"exit_on_reverse\":false},\"short\":{\"entry\":{\"logic\":\"all\",\"conditions\":[]},\"exit\":{\"logic\":\"all\",\"conditions\":[]}},\"pyramiding\":1,\"sizing\":{\"mode\":\"percent_equity\",\"percent\":15.0},\"starting_capital\":10000.0,\"leverage\":1,\"spread_pct\":0.001,\"fees\":{\"amount_kind\":\"pct\",\"per\":\"trade\",\"amount\":0.1},\"risk\":{},\"filters\":{\"tz_offset_min\":0,\"weekdays\":[1,2,3,4,5],\"sessions\":[],\"include_dates\":[],\"exclude_dates\":[],\"on_window_end\":\"flat\",\"block_adds\":true}}'::jsonb),
+       (gen_random_uuid(), 'Breakout continuation (1h)', 'Second push after a clean range break: momentum confirmed, stop under the break.',
+        ARRAY['breakout', 'momentum', 'intraday'],
+        '{\"kind\":\"signals\",\"mode\":\"long\",\"long\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"indicator\",\"indicator\":\"rsi\",\"period\":14},\"op\":\"above\",\"right\":{\"kind\":\"const\",\"value\":60}},{\"left\":{\"kind\":\"price\",\"field\":\"close\"},\"op\":\"above\",\"right\":{\"kind\":\"indicator\",\"indicator\":\"sma\",\"period\":50}}]},\"exit\":{\"logic\":\"all\",\"conditions\":[]},\"stop_loss_pct\":0.02,\"take_profit_pct\":0.05,\"exit_on_reverse\":true},\"short\":{\"entry\":{\"logic\":\"all\",\"conditions\":[]},\"exit\":{\"logic\":\"all\",\"conditions\":[]}},\"pyramiding\":1,\"sizing\":{\"mode\":\"percent_equity\",\"percent\":20.0},\"starting_capital\":25000.0,\"leverage\":1,\"spread_pct\":0.0005,\"fees\":{\"amount_kind\":\"pct\",\"per\":\"trade\",\"amount\":0.08},\"risk\":{},\"filters\":{\"tz_offset_min\":0,\"weekdays\":[],\"sessions\":[],\"include_dates\":[],\"exclude_dates\":[],\"on_window_end\":\"hold\",\"block_adds\":true}}'::jsonb),
+       (gen_random_uuid(), 'Range fade, both sides', 'Fades both extremes of a range; the honest test of whether the edge is symmetric.',
+        ARRAY['mean-reversion', 'range', 'both-sides'],
+        '{\"kind\":\"signals\",\"mode\":\"both\",\"long\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"indicator\",\"indicator\":\"rsi\",\"period\":14},\"op\":\"below\",\"right\":{\"kind\":\"const\",\"value\":28}}]},\"exit\":{\"logic\":\"all\",\"conditions\":[]},\"stop_loss_pct\":0.015,\"take_profit_pct\":0.03,\"exit_on_reverse\":false},\"short\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"indicator\",\"indicator\":\"rsi\",\"period\":14},\"op\":\"above\",\"right\":{\"kind\":\"const\",\"value\":72}}]},\"exit\":{\"logic\":\"all\",\"conditions\":[]},\"stop_loss_pct\":0.015,\"take_profit_pct\":0.03,\"exit_on_reverse\":false},\"pyramiding\":1,\"sizing\":{\"mode\":\"percent_equity\",\"percent\":15.0},\"starting_capital\":25000.0,\"leverage\":1,\"spread_pct\":0.0005,\"fees\":{\"amount_kind\":\"pct\",\"per\":\"trade\",\"amount\":0.08},\"risk\":{},\"filters\":{\"tz_offset_min\":0,\"weekdays\":[],\"sessions\":[],\"include_dates\":[],\"exclude_dates\":[],\"on_window_end\":\"hold\",\"block_adds\":true}}'::jsonb),
+       (gen_random_uuid(), 'Trend follow, weekly core', 'Slow long-only core: buys strength above the 200 SMA, exits when it breaks.',
+        ARRAY['trend', 'long-only', 'core'],
+        '{\"kind\":\"signals\",\"mode\":\"long\",\"long\":{\"entry\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"price\",\"field\":\"close\"},\"op\":\"crosses_above\",\"right\":{\"kind\":\"indicator\",\"indicator\":\"sma\",\"period\":200}}]},\"exit\":{\"logic\":\"all\",\"conditions\":[{\"left\":{\"kind\":\"price\",\"field\":\"close\"},\"op\":\"crosses_below\",\"right\":{\"kind\":\"indicator\",\"indicator\":\"sma\",\"period\":200}}]},\"stop_loss_pct\":0.0,\"take_profit_pct\":0.0,\"exit_on_reverse\":true},\"short\":{\"entry\":{\"logic\":\"all\",\"conditions\":[]},\"exit\":{\"logic\":\"all\",\"conditions\":[]}},\"pyramiding\":1,\"sizing\":{\"mode\":\"percent_equity\",\"percent\":50.0},\"starting_capital\":25000.0,\"leverage\":1,\"spread_pct\":0.0005,\"fees\":{\"amount_kind\":\"pct\",\"per\":\"trade\",\"amount\":0.05},\"risk\":{},\"filters\":{\"tz_offset_min\":0,\"weekdays\":[],\"sessions\":[],\"include_dates\":[],\"exclude_dates\":[],\"on_window_end\":\"hold\",\"block_adds\":true}}'::jsonb)",
+    // ── Agent: OpenRouter provider with an EMPTY key (host injects OTW_DEMO_LLM_KEY),
+    //    wired as the default agent's provider. The `:free` slug below is only a
+    //    PREFERENCE: OpenRouter retires free tiers, and this template is replayed by
+    //    every reset for weeks, so `demo::resolve_free_model` re-checks it against the
+    //    live model list at boot and repins if it went paid. ─────
+    "INSERT INTO agent_providers (id, kind, label, base_url, api_key, default_model, enabled)
+     VALUES (gen_random_uuid(), 'openai_compat', 'OpenRouter (free models)',
+             'https://openrouter.ai/api/v1', '', 'openai/gpt-oss-20b:free', TRUE)",
+    "INSERT INTO agent_agents (id, name, system_prompt, is_default)
+     SELECT gen_random_uuid(), 'Assistant',
+            'You are the OpenTraderWorld demo assistant. Be concise. You can read the sandbox''s data through your tools.',
+            TRUE
+     WHERE NOT EXISTS (SELECT 1 FROM agent_agents WHERE is_default)",
+    "UPDATE agent_agents
+     SET provider_id = (SELECT id FROM agent_providers WHERE label = 'OpenRouter (free models)'),
+         model = 'openai/gpt-oss-20b:free'
+     WHERE is_default",
+    // ── Mailbox: one connected mailbox (paused), a few senders and issues ────
+    // The vault row exists only so the account row is well-formed; its bytes are junk
+    // and the sandbox never polls (the account is disabled and /poll is denied).
+    "WITH v AS (
+         INSERT INTO vaults (id, name) VALUES (gen_random_uuid(), 'Demo mailbox') RETURNING id
+     ), it AS (
+         INSERT INTO vault_items (id, vault_id, name, nonce, ciphertext)
+         SELECT gen_random_uuid(), v.id, 'app-password', '\\x00'::bytea, '\\x00'::bytea FROM v
+         RETURNING id
+     )
+     INSERT INTO mailbox_accounts
+       (id, name, email, preset, host, port, security, username, vault_item_id, enabled,
+        last_success_at, uid_validity, last_uid)
+     SELECT gen_random_uuid(), 'Newsletters', 'demo@example.com', 'fastmail',
+            'imap.fastmail.com', 993, 'ssl', 'demo@example.com', it.id, FALSE,
+            now() - interval '2 hours', 1, 42
+     FROM it",
+    "INSERT INTO mailbox_senders
+       (id, from_addr, domain, name, description, site_url, category, status, last_subject,
+        seen_count, last_seen_at)
+     VALUES
+       (gen_random_uuid(), 'letter@macroweekly.example', 'macroweekly.example', 'Macro Weekly',
+        'Rates, liquidity and positioning, every Sunday.', 'https://macroweekly.example',
+        'newsletter', 'kept', 'Liquidity is turning', 12, now() - interval '3 hours'),
+       (gen_random_uuid(), 'desk@marketwire.example', 'marketwire.example', 'Market Wire',
+        'Pre-open headlines.', 'https://marketwire.example',
+        'news', 'kept', 'Futures firm ahead of CPI', 40, now() - interval '6 hours'),
+       (gen_random_uuid(), 'statements@broker.example', 'broker.example', 'Broker statements',
+        'Monthly account statements.', '', 'broker', 'kept',
+        'Your July statement is ready', 4, now() - interval '2 days'),
+       (gen_random_uuid(), 'hello@someshop.example', 'someshop.example', 'Some Shop',
+        '', '', 'other', 'pending', 'Your order has shipped', 1, now() - interval '1 day')",
+    "INSERT INTO mailbox_messages
+       (id, account_id, sender_id, uid, uid_validity, message_id, subject, snippet,
+        body_html, body_text, received_at, read, has_remote_images)
+     SELECT gen_random_uuid(), a.id, s.id, v.uid, 1,
+            'demo-' || v.uid || '@example', v.subject, v.snippet,
+            '<h2>' || v.subject || '</h2><p>' || v.snippet || '</p>', v.snippet,
+            now() - make_interval(hours => v.hours), v.was_read, FALSE
+     FROM mailbox_accounts a
+     CROSS JOIN (VALUES
+        ('letter@macroweekly.example', 101, 'Liquidity is turning',
+         'Reserve balances stopped falling this week — what that changes for risk assets, and the three charts to watch.', 3, FALSE),
+        ('letter@macroweekly.example', 98, 'The carry trade nobody talks about',
+         'Funding spreads widened quietly. A walk through who is short what, and where it breaks.', 170, TRUE),
+        ('desk@marketwire.example', 100, 'Futures firm ahead of CPI',
+         'Index futures up 0.4%, crude flat, the dollar softer. Consensus sees 0.2% core.', 6, FALSE),
+        ('desk@marketwire.example', 96, 'Chips lead the tape',
+         'Semis outperform for a third session; breadth still narrow.', 30, TRUE),
+        ('statements@broker.example', 90, 'Your July statement is ready',
+         'Account summary, realised PnL and fees for the month.', 48, TRUE)
+     ) AS v(from_addr, uid, subject, snippet, hours, was_read)
+     JOIN mailbox_senders s ON s.from_addr = v.from_addr",
+    "INSERT INTO mailbox_store_links (id, name, url, domain, description, topic, subscribed, position)
+     VALUES
+       (gen_random_uuid(), 'Macro Weekly', 'https://macroweekly.example', 'macroweekly.example',
+        'Rates, liquidity and positioning. Sunday.', 'economics', TRUE, 0),
+       (gen_random_uuid(), 'Market Wire', 'https://marketwire.example', 'marketwire.example',
+        'Pre-open headlines, five minutes.', 'finance', TRUE, 1),
+       (gen_random_uuid(), 'The Trading Desk Diary', 'https://deskdiary.example', 'deskdiary.example',
+        'One trader''s post-mortems, warts included.', 'trading', FALSE, 2),
+       (gen_random_uuid(), 'Signal & Noise', 'https://signalnoise.example', 'signalnoise.example',
+        'Geopolitics for people who move money.', 'geopolitics', FALSE, 3),
+       (gen_random_uuid(), 'Steady Hands', 'https://steadyhands.example', 'steadyhands.example',
+        'Discipline, tilt and the psychology of drawdown.', 'mindset', TRUE, 4)",
+];
+
+/// A spread of closed trades over the last two months — enough for the breakdown,
+/// calendar and equity curve to look alive.
+async fn trades(pool: &PgPool) -> anyhow::Result<()> {
+    // (ticker, class, side, days_ago_entry, days_held, entry, exit, qty, fees, currency,
+    //  strategy, signal, feedback, planned stop, tags)
+    // The stop is what makes the R-multiples real; the tags are what price the mistakes.
+    let trades: &[(&str, &str, &str, i32, i32, f64, f64, f64, f64, &str, &str, &str, &str, f64, &str)] = &[
+        ("AAPL", "stock", "long", 55, 3, 227.40, 234.10, 20.0, 1.5, "USD", "Breakout", "Range break", "Clean setup, took profit at resistance.", 224.00, "Followed the plan"),
+        ("NVDA", "stock", "long", 48, 5, 168.20, 176.90, 15.0, 1.5, "USD", "Breakout", "Volume surge", "Strong momentum; exited a bit early.", 164.50, "Exited early"),
+        ("TSLA", "stock", "short", 41, 2, 322.50, 314.80, 10.0, 1.5, "USD", "Mean reversion", "RSI extreme", "Faded the gap-up; worked as planned.", 328.00, "Followed the plan"),
+        ("MSFT", "stock", "long", 34, 6, 502.10, 497.30, 8.0, 1.5, "USD", "Breakout", "Range break", "False break, cut it at the stop.", 497.00, "Followed the plan"),
+        ("BTC-USD", "crypto", "long", 28, 4, 104200.0, 109800.0, 0.15, 12.0, "USD", "Breakout", "Volume surge", "Held through the chop, good exit.", 101500.0, "Followed the plan,Breakout continuation"),
+        ("ETH-USD", "crypto", "long", 21, 3, 3320.0, 3145.0, 2.0, 8.0, "USD", "Mean reversion", "VWAP fade", "Fought the trend, lesson logged.", 3250.0, "Moved my stop"),
+        ("AIR.PA", "stock", "long", 14, 7, 172.60, 181.20, 25.0, 4.0, "EUR", "Breakout", "Range break", "Patience paid; textbook continuation.", 168.90, "Followed the plan,Breakout continuation"),
+        ("SPY", "etf", "short", 7, 1, 623.40, 619.90, 12.0, 1.5, "USD", "Mean reversion", "RSI extreme", "Quick scalp into the close.", 626.00, "Overtraded"),
+        ("AMZN", "stock", "long", 63, 4, 211.80, 218.60, 18.0, 1.5, "USD", "Breakout", "Volume surge", "Waited for the retest instead of buying the first spike.", 208.40, "Followed the plan"),
+        ("META", "stock", "long", 59, 2, 683.40, 671.20, 7.0, 1.5, "USD", "Mean reversion", "VWAP fade", "Thesis was fine but entry came before the reversal confirmed.", 677.00, "Moved my stop"),
+        ("ASML.AS", "stock", "short", 52, 3, 918.50, 891.40, 9.0, 3.0, "EUR", "Mean reversion", "RSI extreme", "Good location near weekly resistance; covered into support.", 931.00, "Followed the plan"),
+        ("GOOGL", "stock", "long", 45, 8, 187.20, 196.70, 22.0, 1.5, "USD", "Breakout", "Range break", "Held the core through one red day and let the trend work.", 183.90, "Followed the plan,Breakout continuation"),
+        ("SOL-USD", "crypto", "long", 38, 2, 176.40, 168.10, 12.0, 6.0, "USD", "Mean reversion", "VWAP fade", "Countertrend setup failed quickly; respected the initial stop.", 170.80, "Followed the plan"),
+        ("AMD", "stock", "long", 31, 5, 154.80, 162.30, 30.0, 1.5, "USD", "Breakout", "Volume surge", "Scaled only after the market held the opening range.", 151.20, "Followed the plan"),
+        ("EURUSD", "forex", "short", 25, 2, 1.0918, 1.0846, 40000.0, 3.5, "USD", "Mean reversion", "RSI extreme", "Took the fade at prior-day resistance; target was conservative.", 1.0950, "Followed the plan"),
+        ("QQQ", "etf", "long", 19, 4, 532.40, 545.10, 14.0, 1.5, "USD", "Breakout", "Range break", "Clean sector confirmation from semis and software.", 526.80, "Followed the plan,Breakout continuation"),
+        ("LVMH.PA", "stock", "long", 12, 3, 612.00, 598.50, 10.0, 3.0, "EUR", "Mean reversion", "VWAP fade", "Ignored weak breadth and gave back too much before exiting.", 604.00, "Exited early"),
+        ("BTC-USD-SWING", "crypto", "short", 9, 2, 111800.0, 107600.0, 0.10, 12.0, "USD", "Mean reversion", "RSI extreme", "Kept size modest into a volatile weekend.", 114200.0, "Followed the plan"),
+        ("NFLX", "stock", "long", 4, 1, 1180.50, 1162.30, 6.0, 1.5, "USD", "Breakout", "Range break", "The breakout failed; exit was automatic and small.", 1165.00, "Followed the plan"),
+    ];
+    for t in trades {
+        sqlx::query(
+            "INSERT INTO journal_trades
+               (id, category_id, strategy_id, ticker, asset_class, side,
+                entry_at, exit_at, entry_price, exit_price, quantity, fees, currency,
+                signal_name, feedback, stop_price)
+             SELECT gen_random_uuid(),
+                    CASE WHEN $2 = 'crypto' THEN (SELECT id FROM journal_categories WHERE name = 'Crypto')
+                         ELSE (SELECT id FROM journal_categories WHERE is_default) END,
+                    (SELECT id FROM journal_strategies WHERE name = $10),
+                    $1, $2, $3,
+                    now() - make_interval(days => $4),
+                    now() - make_interval(days => $4 - $5),
+                    $6, $7, $8, $9, $11, $12, $13, $14",
+        )
+        .bind(t.0)  // $1 ticker
+        .bind(t.1)  // $2 asset_class
+        .bind(t.2)  // $3 side
+        .bind(t.3)  // $4 days_ago_entry
+        .bind(t.4)  // $5 days_held
+        .bind(t.5)  // $6 entry_price
+        .bind(t.6)  // $7 exit_price
+        .bind(t.7)  // $8 quantity
+        .bind(t.8)  // $9 fees
+        .bind(t.10) // $10 strategy name
+        .bind(t.9)  // $11 currency
+        .bind(t.11) // $12 signal_name
+        .bind(t.12) // $13 feedback
+        .bind(t.13) // $14 stop_price
+        .execute(pool)
+        .await?;
+        if !t.14.is_empty() {
+            // Tickers are unique inside the seed, so matching on one is enough to
+            // attach the trade's tags without threading the generated id back out.
+            sqlx::query(
+                "INSERT INTO journal_trade_tags (trade_id, tag_id)
+                 SELECT tr.id, tg.id FROM journal_trades tr
+                 JOIN journal_tags tg ON tg.name = ANY(string_to_array($2, ','))
+                 WHERE tr.ticker = $1
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(t.0)
+            .bind(t.14)
+            .execute(pool)
+            .await?;
+        }
+    }
+    open_positions(pool).await
+}
+
+/// The book as it stands right now: a handful of positions still open.
+///
+/// Closed trades answer "how did I do"; only an open one answers "what am I exposed to",
+/// which is the question `/api/journal/exposure` exists for, and with none of them the
+/// risk screen and the dashboard's open-position cards have nothing to show. Every row
+/// carries a planned stop, because a position without one contributes no risk figure and
+/// would make the concentration table read as empty rather than concentrated.
+///
+/// Mixed sides, two currencies and one crypto line, so exposure, concentration and the FX
+/// pass all have something real to work on. No tags: a mistake tag is written at the
+/// post-mortem, and these trades have not had one yet.
+async fn open_positions(pool: &PgPool) -> anyhow::Result<()> {
+    // (ticker, class, side, days_ago, entry, qty, fees, currency, strategy, signal, stop)
+    let open: &[(&str, &str, &str, i32, f64, f64, f64, &str, &str, &str, f64)] = &[
+        ("NVDA", "stock", "long", 17, 176.40, 25.0, 1.5, "USD", "Breakout", "Range break", 169.80),
+        ("AAPL", "stock", "long", 12, 228.90, 35.0, 1.5, "USD", "Breakout", "Volume surge", 222.40),
+        ("BTC-USD", "crypto", "long", 8, 105_900.0, 0.12, 12.0, "USD", "Breakout", "Volume surge", 101_800.0),
+        ("AIR.PA", "stock", "long", 6, 176.20, 30.0, 3.0, "EUR", "Breakout", "Range break", 170.90),
+        ("META", "stock", "short", 4, 702.50, 8.0, 1.5, "USD", "Mean reversion", "RSI extreme", 718.00),
+        ("ETH-USD", "crypto", "long", 2, 3_210.0, 2.5, 8.0, "USD", "Mean reversion", "VWAP fade", 3_080.0),
+    ];
+    for (ticker, class, side, days_ago, entry, qty, fees, currency, strategy, signal, stop) in open {
+        sqlx::query(
+            "INSERT INTO journal_trades
+               (id, category_id, strategy_id, ticker, asset_class, side,
+                entry_at, entry_price, quantity, fees, currency, signal_name, stop_price)
+             SELECT gen_random_uuid(),
+                    CASE WHEN $2 = 'crypto' THEN (SELECT id FROM journal_categories WHERE name = 'Crypto')
+                         ELSE (SELECT id FROM journal_categories WHERE is_default) END,
+                    (SELECT id FROM journal_strategies WHERE name = $9),
+                    $1, $2, $3, now() - make_interval(days => $4), $5, $6, $7, $8, $10, $11",
+        )
+        .bind(ticker)
+        .bind(class)
+        .bind(side)
+        .bind(days_ago)
+        .bind(entry)
+        .bind(qty)
+        .bind(fees)
+        .bind(currency)
+        .bind(strategy)
+        .bind(signal)
+        .bind(stop)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// A funded portfolio with a buy/sell ledger and ~3 months of daily valuations, so the
+/// tracker's value chart and cost-basis figures have something to draw. `auto_refresh`
+/// stays FALSE: the daily job must not spend the shared demo host's egress on its own
+/// (a visitor can still hit Refresh, which prices against live CoinGecko/Yahoo).
+async fn portfolio(pool: &PgPool) -> anyhow::Result<()> {
+    let pf: Uuid = sqlx::query_scalar(
+        "INSERT INTO portfolios (id, name, description, currency, auto_refresh, position)
+         VALUES (gen_random_uuid(), 'Long-term core',
+                 'Buy-and-hold sleeve — demo data, hit Refresh for live prices', 'USD', FALSE, 0)
+         RETURNING id",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    // (class, provider, provider_id, symbol, name, [(side, days_ago, qty, price)])
+    type Op = (&'static str, i32, f64, f64);
+    let assets: &[(&str, &str, &str, &str, &str, &[Op])] = &[
+        ("crypto", "coingecko", "bitcoin", "BTC", "Bitcoin",
+         &[("buy", 88, 0.25, 96500.0), ("buy", 40, 0.10, 103200.0)]),
+        ("crypto", "coingecko", "ethereum", "ETH", "Ethereum",
+         &[("buy", 75, 3.0, 3050.0), ("sell", 20, 1.0, 3480.0)]),
+        ("stock", "yahoo", "AAPL", "AAPL", "Apple",
+         &[("buy", 82, 40.0, 221.30)]),
+        ("etf", "yahoo", "VWCE.DE", "VWCE", "Vanguard FTSE All-World",
+         &[("buy", 82, 60.0, 128.40), ("buy", 51, 25.0, 133.10)]),
+    ];
+    for (class, provider, pid, symbol, name, ops) in assets {
+        let asset: Uuid = sqlx::query_scalar(
+            "INSERT INTO portfolio_assets
+                 (id, portfolio_id, asset_class, provider, provider_id, symbol, name)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6) RETURNING id",
+        )
+        .bind(pf).bind(class).bind(provider).bind(pid).bind(symbol).bind(name)
+        .fetch_one(pool)
+        .await?;
+        for (side, days_ago, qty, price) in *ops {
+            // `portfolio_id` is not optional here: the ledger walk reads a whole portfolio
+            // in one pass and keys on that column, so a row carrying only `asset_id` is
+            // invisible to it and the book comes back empty.
+            sqlx::query(
+                "INSERT INTO portfolio_operations
+                     (id, portfolio_id, asset_id, side, op_date, quantity, price, fee)
+                 VALUES (gen_random_uuid(), $1, $2, $3, current_date - $4, $5, $6, 0.9)",
+            )
+            .bind(pf).bind(asset).bind(side).bind(*days_ago).bind(*qty).bind(*price)
+            .execute(pool)
+            .await?;
+        }
+    }
+
+    cash_ledger(pool, pf).await?;
+
+    // Seed a first spot per asset so the tracker opens with a live-looking market value and
+    // unrealized PnL instead of blanks. Same figures as the watchlist's seeded quotes where
+    // the symbols overlap, so the two modules don't contradict each other on the same screen.
+    // `refreshed_at` is set to match: the UI dates the prices from it.
+    for (pid, price) in [
+        ("bitcoin", 108_400.0),
+        ("ethereum", 3_285.0),
+        ("AAPL", 236.80),
+        ("VWCE.DE", 141.75),
+    ] {
+        sqlx::query(
+            "UPDATE portfolio_assets SET last_price_usd = $1, last_price_at = now(),
+                    recon_status = 'ok', recon_checked_at = now()
+             WHERE portfolio_id = $2 AND provider_id = $3",
+        )
+        .bind(price)
+        .bind(pf)
+        .bind(pid)
+        .execute(pool)
+        .await?;
+    }
+    sqlx::query("UPDATE portfolios SET refreshed_at = now() WHERE id = $1")
+        .bind(pf)
+        .execute(pool)
+        .await?;
+
+    // Daily snapshots: a deterministic curve (no RNG) so the chart has a shape instead of a
+    // flat line. Its two endpoints are not invented, they are read back off the ledger it
+    // belongs to: today's point is the book's own market value and cost basis, so the
+    // evolution chart and the value card on the same screen cannot disagree. Earlier days
+    // walk that value back with a slow rise and a small wobble, and the cost basis follows
+    // the purchases that had actually been made by then.
+    let (market_value, cost_basis): (f64, f64) = sqlx::query_as(
+        "SELECT COALESCE(SUM(t.net_qty * a.last_price_usd), 0)::float8,
+                COALESCE(SUM(t.buy_cost * t.net_qty / NULLIF(t.buy_qty, 0)), 0)::float8
+         FROM portfolio_assets a
+         JOIN (
+             SELECT asset_id,
+                    SUM(CASE WHEN side = 'buy' THEN quantity ELSE -quantity END) AS net_qty,
+                    SUM(quantity * price + fee) FILTER (WHERE side = 'buy') AS buy_cost,
+                    SUM(quantity) FILTER (WHERE side = 'buy') AS buy_qty
+             FROM portfolio_operations
+             WHERE portfolio_id = $1 AND side IN ('buy', 'sell')
+             GROUP BY asset_id
+         ) t ON t.asset_id = a.id
+         WHERE a.portfolio_id = $1 AND a.last_price_usd IS NOT NULL",
+    )
+    .bind(pf)
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO portfolio_snapshots
+             (portfolio_id, snap_date, currency, market_value, market_value_usd, cost_basis,
+              cash, flow, income, source)
+         SELECT $1, d::date, 'USD',
+                round(v.mv::numeric, 2)::float8,
+                round(v.mv::numeric, 2)::float8,
+                round(($3 * COALESCE(b.bought, 0))::numeric, 2)::float8,
+                round(c.cash::numeric, 2)::float8,
+                round(c.flow::numeric, 2)::float8,
+                round(c.income::numeric, 2)::float8,
+                'rebuilt'
+         FROM generate_series(current_date - 89, current_date, interval '1 day') AS d
+         CROSS JOIN LATERAL (
+             SELECT $2 * (0.82 + 0.18 * (1 - (current_date - d::date)::float8 / 89))
+                       * (1 + 0.03 * sin((current_date - d::date)::float8 / 6.5)) AS mv
+         ) v
+         -- Share of the whole buy programme that had been paid for by this day.
+         CROSS JOIN LATERAL (
+             SELECT SUM(o.quantity * o.price + o.fee) FILTER (WHERE o.op_date <= d::date)
+                    / NULLIF(SUM(o.quantity * o.price + o.fee), 0) AS bought
+             FROM portfolio_operations o
+             WHERE o.portfolio_id = $1 AND o.side = 'buy'
+         ) b
+         -- The cash account as the ledger leaves it that evening, plus the day's own
+         -- external flow and income, which is what a deposit-adjusted return needs.
+         CROSS JOIN LATERAL (
+             SELECT
+               COALESCE(SUM(CASE WHEN o.side IN ('buy', 'withdraw', 'fee', 'tax')
+                                 THEN -(o.quantity * o.price + o.fee)
+                                 ELSE o.quantity * o.price - o.fee END)
+                        FILTER (WHERE o.op_date <= d::date), 0) AS cash,
+               COALESCE(SUM(CASE WHEN o.side = 'deposit' THEN o.quantity * o.price - o.fee
+                                 ELSE -(o.quantity * o.price + o.fee) END)
+                        FILTER (WHERE o.side IN ('deposit', 'withdraw') AND o.op_date = d::date), 0) AS flow,
+               COALESCE(SUM(o.quantity * o.price - o.fee)
+                        FILTER (WHERE o.side IN ('dividend', 'interest', 'coupon')
+                                  AND o.op_date = d::date), 0) AS income
+             FROM portfolio_operations o
+             WHERE o.portfolio_id = $1
+         ) c",
+    )
+    .bind(pf)
+    .bind(market_value)
+    .bind(cost_basis)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// The cash side of the same ledger: what funded the book, and what it paid out.
+///
+/// Without a single deposit or withdrawal the module refuses to report a cash balance at
+/// all (a ledger that only records purchases would read as a permanent overdraft), so net
+/// worth, the invested-vs-cash split and the income breakdown are not wrong there, they
+/// are absent. Three deposits ahead of the buys leave a working balance; the dividends,
+/// the coupon and the credit interest are what the income card totals.
+///
+/// A cash row carries no units: `quantity` is 1 and `price` is the amount, which is the
+/// one shape the ledger walk expects for every non-trade kind.
+async fn cash_ledger(pool: &PgPool, pf: Uuid) -> anyhow::Result<()> {
+    // (kind, days_ago, amount, currency, asset provider_id or "" for a portfolio-level row)
+    let rows: &[(&str, i32, f64, &str, &str)] = &[
+        ("deposit", 95, 50_000.0, "USD", ""),
+        ("deposit", 60, 15_000.0, "USD", ""),
+        ("deposit", 25, 8_000.0, "USD", ""),
+        ("withdraw", 33, 2_500.0, "USD", ""),
+        // Income. Attached to the line that paid it where there is one, so the asset page
+        // shows its own distributions rather than a portfolio-level lump.
+        ("dividend", 75, 10.40, "USD", "AAPL"),
+        ("dividend", 12, 10.40, "USD", "AAPL"),
+        ("dividend", 40, 96.75, "USD", "VWCE.DE"),
+        ("interest", 30, 38.20, "USD", ""),
+        ("interest", 2, 41.60, "USD", ""),
+        ("coupon", 55, 62.50, "USD", ""),
+        // The costs the analytics screen separates from trading fees.
+        ("fee", 64, 12.00, "USD", ""),
+        ("tax", 41, 29.03, "USD", ""),
+    ];
+    for (kind, days_ago, amount, currency, provider_id) in rows {
+        sqlx::query(
+            "INSERT INTO portfolio_operations
+                 (id, portfolio_id, asset_id, side, op_date, quantity, price, fee, currency)
+             VALUES (gen_random_uuid(), $1,
+                     (SELECT id FROM portfolio_assets
+                      WHERE portfolio_id = $1 AND provider_id = $2),
+                     $3, current_date - $4, 1, $5, 0, $6)",
+        )
+        .bind(pf)
+        .bind(provider_id)
+        .bind(kind)
+        .bind(days_ago)
+        .bind(amount)
+        .bind(currency)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Prime each watchlist item's cached quote so the module opens on populated cards
+/// (price, 24h/3d/7d/30d changes, sparkline) instead of four dashes.
+///
+/// The sandbox never polls providers on its own, so these are *seeded* quotes, not fetched
+/// ones — a deterministic 31-day series per symbol, no RNG and no network. The JSON matches
+/// `watchlists::quotes::compute_quote` field for field, so a visitor who hits Refresh simply
+/// overwrites it with the real thing.
+///
+/// `history_at` is backdated past `HISTORY_TTL` on purpose: a refresh then refetches the real
+/// series rather than deriving changes from this synthetic one.
+async fn watchlist_quotes(pool: &PgPool) -> anyhow::Result<()> {
+    use time::OffsetDateTime;
+
+    let now = OffsetDateTime::now_utc().unix_timestamp();
+    let day = 86_400i64;
+    // Anchor the series on the last completed UTC day: `compute_quote` drops the current
+    // day's partial close, and the seeded data must land the same way.
+    let last_close = (now / day - 1) * day;
+
+    // (provider_id, spot USD, drift %/day, wobble amplitude %)
+    let series: &[(&str, f64, f64, f64)] = &[
+        ("bitcoin", 108_400.0, 0.18, 2.6),
+        ("ethereum", 3_285.0, -0.09, 3.4),
+        ("AAPL", 236.80, 0.11, 1.2),
+        ("SPY", 627.40, 0.06, 0.7),
+        ("NVDA", 184.30, 0.16, 2.1),
+        ("MSFT", 512.60, 0.08, 0.9),
+        ("AMZN", 221.40, 0.12, 1.4),
+        ("META", 694.20, -0.04, 1.7),
+        ("QQQ", 544.80, 0.09, 0.8),
+        ("solana", 174.60, -0.12, 3.8),
+    ];
+
+    for (pid, spot, drift, wobble) in series {
+        // Walk backwards from the spot: close(t) = spot / (1+drift)^n, plus a smooth
+        // wobble so the sparkline has shape. 30 closes + the live spot = the 31-point
+        // window `compute_quote` caps `spark` at.
+        let mut history: Vec<serde_json::Value> = Vec::with_capacity(30);
+        for n in (1..=30).rev() {
+            let t = last_close - (n as i64 - 1) * day;
+            let base = spot / (1.0 + drift / 100.0).powi(n as i32);
+            let close = base * (1.0 + wobble / 100.0 * ((n as f64) * 0.7).sin());
+            history.push(serde_json::json!([t, (close * 1e6).round() / 1e6]));
+        }
+        // Changes are computed against the seeded closes, so the card's percentages agree
+        // with its own sparkline.
+        let close_at = |days: i64| -> Option<f64> {
+            let cutoff = now - days * day;
+            history
+                .iter()
+                .rev()
+                .find(|p| p[0].as_i64().is_some_and(|t| t <= cutoff))
+                .and_then(|p| p[1].as_f64())
+        };
+        let pct = |r: f64| (((spot - r) / r * 100.0) * 1e4).round() / 1e4;
+        let spark: Vec<f64> = history
+            .iter()
+            .filter_map(|p| p[1].as_f64())
+            .chain(std::iter::once(*spot))
+            .collect();
+
+        let quote = serde_json::json!({
+            "price_usd": spot,
+            "change_24h": close_at(1).map(pct),
+            "change_3d": close_at(3).map(pct),
+            "change_7d": close_at(7).map(pct),
+            "change_30d": close_at(30).map(pct),
+            "spark": spark,
+            "history": history,
+            // Older than HISTORY_TTL → the first real refresh refetches the true series.
+            "history_at": now - 7 * day,
+        });
+        sqlx::query(
+            "UPDATE watchlist_items SET quote = $1, quoted_at = now() WHERE provider_id = $2",
+        )
+        .bind(&quote)
+        .bind(pid)
+        .execute(pool)
+        .await?;
+    }
+    // The list header reads this to label how fresh the cards are.
+    sqlx::query("UPDATE watchlists SET refreshed_at = now()").execute(pool).await?;
+    Ok(())
+}
+
+/// Editor content: a folder with two research pages, so the editor opens on something
+/// real (tree + rich text) instead of an empty state. TipTap/ProseMirror JSON.
+async fn documents(pool: &PgPool) -> anyhow::Result<()> {
+    let folder: Uuid = sqlx::query_scalar(
+        "INSERT INTO documents (id, parent_id, kind, title, position, icon)
+         VALUES (gen_random_uuid(), NULL, 'folder', 'Research', 0, '📁') RETURNING id",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let inefficiency = serde_json::json!({
+        "type": "doc",
+        "content": [
+            { "type": "heading", "attrs": { "level": 1 },
+              "content": [{ "type": "text", "text": "Post-earnings drift — does it still pay?" }] },
+            { "type": "paragraph", "content": [{ "type": "text",
+              "text": "Working note on whether post-earnings announcement drift survives in large caps. Numbers below are illustrative demo data, not a real study." }] },
+            { "type": "heading", "attrs": { "level": 2 },
+              "content": [{ "type": "text", "text": "Hypothesis" }] },
+            { "type": "paragraph", "content": [{ "type": "text",
+              "text": "Stocks that beat consensus by more than one standard deviation keep drifting up for roughly 20 sessions, because analyst revisions lag the print." }] },
+            { "type": "heading", "attrs": { "level": 2 },
+              "content": [{ "type": "text", "text": "What the sample showed" }] },
+            { "type": "bulletList", "content": [
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Mean 20-day excess return after a large beat: +1.8% (n=214)." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Most of the edge lands in the first 5 sessions; the tail is noise." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Effect roughly halves once you subtract a 12 bps round-trip cost." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Nothing left in mega caps — coverage is too dense for the lag to persist." }] }] }
+            ]},
+            { "type": "heading", "attrs": { "level": 2 },
+              "content": [{ "type": "text", "text": "Next step" }] },
+            { "type": "paragraph", "content": [{ "type": "text",
+              "text": "Re-run restricted to mid caps with a liquidity floor, then size it against the breakout book to check the correlation is low enough to be worth a sleeve." }] }
+        ]
+    });
+
+    let playbook = serde_json::json!({
+        "type": "doc",
+        "content": [
+            { "type": "heading", "attrs": { "level": 1 },
+              "content": [{ "type": "text", "text": "Breakout playbook" }] },
+            { "type": "paragraph", "content": [{ "type": "text",
+              "text": "The rules the journal's Breakout strategy is graded against." }] },
+            { "type": "orderedList", "content": [
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Range must be at least 10 sessions wide; ignore anything tighter." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Breakout bar needs volume above 1.5× the 20-day average." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Stop goes under the last higher low, never at a round number." }] }] },
+                { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+                  "text": "Take half off at 2R, trail the rest behind the 10-day low." }] }] }
+            ]},
+            { "type": "blockquote", "content": [{ "type": "paragraph", "content": [{ "type": "text",
+              "text": "Recurring mistake: entering before the close confirms the break. Two of the losing trades in the journal are exactly this." }] }] }
+        ]
+    });
+
+    for (pos, title, icon, content) in [
+        (0.0, "Post-earnings drift — does it still pay?", "🔬", inefficiency),
+        (1.0, "Breakout playbook", "📈", playbook),
+    ] {
+        sqlx::query(
+            "INSERT INTO documents (id, parent_id, kind, title, content, position, icon)
+             VALUES (gen_random_uuid(), $1, 'page', $2, $3, $4, $5)",
+        )
+        .bind(folder).bind(title).bind(content).bind(pos).bind(icon)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_seeded_workflow_is_one_the_module_would_accept() {
+        // The seed writes this graph straight into `automator_workflows.graph`, which the
+        // engine runs and the editor re-saves: a block config that drifts out of the schema
+        // must fail here, not at 3 a.m. on the demo host.
+        let graph = crate::automator::Graph::parse(&briefing_graph()).expect("parses");
+        crate::automator::validate(&graph).expect("validates");
+    }
+
+    #[test]
+    fn every_chart_instrument_carries_usable_studies() {
+        for (provider, asset_type, ticker, timeframe, name, studies) in CHART_INSTRUMENTS {
+            let parsed: serde_json::Value =
+                serde_json::from_str(studies).unwrap_or_else(|e| panic!("{ticker}: {e}"));
+            let list = parsed.as_array().expect("an instances array");
+            assert!(!list.is_empty(), "{ticker} has no studies");
+            for i in list {
+                assert!(i["type"].is_string(), "{ticker}: a study needs a type");
+                assert!(i["params"].is_object(), "{ticker}: a study needs params");
+            }
+            for field in [provider, asset_type, ticker, timeframe, name] {
+                assert!(!field.trim().is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn a_layout_key_matches_what_the_chart_files_it_under() {
+        // Provider/asset/timeframe lowercased, the ticker verbatim.
+        assert_eq!(
+            coord_key("Binance", "Crypto", "BTCUSDT", "1H"),
+            "binance|crypto|BTCUSDT|1h"
+        );
+    }
+
+    #[test]
+    fn levels_are_rounded_the_way_a_hand_would_draw_them() {
+        assert_eq!(round_level(108_437.21), 108_000.0);
+        assert_eq!(round_level(236.83), 237.0);
+        assert_eq!(round_level(3.2874), 3.29);
+        assert_eq!(round_level(0.0), 0.0);
+    }
+}

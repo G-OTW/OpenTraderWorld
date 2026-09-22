@@ -1,0 +1,4 @@
+# Pin a known-good toolchain so local builds match CI and the Docker image.
+# Several dependencies (sqlx, argon2 trees) require a recent Rust (edition 2024).
+[toolchain]
+channel = "stable"
