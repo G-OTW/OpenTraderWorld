@@ -77,7 +77,7 @@ ammonia = "4"
 # into the same string grid every other import uses, and the low-level column writer emits
 # one, so the 40-crate arrow tree buys nothing here. Snappy and zstd are the two codecs a
 # price-history file in the wild is actually written with.
-parquet = { version = "56", default-features = false, features = ["zstd", "snap"] }
+parquet = { version = "59", default-features = false, features = ["zstd", "snap"] }
 # Parquet's reader takes a `ChunkReader`; `Bytes` is the one an in-memory upload satisfies.
 bytes = "1"
 
