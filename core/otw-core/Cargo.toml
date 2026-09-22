@@ -50,7 +50,7 @@ quick-xml = "0.41"
 ring = "0.17"
 axum-extra = { version = "0.12", features = ["cookie"] }
 # FinanceDatabase import: download a zstd-compressed tarball of CSVs and bulk-load it.
-zstd = "0.13"
+zstd = "0.14"
 tar = "0.4"
 csv = "1"
 # External reminder notifications: SMTP e-mail. rustls to match reqwest (no native-tls).
