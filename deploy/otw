@@ -1,0 +1,312 @@
+#!/usr/bin/env bash
+#
+# OpenTraderWorld — the one command for the machine, after install day.
+#
+#   otw status     is everything working, in plain words
+#   otw backup     take a backup now
+#   otw restore    put a backup back, guided
+#   otw update     update the application, safely
+#   otw logs       what the application has been doing
+#   otw card       show the address, the username and where the password lives
+#   otw report     one file to send us when something is wrong
+#
+# Installed by server-setup.sh at /usr/local/bin/otw. It exists so that nobody
+# ever has to type docker, compose, or a container name to run their own server
+# (ProjectSpecs/hosting/plan.md R6).
+set -euo pipefail
+
+CONF="/etc/otw.conf"
+[[ -r "$CONF" ]] || { echo "OpenTraderWorld is not installed on this machine." >&2; exit 1; }
+# shellcheck disable=SC1090
+. "$CONF"
+
+: "${OTW_DIR:?OTW_DIR missing from /etc/otw.conf}"
+OTW_USER="${OTW_USER:-otw}"
+BACKUP_DIR="${OTW_BACKUP_DIR:-/var/backups/otw}"
+# Nightly copies skip the two tables that can be fetched again from where they
+# came from: the instrument reference list and the downloaded price history.
+# On a real instance they are 168 MB of a 202 MB dump, so leaving them out is
+# the difference between a 7 MB nightly file and a 41 MB one.
+REDOWNLOADABLE=(public.findb_instruments public.histdata_bars)
+# Ten days of history, and no more: both counts have to be cut, or the weekly
+# full copies would quietly keep two months. About 152 MB at the ceiling.
+# Override either one in /etc/otw.conf, no need to touch this file.
+KEEP_NIGHTLY="${OTW_KEEP_NIGHTLY:-10}"
+KEEP_WEEKLY="${OTW_KEEP_WEEKLY:-2}"
+
+bold() { printf '\033[1m%s\033[0m\n' "$1"; }
+info() { printf '  %s\n' "$1"; }
+warn() { printf '  ! %s\n' "$1"; }
+die()  { printf '\n  %s\n\n' "$1" >&2; exit 1; }
+
+compose() {
+  ( cd "$OTW_DIR/deploy" && docker compose \
+      -f docker-compose.yml -f docker-compose.images.yml \
+      --env-file .env --env-file network.env "$@" )
+}
+
+env_value() {
+  awk -F= -v k="$1" '$1==k {sub(/^[^=]*=/,""); print; exit}' "$OTW_DIR/deploy/.env"
+}
+
+compose_project() {
+  awk -F: '/^[[:space:]]*name:[[:space:]]*/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' \
+    "$OTW_DIR/deploy/docker-compose.yml" 2>/dev/null || true
+}
+
+domain() {
+  awk -F= '/^OTW_DOMAIN=/ {print $2; exit}' "$OTW_DIR/deploy/network.env" 2>/dev/null || true
+}
+
+need_root() {
+  [[ "$(id -u)" == "0" ]] && return 0
+  command -v sudo >/dev/null 2>&1 || die "This needs the machine administrator rights."
+  exec sudo -p "  Password for %p: " "$0" "${ORIG_ARGS[@]}"
+}
+
+# ── status ───────────────────────────────────────────────────────────────────
+cmd_status() {
+  local d; d="$(domain)"
+  bold "OpenTraderWorld"
+
+  local running
+  running="$(compose ps --status running --format '{{.Service}}' 2>/dev/null | sort | tr '\n' ' ' || true)"
+  if [[ -z "${running// /}" ]]; then
+    warn "Nothing is running. Start it again with:  otw restart"
+  else
+    info "Running: ${running% }"
+  fi
+
+  if [[ -n "$d" && "$d" != ":80" ]]; then
+    local code
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 8 "https://$d/api/health" 2>/dev/null || true)"
+    if [[ "$code" == "200" ]]; then
+      info "Your address answers: https://$d"
+    else
+      warn "https://$d is not answering. If you changed nothing, try:  otw restart"
+    fi
+  fi
+
+  local last="$BACKUP_DIR/last-backup.json"
+  if [[ -r "$last" ]]; then
+    local at result
+    at="$(awk -F'"' '/"at"/ {print $4; exit}' "$last")"
+    result="$(awk -F'"' '/"result"/ {print $4; exit}' "$last")"
+    if [[ "$result" == "ok" ]]; then
+      info "Last backup: $at — fine."
+    else
+      warn "Last backup: $at — it failed. Take one now with:  otw backup"
+    fi
+  else
+    warn "No backup has been taken yet. Take one with:  otw backup"
+  fi
+
+  local free_mb
+  free_mb="$(df -Pm / | awk 'NR==2 {print $4}')"
+  if (( free_mb < 2000 )); then
+    warn "Only ${free_mb} MB of disk space is left. Free some, or ask your provider for more."
+  else
+    info "Disk space left: $(( free_mb / 1024 )) GB."
+  fi
+}
+
+# ── backup ───────────────────────────────────────────────────────────────────
+# Writes a marker the application reads, so Settings shows the age of the last
+# backup without anything else being configured (core/settings_api.rs).
+write_marker() {
+  local result="$1" size="${2:-0}" err="${3:-}" file mount project
+  file="$(mktemp)"
+  {
+    printf '{"at":"%s","result":"%s","destination":"%s","verified":%s,"schedule":"%s","size_bytes":%s' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$result" "$BACKUP_DIR on this machine" \
+      "$([[ "$result" == "ok" ]] && echo true || echo false)" "every night at 03:20" "$size"
+    [[ -n "$err" ]] && printf ',"error":"%s"' "${err//\"/}"
+    printf '}\n'
+  } > "$file"
+  install -D -m 600 "$file" "$BACKUP_DIR/last-backup.json"
+
+  # The application reads it from a shared volume, so put a copy there too. The
+  # mountpoint is asked of Docker rather than guessed.
+  project="$(compose_project)"
+  project="${project:-$(basename "$OTW_DIR/deploy" | tr '[:upper:]' '[:lower:]')}"
+  mount="$(docker volume inspect -f '{{ .Mountpoint }}' "${project}_backup-status" 2>/dev/null || true)"
+  [[ -n "$mount" && -d "$mount" ]] && install -m 644 "$file" "$mount/last-backup.json"
+  rm -f "$file"
+}
+
+cmd_backup() {
+  local scheduled=0
+  [[ "${1:-}" == "--scheduled" ]] && scheduled=1
+
+  local user db kind excludes=() stamp out
+  user="$(env_value POSTGRES_USER)"; db="$(env_value POSTGRES_DB)"
+  : "${user:=otw}"; : "${db:=opentraderworld}"
+
+  # One full copy a week, a light one the other nights. The light one leaves out
+  # only what can be downloaded again; everything you typed is in both.
+  if [[ "$(date +%u)" == "7" || "$scheduled" == "0" && "${OTW_FULL:-0}" == "1" ]]; then
+    kind="full"
+  else
+    kind="nightly"
+    for t in "${REDOWNLOADABLE[@]}"; do excludes+=("--exclude-table-data=$t"); done
+  fi
+
+  stamp="$(date -u +%Y-%m-%d-%H%M)"
+  out="$BACKUP_DIR/otw-$kind-$stamp.sql.gz"
+  install -d -m 700 "$BACKUP_DIR"
+
+  [[ "$scheduled" == "1" ]] || info "Taking a $kind backup. This does not interrupt anything."
+  if ! compose exec -T postgres pg_dump -U "$user" -d "$db" --no-owner ${excludes+"${excludes[@]}"} \
+       2>"$BACKUP_DIR/.last-error" | gzip -6 > "$out.part"; then
+    rm -f "$out.part"
+    write_marker failed 0 "$(tail -c 300 "$BACKUP_DIR/.last-error" | tr -d '\n')"
+    die "The backup failed. Run 'otw status' to see whether the database is running."
+  fi
+
+  # A backup nobody checked is not a backup. Two cheap proofs: the file unpacks,
+  # and pg_dump wrote its own completion line at the end.
+  if ! gzip -t "$out.part" 2>/dev/null \
+     || ! gzip -dc "$out.part" | tail -5 | grep -q 'PostgreSQL database dump complete'; then
+    rm -f "$out.part"
+    write_marker failed 0 "the backup file was incomplete"
+    die "The backup came out damaged and was thrown away. Try again, or run 'otw report'."
+  fi
+
+  mv "$out.part" "$out"
+  chmod 600 "$out"
+
+  # Rotation, per kind, newest kept.
+  local keep
+  for kind in nightly full; do
+    [[ "$kind" == "full" ]] && keep="$KEEP_WEEKLY" || keep="$KEEP_NIGHTLY"
+    ls -1t "$BACKUP_DIR"/otw-$kind-*.sql.gz 2>/dev/null | tail -n "+$((keep + 1))" | while read -r old; do
+      rm -f "$old"
+    done
+  done
+
+  local size; size="$(stat -c %s "$out" 2>/dev/null || echo 0)"
+  write_marker ok "$size"
+  [[ "$scheduled" == "1" ]] || info "Done: $out ($(( size / 1024 / 1024 )) MB, checked)."
+}
+
+# ── restore ──────────────────────────────────────────────────────────────────
+cmd_restore() {
+  local files=() i=1 choice pick user db
+  mapfile -t files < <(ls -1t "$BACKUP_DIR"/otw-*.sql.gz 2>/dev/null || true)
+  [[ ${#files[@]} -gt 0 ]] || die "There is no backup on this machine yet."
+
+  bold "Which backup should be put back?"
+  for f in "${files[@]}"; do
+    printf '  %2d) %s   %s MB\n' "$i" "$(basename "$f")" "$(( $(stat -c %s "$f") / 1024 / 1024 ))"
+    i=$(( i + 1 ))
+  done
+  echo
+  read -r -p "  Type a number, or press Enter to stop: " choice < /dev/tty || choice=""
+  [[ -n "$choice" ]] || { info "Nothing was changed."; return 0; }
+  pick="${files[$(( choice - 1 ))]:-}"
+  [[ -n "$pick" ]] || die "That is not one of the numbers above."
+
+  echo
+  warn "This erases what is in the application now and puts back $(basename "$pick")."
+  read -r -p "  Type RESTORE to go ahead: " confirm < /dev/tty || confirm=""
+  [[ "$confirm" == "RESTORE" ]] || { info "Nothing was changed."; return 0; }
+
+  user="$(env_value POSTGRES_USER)"; db="$(env_value POSTGRES_DB)"
+  : "${user:=otw}"; : "${db:=opentraderworld}"
+
+  info "Taking a safety copy of what is there now…"
+  OTW_FULL=1 cmd_backup >/dev/null
+
+  info "Putting the backup back…"
+  gzip -dc "$pick" | compose exec -T postgres psql -U "$user" -d "$db" -q >/dev/null \
+    || die "The restore failed. Nothing was lost: the safety copy is in $BACKUP_DIR."
+  compose restart core >/dev/null
+  info "Done. Open your address and sign in."
+}
+
+# ── update ───────────────────────────────────────────────────────────────────
+cmd_update() {
+  local d before
+  d="$(domain)"
+  before="$(compose images --format '{{.Repository}}:{{.Tag}}@{{.ID}}' 2>/dev/null || true)"
+
+  info "Taking a backup first, in case the new version does not suit you."
+  OTW_FULL=1 cmd_backup >/dev/null
+  info "Downloading the new version…"
+  compose pull --quiet || die "The download failed. Nothing was changed."
+  info "Restarting with it…"
+  compose up -d --quiet-pull
+
+  # An update that leaves the machine unreachable is worse than no update, so it
+  # is undone here rather than discovered by the operator tomorrow.
+  local i code=""
+  for i in $(seq 1 30); do
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 "https://${d}/api/health" 2>/dev/null || true)"
+    [[ "$code" == "200" ]] && break
+    sleep 5
+  done
+  if [[ "$code" != "200" ]]; then
+    warn "The new version is not answering. Going back to the one that worked…"
+    printf '%s\n' "$before" | while read -r line; do
+      [[ -n "$line" ]] && docker tag "${line##*@}" "${line%@*}" 2>/dev/null || true
+    done
+    compose up -d
+    die "The update was undone. Nothing was lost. Send us 'otw report'."
+  fi
+  info "Updated, and your address still answers."
+}
+
+# ── the rest ─────────────────────────────────────────────────────────────────
+cmd_restart() { compose up -d; info "Started."; }
+cmd_logs()    { compose logs --tail "${1:-200}" core caddy; }
+
+cmd_card() {
+  local card="$OTW_DIR/ACCOUNT.txt"
+  [[ -r "$card" ]] || die "The card was not found. It is written at install time, in $card."
+  cat "$card"
+}
+
+cmd_report() {
+  local out="/tmp/otw-report-$(date -u +%Y%m%d-%H%M).txt"
+  {
+    echo "OpenTraderWorld report — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "machine: $(uname -srm)  $( . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
+    echo "address: $(domain)"
+    echo; echo "── memory and disk ──"; free -m 2>/dev/null; df -h /
+    echo; echo "── containers ──"; compose ps 2>&1
+    echo; echo "── last backup ──"; cat "$BACKUP_DIR/last-backup.json" 2>/dev/null || echo "none"
+    echo; echo "── recent activity ──"
+    # Secrets are stripped, not trusted to be absent: this file is meant to be
+    # sent to strangers, and the logs quote configuration back at startup.
+    compose logs --tail 300 core caddy 2>&1 \
+      | sed -E 's/((PASSWORD|SECRET|TOKEN|KEY|passphrase)[":= ]+)[^ ",}]+/\1<removed>/Ig'
+  } > "$out" 2>&1
+  chmod 600 "$out"
+  info "Written: $out"
+  info "Send that file to https://github.com/G-OTW/OpenTraderWorld/issues — it holds no password."
+}
+
+ORIG_ARGS=("$@")
+CMD="${1:-status}"
+
+# Everything below talks to Docker, and talking to Docker means being root or
+# being in the docker group. That group is granted while the machine is being
+# installed, which never reaches a terminal that was already open — so this
+# elevates instead of relying on it, and `otw status` works in the very session
+# the installer printed it into.
+case "$CMD" in
+  status|backup|restore|update|restart|logs|report) need_root ;;
+esac
+
+case "$CMD" in
+  status)  cmd_status ;;
+  backup)  shift; cmd_backup "$@" ;;
+  restore) cmd_restore ;;
+  update)  cmd_update ;;
+  restart) cmd_restart ;;
+  logs)    shift; cmd_logs "$@" ;;
+  card)    cmd_card ;;
+  report)  cmd_report ;;
+  -h|--help|help) sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "There is no \"$1\". Run 'otw help' to see what there is." ;;
+esac

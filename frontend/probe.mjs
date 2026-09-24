@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const p = await b.newPage();
+p.on('console', (m) => console.log('CONSOLE', m.type(), m.text().slice(0, 300)));
+p.on('pageerror', (e) => console.log('PAGEERROR', String(e).slice(0, 300)));
+await p.goto('http://127.0.0.1:5454/histviz', { waitUntil: 'networkidle' });
+console.log('URL', p.url());
+console.log('TITLE', await p.title());
+console.log('BODY', (await p.locator('body').innerText()).slice(0, 600));
+await b.close();
