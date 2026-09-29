@@ -36,7 +36,7 @@ base64 = "0.22"
 # Mailbox OAuth: PKCE code challenge; broker account signatures (Binance, Kraken).
 sha2 = "0.10"
 # Broker accounts: the signed-request schemes every exchange uses (HMAC-SHA256/512).
-hmac = "0.12"
+hmac = "0.13"
 # TOTP second factor (RFC 6238, auth::totp): HMAC-SHA1 over a base32 secret, compared in
 # constant time. All three are already transitive dependencies, so this adds no download and
 # no unaudited one-time-password crate.
