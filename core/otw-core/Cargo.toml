@@ -32,7 +32,7 @@ uuid = { version = "1", features = ["v4"] }
 # MCP catalog: JSON Schemas for request bodies, generated from the handler structs.
 schemars.workspace = true
 # Doc submission relay: inline /api/files/{id} images as data: URIs.
-base64 = "0.22"
+base64 = "0.23"
 # Mailbox OAuth: PKCE code challenge; broker account signatures (Binance, Kraken).
 sha2 = "0.10"
 # Broker accounts: the signed-request schemes every exchange uses (HMAC-SHA256/512).
