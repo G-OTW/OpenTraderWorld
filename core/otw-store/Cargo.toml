@@ -22,7 +22,7 @@ tokio.workspace = true
 # Secret encryption at rest (AEAD) + key derivation from the master key.
 chacha20poly1305 = "0.10"
 sha2 = "0.10"
-getrandom = "0.3"
+getrandom = "0.4"
 # Sealed agent-provider keys ride in an existing TEXT column (enc1:<b64>:<b64>).
 base64 = "0.22"
 zip = { version = "8", default-features = false, features = ["deflate"] }
