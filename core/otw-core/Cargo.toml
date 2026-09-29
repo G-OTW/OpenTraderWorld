@@ -44,7 +44,7 @@ sha1 = "0.10"
 data-encoding = "2"
 subtle = "2"
 # Broker accounts: IBKR Flex statements are XML.
-quick-xml = "0.41"
+quick-xml = "0.42"
 # Broker accounts: Coinbase signs one Ed25519 JWT per request (ring is already in the tree
 # under rustls; the key it issues is the seed+public pair `from_seed_and_public_key` takes).
 ring = "0.17"
