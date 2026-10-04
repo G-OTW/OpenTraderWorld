@@ -1,0 +1,68 @@
+id = "us_federal"
+year = 2026
+country = "US"
+label = "United States, federal, single filer"
+currency = "USD"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "IRC § 1(h) and Rev. Proc. 2025-32 (2026 tables 3 and section 1(h) amounts)",
+  "IRC § 1411 (net investment income tax 3.8 % over 200 000 USD)",
+  "IRC § 1091 (wash sales, 30 days before and after)",
+  "IRC § 1222 (long term: held more than one year)",
+  "IRS Publication 550; IRS Topic 409 (3 000 USD limit, more than one year)",
+]
+notes = "Single filer, federal only (no state tax). other_income is ordinary taxable income after deductions. Not modeled: the 3 000 USD loss offset against ordinary income, Section 1256 60/40 for futures (derivatives are ordinary here), non-qualified dividends (all dividends taken as qualified), specific lot identification."
+inputs = ["other_income", "long_term"]
+
+[matching]
+method = "fifo"
+wash = { before_days = 30, after_days = 30, classes = ["stock", "etf", "option"] }
+
+[[pools]]
+key = "all"
+buckets = ["capital", "derivative", "crypto"]
+
+[[holding]]
+bucket = "capital"
+after_years = 1
+term = "long"
+
+[[holding]]
+bucket = "crypto"
+after_years = 1
+term = "long"
+
+[[schedules]]
+key = "ordinary"
+label = "Ordinary income rates"
+items = ["capital.short", "crypto.short", "derivative", "interest"]
+order = 1
+stack = true
+kind = "brackets"
+brackets = [
+  { up_to = 12400, rate = 10 },
+  { up_to = 50400, rate = 12 },
+  { up_to = 105700, rate = 22 },
+  { up_to = 201775, rate = 24 },
+  { up_to = 256225, rate = 32 },
+  { up_to = 640600, rate = 35 },
+  { rate = 37 },
+]
+
+[[schedules]]
+key = "ltcg"
+label = "Long-term capital gains rates"
+items = ["capital.long", "crypto.long", "dividends"]
+order = 2
+stack = true
+kind = "brackets"
+brackets = [{ up_to = 49450, rate = 0 }, { up_to = 545500, rate = 15 }, { rate = 20 }]
+
+[[surcharges]]
+label = "Net investment income tax"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+rate = 3.8
+on = "base"
+threshold = 200000
