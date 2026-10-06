@@ -20,7 +20,7 @@ tracing.workspace = true
 tokio.workspace = true
 
 # Secret encryption at rest (AEAD) + key derivation from the master key.
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 sha2 = "0.11"
 getrandom = "0.4"
 # Sealed agent-provider keys ride in an existing TEXT column (enc1:<b64>:<b64>).
