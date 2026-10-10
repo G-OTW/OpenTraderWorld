@@ -1,0 +1,52 @@
+{
+  "label": "Deutsch",
+  "description": "Selbst gehostete, modulare Plattform für Trader und Investoren: Journal, Marktdaten, Backtesting, Portfolios und mehr, auf deinem eigenen Rechner.",
+  "nav": {
+    "guide": "Anleitung",
+    "config": "Konfiguration",
+    "modules": "Module",
+    "site": "opentraderworld.com",
+    "website": "Projektwebsite",
+    "demo": "Live-Demo",
+    "community": "Community-Docs",
+    "suggestions": "Vorschläge & Umfragen"
+  },
+  "sidebar": {
+    "gettingStarted": "Erste Schritte",
+    "introduction": "Was ist OpenTraderWorld?",
+    "docker": "Docker besorgen",
+    "install": "Installation",
+    "firstSteps": "Erste Schritte nach der Installation",
+    "updating": "Aktualisieren",
+    "backup": "Sicherung & Wiederherstellung",
+    "troubleshooting": "Fehlerbehebung",
+    "demoMode": "Demo-Modus",
+    "online": "Online stellen",
+    "whenItBreaks": "Wenn etwas ausfällt",
+    "configuration": "Konfiguration",
+    "network": "Netzwerk & Fernzugriff",
+    "security": "Kontosicherheit",
+    "social": "Social Login",
+    "settings": "Einstellungen im Überblick",
+    "connectors": "Daten-Konnektoren",
+    "brokers": "Broker-Konten",
+    "aiAgents": "KI-Agenten (MCP)",
+    "externalControl": "Externe Steuerung (Chat)",
+    "voice": "Sprachsteuerung",
+    "modules": "Module",
+    "overview": "Überblick",
+    "dashboard": "Dashboard & Navigation",
+    "journal": "Trading-Journal",
+    "marketData": "Marktdaten & Backtesting",
+    "fundamentals": "Fundamentaldaten",
+    "portfolio": "Portfolios & Vermögen",
+    "news": "News & Recherche",
+    "productivity": "Notizen & Organisation",
+    "automator": "Automator (Workflows)",
+    "agent": "Agent (KI-Assistent)"
+  },
+  "ui": {
+    "editLink": "Änderung an dieser Seite vorschlagen",
+    "footer": "Kostenlos für private und nicht-kommerzielle Nutzung. Source-available. <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">Live-Demo</a> · <a href=\"https://opentraderworld.com/suggestions\">Funktion vorschlagen</a>"
+  }
+}

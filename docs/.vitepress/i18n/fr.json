@@ -1,0 +1,52 @@
+{
+  "label": "Français",
+  "description": "Plateforme modulaire auto-hébergée pour traders et investisseurs : journal, données de marché, backtesting, portefeuilles et plus, sur votre propre machine.",
+  "nav": {
+    "guide": "Guide",
+    "config": "Configuration",
+    "modules": "Modules",
+    "site": "opentraderworld.com",
+    "website": "Site du projet",
+    "demo": "Démo en ligne",
+    "community": "Docs de la communauté",
+    "suggestions": "Suggestions et sondages"
+  },
+  "sidebar": {
+    "gettingStarted": "Démarrage",
+    "introduction": "Qu'est-ce que OpenTraderWorld ?",
+    "docker": "Installer Docker",
+    "install": "Installation",
+    "firstSteps": "Premiers pas",
+    "updating": "Mise à jour",
+    "backup": "Sauvegarde et restauration",
+    "troubleshooting": "Dépannage",
+    "demoMode": "Mode démo",
+    "online": "Mettre en ligne",
+    "whenItBreaks": "En cas de panne",
+    "configuration": "Configuration",
+    "network": "Réseau et accès à distance",
+    "security": "Sécurité du compte",
+    "social": "Social login",
+    "settings": "Référence des paramètres",
+    "connectors": "Data connectors",
+    "brokers": "Comptes broker",
+    "aiAgents": "Agents IA (MCP)",
+    "externalControl": "Contrôle externe (chat)",
+    "voice": "Commande vocale",
+    "modules": "Modules",
+    "overview": "Vue d'ensemble",
+    "dashboard": "Dashboard et navigation",
+    "journal": "Journal de trading",
+    "marketData": "Données de marché et backtesting",
+    "fundamentals": "Fondamentaux",
+    "portfolio": "Portefeuilles et patrimoine",
+    "news": "Actualités et recherche",
+    "productivity": "Notes et organisation",
+    "automator": "Automator (workflows)",
+    "agent": "Agent (assistant IA)"
+  },
+  "ui": {
+    "editLink": "Suggérer une modification de cette page",
+    "footer": "Gratuit pour un usage personnel et non commercial. Code source disponible. <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">Démo en ligne</a> · <a href=\"https://opentraderworld.com/suggestions\">Suggérer une fonctionnalité</a>"
+  }
+}

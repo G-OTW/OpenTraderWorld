@@ -1,0 +1,11 @@
+[[case]]
+name = "Long-term gain across the 0 % and 15 % brackets, 2025"
+source = "IRC 1(h), Rev. Proc. 2024-40: 8 350 at 0 %, 1 650 at 15 %"
+inputs = { realized_capital_gains = 10000.0, long_term = { capital = 10000.0 }, other_income = 40000.0 }
+expect = { total_tax = 247.5 }
+
+[[case]]
+name = "Short-term gain at ordinary rates, 2025"
+source = "IRC 1: 8 475 at 12 % and 1 525 at 22 % on top of 40 000"
+inputs = { realized_capital_gains = 10000.0, other_income = 40000.0 }
+expect = { total_tax = 1352.5 }

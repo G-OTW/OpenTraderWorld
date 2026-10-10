@@ -1,0 +1,52 @@
+{
+  "label": "Italiano",
+  "description": "Piattaforma modulare self-hosted per trader e investitori: journal, dati di mercato, backtest, portafogli e altro, sul tuo computer.",
+  "nav": {
+    "guide": "Guida",
+    "config": "Configurazione",
+    "modules": "Moduli",
+    "site": "opentraderworld.com",
+    "website": "Sito del progetto",
+    "demo": "Demo live",
+    "community": "Documenti della community",
+    "suggestions": "Suggerimenti e sondaggi"
+  },
+  "sidebar": {
+    "gettingStarted": "Per iniziare",
+    "introduction": "Cos'è OpenTraderWorld?",
+    "docker": "Installare Docker",
+    "install": "Installazione",
+    "firstSteps": "Primi passi",
+    "updating": "Aggiornamento",
+    "backup": "Backup e ripristino",
+    "troubleshooting": "Risoluzione dei problemi",
+    "demoMode": "Modalità demo",
+    "online": "Metterlo online",
+    "whenItBreaks": "Quando qualcosa si rompe",
+    "configuration": "Configurazione",
+    "network": "Rete e accesso remoto",
+    "security": "Sicurezza dell'account",
+    "social": "Social login",
+    "settings": "Riferimento delle impostazioni",
+    "connectors": "Data connector",
+    "brokers": "Conti broker",
+    "aiAgents": "Agent IA (MCP)",
+    "externalControl": "Controllo esterno (chat)",
+    "voice": "Controllo vocale",
+    "modules": "Moduli",
+    "overview": "Panoramica",
+    "dashboard": "Dashboard e navigazione",
+    "journal": "Trading Journal",
+    "marketData": "Dati di mercato e backtest",
+    "fundamentals": "Fundamentals",
+    "portfolio": "Portafogli e patrimonio",
+    "news": "Notizie e ricerca",
+    "productivity": "Note e organizzazione",
+    "automator": "Automator (workflow)",
+    "agent": "Agent (assistente IA)"
+  },
+  "ui": {
+    "editLink": "Suggerisci una modifica a questa pagina",
+    "footer": "Gratuito per uso personale e non commerciale. Source-available. <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">Demo live</a> · <a href=\"https://opentraderworld.com/suggestions\">Suggerisci una funzione</a>"
+  }
+}

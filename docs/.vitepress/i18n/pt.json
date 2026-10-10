@@ -1,0 +1,52 @@
+{
+  "label": "Português (BR)",
+  "description": "Plataforma modular e auto-hospedada para traders e investidores: journal, dados de mercado, backtesting, carteiras e mais, na sua própria máquina.",
+  "nav": {
+    "guide": "Guia",
+    "config": "Configuração",
+    "modules": "Módulos",
+    "site": "opentraderworld.com",
+    "website": "Site do projeto",
+    "demo": "Demo ao vivo",
+    "community": "Community Docs",
+    "suggestions": "Sugestões e votações"
+  },
+  "sidebar": {
+    "gettingStarted": "Primeiros passos",
+    "introduction": "O que é o OpenTraderWorld?",
+    "docker": "Obtenha o Docker",
+    "install": "Instalação",
+    "firstSteps": "Primeiros passos",
+    "updating": "Atualização",
+    "backup": "Backup e restauração",
+    "troubleshooting": "Solução de problemas",
+    "demoMode": "Modo demo",
+    "online": "Colocar online",
+    "whenItBreaks": "Quando algo quebra",
+    "configuration": "Configuração",
+    "network": "Rede e acesso remoto",
+    "security": "Segurança da conta",
+    "social": "Social login",
+    "settings": "Referência de configurações",
+    "connectors": "Data connectors",
+    "brokers": "Contas de broker",
+    "aiAgents": "AI agents (MCP)",
+    "externalControl": "Controle externo (chat)",
+    "voice": "Controle por voz",
+    "modules": "Módulos",
+    "overview": "Visão geral",
+    "dashboard": "Dashboard e navegação",
+    "journal": "Trading Journal",
+    "marketData": "Dados de mercado e backtesting",
+    "fundamentals": "Fundamentals",
+    "portfolio": "Carteiras e patrimônio",
+    "news": "Notícias e pesquisa",
+    "productivity": "Notas e organização",
+    "automator": "Automator (workflows)",
+    "agent": "Agent (assistente de IA)"
+  },
+  "ui": {
+    "editLink": "Sugerir uma alteração nesta página",
+    "footer": "Gratuito para uso pessoal e não comercial. Código disponível. <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">Demo ao vivo</a> · <a href=\"https://opentraderworld.com/suggestions\">Sugerir um recurso</a>"
+  }
+}

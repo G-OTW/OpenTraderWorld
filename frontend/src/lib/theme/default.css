@@ -1,0 +1,493 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Default theme — Dashboard V1 design tokens.
+ *
+ * Direction: sober, dense, precise — terminal / fact-sheet, not dashboard-toy.
+ * No decorative gradients, glow, hover-scale, or heavy shadows. Surfaces are
+ * deliberately quiet and use a compact radius to establish hierarchy without
+ * turning the workspace into a collection of floating cards.
+ *
+ * Theming is a swappable layer: a theme = one token set. This file ships TWO —
+ * a light institutional default (`:root` / `[data-theme='light']`) and the dark
+ * variant (`[data-theme='dark']`) whose palette is the exact prompt spec. The
+ * shell stamps `data-theme` on <html> from the user's choice (Light / Dark /
+ * System); `system` resolves via `prefers-color-scheme`. Components consume
+ * these variables, never hardcode colors/spacing.
+ *
+ * The legacy token names stay stable so module CSS and chart implementations
+ * consume the V1 system without a behaviour or data-path migration.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Fonts (self-hosted, /static/fonts) ─────────────────────────────────────── */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* ── Light (default) ───────────────────────────────────────────────────────── */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Workspace surfaces: near-white, cool page and widget tones with a warm shell. */
+  --bg: #f7f8f9;
+  --surface: #fdfdfe;
+  --surface-2: #f3f4f6; /* active / hover cell */
+  --surface-raised: #fdfdfe;
+  --surface-3: #ecedf0;
+  --surface-hover: #f1f2f4;
+  --shell-bg: rgba(246, 243, 242, 0.92);
+  --sidebar-bg: #f6f3f2;
+
+  /* Filets. --border = separators; --border-control = control outlines. */
+  --border: #f3f4f5;
+  --border-control: #d4d7dd;
+  --border-strong: #d4d7dd;
+
+  /* Text ramp: principal → secondary → dim (labels) → faint (index/placeholder). */
+  --text: #17191c;
+  --muted: #59616b;
+  --dim: #7b838d; /* labels, descriptions */
+  --faint: #969da4; /* index, placeholders, empty values "—" */
+
+  /* Accent is reserved for orientation and interaction; semantic colour keeps
+     financial meaning restrained and readable in both themes. */
+  --accent: #7fb894;
+  --accent-contrast: #0c0d10; /* ink that sits ON an --accent fill */
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, #000);
+  --green: #15866a;
+  --amber: #b87516;
+  --red: #c94b54;
+
+  /* Widget baseline aliases: component code keeps the legacy names above, while new
+     widget work can read the design specification without reinterpreting a colour. */
+  --bg-app: #f7f8f9;
+  --bg-sidebar: #f6f3f2;
+  --surface-1: #fdfdfe;
+  --border-subtle: #f3f4f5;
+  --text-primary: #17191c;
+  --text-secondary: #59616b;
+  --text-muted: #7b838d;
+  --accent-soft: rgba(53, 111, 214, 0.09);
+  --positive: #15866a;
+  --positive-soft: rgba(21, 134, 106, 0.09);
+  --negative: #c94b54;
+  --negative-soft: rgba(201, 75, 84, 0.08);
+  --warning: #b87516;
+  --warning-soft: rgba(184, 117, 22, 0.10);
+  --chart-grid: rgba(63, 75, 87, 0.10);
+
+  /* --*-ink: the hue as small TEXT on its own tint. --*-contrast: ink on a solid
+     fill of the hue. On white these are the hues darkened just enough to read. */
+  --green-ink: #126e57;
+  --amber-ink: #8e5c10;
+  --red-ink: #aa3e46;
+  --green-contrast: #ffffff;
+  --amber-contrast: #ffffff;
+  --red-contrast: #ffffff;
+
+  /* Analytical, fixed-order chart series. */
+  --chart-1: #356fd6;
+  --chart-2: #15866a;
+  --chart-3: #c94b54;
+  --chart-4: #74808b;
+  --chart-5: #b87516;
+  --chart-6: #8a6cb1;
+  --chart-7: #4c91a8;
+  --chart-8: #8a9a62;
+
+  /* Diverging scale (signed midpoint) — muted brick ↔ neutral ↔ muted sage. */
+  --diverge-neg: #c94b54;
+  --diverge-mid: #efede7;
+  --diverge-pos: #15866a;
+
+  /* Horizontal chart gridline. */
+  --grid-line: #e3e0d9;
+
+  /* Reserved elevation: used only for raised controls, menus and modals. */
+  --shadow-1: 0 1px 2px rgba(24, 28, 33, 0.06);
+  --shadow-2: 0 12px 32px rgba(24, 28, 33, 0.1);
+  --shadow-3: 0 20px 48px rgba(24, 28, 33, 0.14);
+
+  /* No ambient glow. */
+  --glow: transparent;
+
+  /* Spacing scale (unchanged; 5/7 intentionally absent) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Radius & type. Font stacks follow the spec order exactly: the intended face
+     leads so it wins when present, falling back to platform faces. Aliases
+     --font-ui / --font-mono mirror the spec's token names. */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --font: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --font-ui: var(--font);
+  --font-mono: var(--mono);
+
+  /* ── Pill controls ─────────────────────────────────────────────────────────
+     Header-cluster primitive: soft borderless controls whose fill IS the frame.
+     `pill` is the neutral tint, `solid` the single promoted action (ink fill). */
+  --pill-h: 40px;
+  --pill-radius: 12px;
+  --pill-fs: 13.5px;
+  --pill-pad-x: 16px;
+  --pill-bg: #efedea;
+  --pill-bg-hover: #e7e4dd;
+  --pill-fg: #1b1d20;
+  --solid-bg: #1b1d20;
+  --solid-bg-hover: #2e3236;
+  --solid-fg: #ffffff;
+
+  /* ── Borders ─────────────────────────────────────────────────────────────── */
+  --hairline: 0.5px;
+  --active-rule: 1.5px;
+
+  /* ── Spec type scale ───────────────────────────────────────────────────────
+     Semantic, exact-px sizes from the design spec. Kept alongside the general
+     --text-* ramp (below): components that must match the spec pixel-for-pixel
+     reference these; the ramp remains for existing generic body/table text. */
+  --fs-page-title: 22px; /* page titles — weight 500 */
+  --fs-item-title: 13.5px; /* item titles — weight 500, ls 0.02em */
+  --fs-body: 12px; /* nav, controls */
+  --fs-desc: 11.5px; /* descriptions — color var(--dim) */
+  --fs-metric-label: 10px; /* UPPERCASE, ls 0.06em, color var(--dim) */
+  --fs-metric-value: 15px; /* monospace */
+  --fs-brand: 12.5px; /* UPPERCASE, ls 0.14em */
+  --fs-section: 9.5px; /* sidebar section titles — mono, UPPER, ls 0.12em */
+  --fs-axis: 10px; /* chart axes — mono, color var(--dim) */
+
+  /* ── Spec spacing (paddings) ───────────────────────────────────────────────── */
+  --pad-tile: 16px 18px; /* module grid cells */
+  --pad-metric: 14px 16px; /* metric cells */
+  --pad-nav: 8px 12px; /* sidebar items */
+  --pad-header: 12px 20px;
+
+  /* Layout */
+  --rail-width: 214px;
+  --topbar-height: 58px;
+
+  /* ── Type scale ──────────────────────────────────────────────────────────── */
+  --text-xs: 0.75rem; /* 12px — table labels, meta, timestamps */
+  --text-sm: 0.8125rem; /* 13px — dense body, table cells */
+  --text-base: 0.875rem; /* 14px — app body default */
+  --text-md: 1rem; /* 16px — section subtitles */
+  --text-lg: 1.375rem; /* 22px — page titles */
+  --text-xl: 1.75rem; /* 28px — key figures (mono) */
+
+  /* Weights: two only — 400 and 500. NEVER 600/700. --fw-semibold aliases 500
+     so any legacy reference stays on-system. */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 500;
+  /* Spec token names (two weights only). --w-regular = 400, --w-medium = 500. */
+  --w-regular: var(--fw-normal);
+  --w-medium: var(--fw-medium);
+
+  /* Line heights */
+  --lh-tight: 1.25;
+  --lh-base: 1.5;
+
+  /* ── Density ─────────────────────────────────────────────────────────────── */
+  --row-h: 36px;
+  --row-h-lg: 44px;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────── */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --ease: ease-out;
+
+  /* ── Z-index scale ───────────────────────────────────────────────────────── */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+/* ── Dark — EXACT prompt palette ────────────────────────────────────────────── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #091119;
+  --surface: #081118;
+  --surface-2: #0c141d; /* active / hover cell */
+  --surface-raised: #101a24;
+  --surface-3: #101a24;
+  --surface-hover: #121c26;
+  --shell-bg: rgba(13, 22, 31, 0.9);
+  --sidebar-bg: #0d161f;
+
+  --border: #17202a; /* separators / filets */
+  --border-control: #263747; /* control outlines */
+  --border-strong: #263747;
+
+  --text: #f3f6f8;
+  --muted: #a7b2bd;
+  --dim: #708090; /* labels, descriptions */
+  --faint: #536373; /* index, placeholders, empty values "—" */
+
+  --accent: #7fb894;
+  --accent-contrast: #0c0d10;
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
+  --green: #26c99a;
+  --amber: #e7a63c;
+  --red: #ef6168;
+
+  --bg-app: #091119;
+  --bg-sidebar: #0d161f;
+  --surface-1: #081118;
+  --border-subtle: #17202a;
+  --text-primary: #f3f6f8;
+  --text-secondary: #a7b2bd;
+  --text-muted: #708090;
+  --accent-soft: rgba(77, 143, 247, 0.12);
+  --positive: #26c99a;
+  --positive-soft: rgba(38, 201, 154, 0.11);
+  --negative: #ef6168;
+  --negative-soft: rgba(239, 97, 104, 0.11);
+  --warning: #e7a63c;
+  --warning-soft: rgba(231, 166, 60, 0.12);
+  --chart-grid: rgba(142, 160, 177, 0.10);
+
+  --green-ink: #4cdbaf;
+  --amber-ink: #f2b655;
+  --red-ink: #ff7c81;
+  --green-contrast: #071610;
+  --amber-contrast: #231704;
+  --red-contrast: #2a0a0d;
+
+  --pill-bg: #16202a;
+  --pill-bg-hover: #1d2935;
+  --pill-fg: #f2f5f8;
+  --solid-bg: #f2f5f8;
+  --solid-bg-hover: #ffffff;
+  --solid-fg: #0d131a;
+
+  --chart-1: #4b8df8;
+  --chart-2: #25c997;
+  --chart-3: #ef5b62;
+  --chart-4: #90a9c9;
+  --chart-5: #e6a23c;
+  --chart-6: #ae95e8;
+  --chart-7: #65b7cf;
+  --chart-8: #a9bb79;
+
+  --diverge-neg: #ef5b62;
+  --diverge-mid: #17232e;
+  --diverge-pos: #25c997;
+
+  --grid-line: #1a2733;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.38);
+  --glow: transparent;
+}
+
+/* System preference: when no explicit choice is stamped, follow the OS — aligned
+   with the dark block above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --bg: #091119;
+    --surface: #081118;
+    --surface-2: #0c141d;
+    --surface-raised: #101a24;
+    --surface-3: #101a24;
+    --surface-hover: #121c26;
+    --shell-bg: rgba(13, 22, 31, 0.9);
+    --sidebar-bg: #0d161f;
+
+    --border: #17202a;
+    --border-control: #263747;
+    --border-strong: #263747;
+
+    --text: #f3f6f8;
+    --muted: #a7b2bd;
+    --dim: #708090;
+    --faint: #536373;
+
+    --accent: #7fb894;
+    --accent-contrast: #0c0d10;
+    --accent-hover: color-mix(in srgb, var(--accent) 88%, #fff);
+    --green: #26c99a;
+    --amber: #e7a63c;
+    --red: #ef6168;
+
+    --bg-app: #091119;
+    --bg-sidebar: #0d161f;
+    --surface-1: #081118;
+    --border-subtle: #17202a;
+    --text-primary: #f3f6f8;
+    --text-secondary: #a7b2bd;
+    --text-muted: #708090;
+    --accent-soft: rgba(77, 143, 247, 0.12);
+    --positive: #26c99a;
+    --positive-soft: rgba(38, 201, 154, 0.11);
+    --negative: #ef6168;
+    --negative-soft: rgba(239, 97, 104, 0.11);
+    --warning: #e7a63c;
+    --warning-soft: rgba(231, 166, 60, 0.12);
+    --chart-grid: rgba(142, 160, 177, 0.10);
+
+    --green-ink: #4cdbaf;
+    --amber-ink: #f2b655;
+    --red-ink: #ff7c81;
+    --green-contrast: #071610;
+    --amber-contrast: #231704;
+    --red-contrast: #2a0a0d;
+
+    --pill-bg: #16202a;
+    --pill-bg-hover: #1d2935;
+    --pill-fg: #f2f5f8;
+    --solid-bg: #f2f5f8;
+    --solid-bg-hover: #ffffff;
+    --solid-fg: #0d131a;
+
+    --chart-1: #4b8df8;
+    --chart-2: #25c997;
+    --chart-3: #ef5b62;
+    --chart-4: #90a9c9;
+    --chart-5: #e6a23c;
+    --chart-6: #ae95e8;
+    --chart-7: #65b7cf;
+    --chart-8: #a9bb79;
+
+    --diverge-neg: #ef5b62;
+    --diverge-mid: #17232e;
+    --diverge-pos: #25c997;
+
+    --grid-line: #1a2733;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+    --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.28);
+    --shadow-3: 0 20px 48px rgba(0, 0, 0, 0.38);
+    --glow: transparent;
+  }
+}
+
+/* ── Global element polish (theme-scoped quality layer) ─────────────────────── */
+
+/* Monospace utility: opt any element into the figure font + tabular alignment. */
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Discreet selection — no bright accent wash. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Thin, recessive scrollbars that match the surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Keyboard focus: a single hairline of accent, no offset. Never a bare
+   `outline: none`. */
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 82%, transparent);
+  outline-offset: 2px;
+}
+
+/* Form controls inherit the app font (browsers default them to system UI). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Micro-transitions on interactive elements — snappy, never sluggish. */
+button,
+a {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* Respect the OS setting globally: any component animation collapses to instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Figures align in every data table. `.num` opts any element outside a table
+   into the same alignment. */
+table,
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Elevation discipline ───────────────────────────────────────────────────
+ * 1 — content sitting on the page: a quiet border and restrained lift.
+ * 2 — menus/modals: a little more lift without blur or glow. */
+.elev-1 {
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
+}
+.elev-2 {
+  background: var(--surface-raised);
+  border: var(--hairline) solid var(--border-control);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+
+/* Click-to-copy log/error feedback (see $lib/ui/copyLog.js). */
+[data-copied] {
+  color: var(--green) !important;
+}
+[data-copied]::after {
+  content: ' ✓ copied';
+  color: var(--green);
+  font-size: 0.85em;
+}

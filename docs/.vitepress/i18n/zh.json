@@ -1,0 +1,52 @@
+{
+  "label": "中文",
+  "description": "面向交易者和投资者的自托管模块化平台：journal、行情数据、backtest、投资组合等，运行在你自己的机器上。",
+  "nav": {
+    "guide": "指南",
+    "config": "配置",
+    "modules": "模块",
+    "site": "opentraderworld.com",
+    "website": "项目网站",
+    "demo": "在线演示",
+    "community": "社区文档",
+    "suggestions": "建议与投票"
+  },
+  "sidebar": {
+    "gettingStarted": "快速开始",
+    "introduction": "什么是 OpenTraderWorld？",
+    "docker": "获取 Docker",
+    "install": "安装",
+    "firstSteps": "第一步",
+    "updating": "更新",
+    "backup": "备份与恢复",
+    "troubleshooting": "故障排查",
+    "demoMode": "演示模式",
+    "online": "上线部署",
+    "whenItBreaks": "出问题时",
+    "configuration": "配置",
+    "network": "网络与远程访问",
+    "security": "账户安全",
+    "social": "Social sign-in",
+    "settings": "设置参考",
+    "connectors": "Data connectors",
+    "brokers": "Broker 账户",
+    "aiAgents": "AI agents (MCP)",
+    "externalControl": "外部控制（聊天）",
+    "voice": "语音控制",
+    "modules": "模块",
+    "overview": "概览",
+    "dashboard": "Dashboard 与导航",
+    "journal": "Trading Journal",
+    "marketData": "行情数据与 backtest",
+    "fundamentals": "Fundamentals",
+    "portfolio": "投资组合与财富",
+    "news": "新闻与研究",
+    "productivity": "笔记与组织",
+    "automator": "Automator (workflow)",
+    "agent": "Agent (AI 助手)"
+  },
+  "ui": {
+    "editLink": "建议修改此页面",
+    "footer": "个人及非商业用途免费。源码可见。 <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">在线演示</a> · <a href=\"https://opentraderworld.com/suggestions\">建议新功能</a>"
+  }
+}
