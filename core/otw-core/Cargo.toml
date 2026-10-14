@@ -72,7 +72,7 @@ webpki-roots = "1"
 # 10.30 included). 2.12 asks for `v100..200`, which every gateway since 2017 answers and a
 # newer one negotiates down to. Compatibility with the installed base beats the protobuf
 # features 3.x adds, none of which this connector uses.
-ibapi = { version = "2.12", default-features = false, features = ["async"] }
+ibapi = { version = "5.0", default-features = false, features = ["async"] }
 # MIME parsing + HTML sanitising of stored mail bodies.
 mail-parser = "0.11"
 ammonia = "4"
