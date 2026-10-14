@@ -27,4 +27,4 @@ getrandom = "0.4"
 base64 = "0.23"
 # Hex digests (content hashes, row hashes).
 hex = "0.4"
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
