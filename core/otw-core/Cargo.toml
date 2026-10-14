@@ -92,7 +92,7 @@ otw-queue = { path = "../otw-queue" }
 otw-i18n = { path = "../otw-i18n" }
 otw-theme = { path = "../otw-theme" }
 # TaxCalc: country regimes and their test cases are TOML files compiled into the binary.
-toml = "0.9"
+toml = "1.1"
 # Automator schedules: IANA timezone database (the workspace uses `time`, which has none).
 time-tz = { version = "2", features = ["db"] }
 
