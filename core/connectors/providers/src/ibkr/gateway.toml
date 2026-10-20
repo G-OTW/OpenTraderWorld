@@ -1,0 +1,35 @@
+# Interactive Brokers over a local IB Gateway or TWS (TWS API). Every claim below is sourced
+# in PROVIDER.md.
+
+provider = "ibkr"
+label = "Interactive Brokers"
+venue = "IBKR"
+api_version = "TWS API (ibapi 2.12)"
+maturity = "M2"
+asset_classes = ["equity", "etf", "spot", "forex", "index", "future", "option"]
+instrument_discovery = "search_only"
+# An address, not a credential: the user's own gateway.
+auth = "local_gateway"
+native_timeframes = ["5s", "1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"]
+
+# Prints (or the midpoint) where IB streams ticks, five-second bars where it does not.
+[live]
+trades = "push"
+candles = "push"
+candle_timeframes = ["5s"]
+
+[history]
+quote = true
+
+# IB flags no bar as forming: the period's end decides.
+[history.candles]
+max_items_per_call = 2000
+paging = "time"
+final_flag = false
+timeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"]
+
+# 60 historical requests per rolling ten minutes per account; the session paces 55.
+[[rate_limits]]
+scope = "account"
+capacity = 55
+refill_ms = 600000

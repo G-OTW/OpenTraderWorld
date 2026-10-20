@@ -1,0 +1,8 @@
+//@version=6
+// Reference: true strength index, double-smoothed change over double-smoothed absolute change.
+indicator("ref tsi")
+pine_tsi(src, s, l) =>
+    pc = ta.change(src)
+    ta.ema(ta.ema(pc, l), s) / ta.ema(ta.ema(math.abs(pc), l), s)
+plot(pine_tsi(close, 13, 25))
+plot(ta.tsi(close, 13, 25))

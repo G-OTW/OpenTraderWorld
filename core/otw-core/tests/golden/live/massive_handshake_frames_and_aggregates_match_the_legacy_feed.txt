@@ -1,0 +1,396 @@
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### equity socket
+"stocks"
+#### equity url
+"wss://socket.massive.com/stocks"
+#### equity: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("AM.AAPL,AM.MSFT"),
+    },
+]
+#### massive equity aggregates
+47 lines, 8553 bytes, sha256 ff1da2ce20b64bdb580419a223d6b0217dce1f9dc71671e163f74a91c952a589
+[
+    "AAPL|equity|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "AAPL|equity|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "MSFT|equity|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "MSFT|equity|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### equity unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("AM.MSFT"),
+    },
+]
+#### equity auth_timeout x
+Some(
+    "Auth",
+)
+#### equity error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### equity error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### equity error something else
+Some(
+    "Transport",
+)
+#### option grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### option socket
+"options"
+#### option grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### option socket
+"options"
+#### option grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### option socket
+"options"
+#### option url
+"wss://socket.massive.com/options"
+#### option: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("AM.O:SPY251219C00650000,AM.O:AAPL251219P00150000"),
+    },
+]
+#### massive option aggregates
+47 lines, 9198 bytes, sha256 b828f96dc6a2b35b904d158daadd5b9b3224ac6783ce6925de7d88d1390c0cfb
+[
+    "AAPL251219P00150000|option|5m|2026-09-05 10:01:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639520375186862899|4639583707056622797|4639483431596169626|4639534448935698432|4636807660098813952",
+    "AAPL251219P00150000|option|5m|2026-09-05 10:03:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639590743931040563|4639654075800800461|4639553800340347290|4639604817679876096|4636948397587169280",
+...
+    "SPY251219C00650000|option|1m|2026-09-05 10:26:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640399984489083699|4640463316358843597|4640363040898390426|4640414058237919232|4638566878703255552",
+    "SPY251219C00650000|option|1m|2026-09-05 10:28:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640470353233261363|4640533685103021261|4640433409642568090|4640484426982096896|4638707616191610880",
+]
+#### option unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("AM.O:AAPL251219P00150000"),
+    },
+]
+#### option auth_timeout x
+Some(
+    "Auth",
+)
+#### option error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### option error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### option error something else
+Some(
+    "Transport",
+)
+#### index grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### index socket
+"indices"
+#### index grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### index socket
+"indices"
+#### index grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### index socket
+"indices"
+#### index url
+"wss://socket.massive.com/indices"
+#### index: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("AM.I:SPX,AM.I:NDX"),
+    },
+]
+#### massive index aggregates
+47 lines, 8493 bytes, sha256 d3a15be66dad033ab803d1e2a6285abde9338f059919a6b97f12563fbb9f2138
+[
+    "I:NDX|index|5m|2026-09-05 10:01:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639520375186862899|4639583707056622797|4639483431596169626|4639534448935698432|4636807660098813952",
+    "I:NDX|index|5m|2026-09-05 10:03:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639590743931040563|4639654075800800461|4639553800340347290|4639604817679876096|4636948397587169280",
+...
+    "SPX|index|1m|2026-09-05 10:26:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640399984489083699|4640463316358843597|4640363040898390426|4640414058237919232|4638566878703255552",
+    "SPX|index|1m|2026-09-05 10:28:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640470353233261363|4640533685103021261|4640433409642568090|4640484426982096896|4638707616191610880",
+]
+#### index unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("AM.I:NDX"),
+    },
+]
+#### index auth_timeout x
+Some(
+    "Auth",
+)
+#### index error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### index error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### index error something else
+Some(
+    "Transport",
+)
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### crypto socket
+"crypto"
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### crypto socket
+"crypto"
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### crypto socket
+"crypto"
+#### crypto url
+"wss://socket.massive.com/crypto"
+#### crypto: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("XA.BTC-USD,XA.ETH-USDT"),
+    },
+]
+#### massive crypto aggregates
+47 lines, 8658 bytes, sha256 614df125dac87bcde67dacf57023492a9a2e29bb33ca41522381ab2f7e0f230c
+[
+    "BTCUSD|crypto|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "BTCUSD|crypto|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "ETHUSDT|crypto|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "ETHUSDT|crypto|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### crypto unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("XA.ETH-USDT"),
+    },
+]
+#### crypto auth_timeout x
+Some(
+    "Auth",
+)
+#### crypto error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### crypto error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### crypto error something else
+Some(
+    "Transport",
+)
+#### fx grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### fx socket
+"forex"
+#### fx grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### fx socket
+"forex"
+#### fx grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### fx socket
+"forex"
+#### fx url
+"wss://socket.massive.com/forex"
+#### fx: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("CA.EUR/USD,CA.GBP/JPY"),
+    },
+]
+#### massive fx aggregates
+47 lines, 8463 bytes, sha256 ddbc48e3ed2989f4d4eb1ea065e9fa855c61c14dad6977670118da053f72bf4a
+[
+    "EURUSD|fx|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "EURUSD|fx|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "GBPJPY|fx|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "GBPJPY|fx|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### fx unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("CA.GBP/JPY"),
+    },
+]
+#### fx auth_timeout x
+Some(
+    "Auth",
+)
+#### fx error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### fx error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### fx error something else
+Some(
+    "Transport",
+)
+#### future grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### future socket
+"futures"
+#### future grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### future socket
+"futures"
+#### future grain
+Bars {
+    secs: 60,
+    grace: 8,
+}
+#### future socket
+"futures"
+#### future url
+"wss://socket.massive.com/futures"
+#### future: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "params": String("k"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "params": String("AM.ESZ5,AM.6CH6"),
+    },
+]
+#### massive future aggregates
+47 lines, 8553 bytes, sha256 082887436669dc646335abb343762a97ac3f701af7df2af54da573ac1b18c46c
+[
+    "6CH6|future|5m|2026-09-05 10:01:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639520375186862899|4639583707056622797|4639483431596169626|4639534448935698432|4636807660098813952",
+    "6CH6|future|5m|2026-09-05 10:03:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639590743931040563|4639654075800800461|4639553800340347290|4639604817679876096|4636948397587169280",
+...
+    "ESZ5|future|1m|2026-09-05 10:26:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640399984489083699|4640463316358843597|4640363040898390426|4640414058237919232|4638566878703255552",
+    "ESZ5|future|1m|2026-09-05 10:28:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640470353233261363|4640533685103021261|4640433409642568090|4640484426982096896|4638707616191610880",
+]
+#### future unsubscribe
+[
+    Object {
+        "action": String("unsubscribe"),
+        "params": String("AM.6CH6"),
+    },
+]
+#### future auth_timeout x
+Some(
+    "Auth",
+)
+#### future error Maximum number of websocket connections exceeded
+Some(
+    "Conflict",
+)
+#### future error unknown ticker ZZZ
+Some(
+    "Symbol",
+)
+#### future error something else
+Some(
+    "Transport",
+)

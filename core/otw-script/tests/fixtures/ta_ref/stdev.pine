@@ -1,0 +1,12 @@
+//@version=6
+// Reference: population standard deviation around ta.sma (ta.stdev, biased = true).
+indicator("ref stdev")
+pine_stdev(src, length) =>
+    avg = ta.sma(src, length)
+    s = 0.0
+    for i = 0 to length - 1
+        d = src[i] - avg
+        s := s + d * d
+    math.sqrt(s / length)
+plot(pine_stdev(close, 20))
+plot(ta.stdev(close, 20))

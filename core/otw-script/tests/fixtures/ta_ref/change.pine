@@ -1,0 +1,7 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.change example.
+indicator("ref change")
+pine_change(src, length) =>
+    src - src[length]
+plot(pine_change(close, 3))
+plot(ta.change(close, 3))

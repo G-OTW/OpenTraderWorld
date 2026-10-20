@@ -1,0 +1,9 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.ema example.
+indicator("ref ema")
+pine_ema(src, length) =>
+    alpha = 2 / (length + 1)
+    sum = 0.0
+    sum := na(sum[1]) ? src : alpha * src + (1 - alpha) * nz(sum[1])
+plot(pine_ema(close, 14))
+plot(ta.ema(close, 14))

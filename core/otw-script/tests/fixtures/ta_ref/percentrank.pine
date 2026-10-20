@@ -1,0 +1,11 @@
+//@version=6
+// Reference: share of the previous `length` values at or below the current one, in percent.
+indicator("ref percentrank")
+pine_percentrank(src, len) =>
+    int cnt = 0
+    for i = 1 to len
+        if src[i] <= src
+            cnt := cnt + 1
+    bar_index < len or na(src) ? na : 100.0 * cnt / len
+plot(pine_percentrank(close, 20))
+plot(ta.percentrank(close, 20))

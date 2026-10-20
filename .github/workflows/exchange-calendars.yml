@@ -1,0 +1,49 @@
+name: Exchange calendars
+
+# Regenerates the exchange calendar snapshot (hours, holidays, half days) from the latest
+# exchange_calendars release and publishes it as the `calendars.json` asset of the
+# `exchange-calendars` release, the file every install checks once a week. Uploaded only when
+# the calendars changed, so an unchanged week does not make every install re-adopt the file.
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'G-OTW/OpenTraderWorld'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: exchange-calendars
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install exchange_calendars
+        run: pip install --upgrade exchange_calendars
+      - name: Generate
+        run: python .github/exchange-calendars/generate.py > calendars.json
+      - name: Compare with the published copy
+        id: diff
+        run: |
+          if gh release download "$TAG" --pattern calendars.json --output published.json 2>/dev/null; then
+            strip='del(.generated)'
+            if [ "$(jq -S "$strip" calendars.json)" = "$(jq -S "$strip" published.json)" ]; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" \
+            --title "Exchange calendars" \
+            --notes "Exchange hours, holidays and half days, regenerated weekly. Read by every install once a week."
+          gh release upload "$TAG" calendars.json --clobber

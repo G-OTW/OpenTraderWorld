@@ -1,0 +1,94 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Select-option chip colors (database column options).
+ *
+ * These seven hues are a *functional* palette: a user assigns one to an option
+ * value and the name is user-facing ("red", "green"). They are deliberately not
+ * the --chart-* ramp, which is ordered and assigned by the app.
+ *
+ * `.opt-chip`, not `.chip`: this file is imported by Database.svelte but its
+ * rules are global, so a plain `.chip` silently restyled the filter pills that
+ * theme/components.css owns — on every page that happened to render a database.
+ *
+ * Institutional restyle: the SEVEN keys/classes are preserved (functionality),
+ * but every hue is desaturated toward the muted family (slate / brick / ochre /
+ * sage / slate-blue / mauve / rose) so no saturated colour appears. Each chip is
+ * a translucent wash of its muted hue over the page surface plus a per-theme ink
+ * that clears contrast on that composite.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme='light'] {
+  /* Dark ink on a pale wash. */
+  --chip-slate-ink: #565d66;
+  --chip-red-ink: #8f4034;
+  --chip-amber-ink: #7d6329;
+  --chip-green-ink: #3f7256;
+  --chip-blue-ink: #4b586a;
+  --chip-violet-ink: #605a6c;
+  --chip-pink-ink: #86504c;
+}
+
+[data-theme='dark'] {
+  /* Light ink on a dark wash. */
+  --chip-slate-ink: #b8bcc4;
+  --chip-red-ink: #c9776b;
+  --chip-amber-ink: #b7a878;
+  --chip-green-ink: #7fb894;
+  --chip-blue-ink: #9aa6b4;
+  --chip-violet-ink: #a8a2b0;
+  --chip-pink-ink: #c99a92;
+}
+
+/* Follow the OS when no explicit choice is stamped (see theme/default.css). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --chip-slate-ink: #b8bcc4;
+    --chip-red-ink: #c9776b;
+    --chip-amber-ink: #b7a878;
+    --chip-green-ink: #7fb894;
+    --chip-blue-ink: #9aa6b4;
+    --chip-violet-ink: #a8a2b0;
+    --chip-pink-ink: #c99a92;
+  }
+}
+
+.opt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* Muted hue anchors (desaturated) — shared by the chips and the picker swatches. */
+.opt-chip.slate {
+  background: color-mix(in srgb, #6b7280 26%, transparent);
+  color: var(--chip-slate-ink);
+}
+.opt-chip.red {
+  background: color-mix(in srgb, #b05548 26%, transparent);
+  color: var(--chip-red-ink);
+}
+.opt-chip.amber {
+  background: color-mix(in srgb, #a08558 28%, transparent);
+  color: var(--chip-amber-ink);
+}
+.opt-chip.green {
+  background: color-mix(in srgb, #6f9b7e 26%, transparent);
+  color: var(--chip-green-ink);
+}
+.opt-chip.blue {
+  background: color-mix(in srgb, #5f6b7a 28%, transparent);
+  color: var(--chip-blue-ink);
+}
+.opt-chip.violet {
+  background: color-mix(in srgb, #6d6b74 28%, transparent);
+  color: var(--chip-violet-ink);
+}
+.opt-chip.pink {
+  background: color-mix(in srgb, #9a6f6a 28%, transparent);
+  color: var(--chip-pink-ink);
+}

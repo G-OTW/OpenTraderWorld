@@ -1,0 +1,15 @@
+//@version=6
+indicator("styles", overlay=false)
+up = close > open
+c = up ? color.green : color.red
+gap = bar_index % 7 == 3 ? na : close
+plot(gap, "line", color=c)
+plot(gap, "linebr", color=c, style=plot.style_linebr)
+plot(gap, "step", color=color.orange, style=plot.style_stepline)
+plot(close - open, "hist", color=c, style=plot.style_histogram, histbase=0.5)
+plot(close - open, "cols", color=c, style=plot.style_columns)
+plot(gap, "area", color=color.new(color.blue, 70), style=plot.style_area)
+plot(gap, "areabr", style=plot.style_areabr)
+plot(high, "circles", style=plot.style_circles, linewidth=2)
+plot(low, "cross", style=plot.style_cross, offset=2)
+plot(close, "hidden", display=display.none)

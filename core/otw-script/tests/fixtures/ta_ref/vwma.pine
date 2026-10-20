@@ -1,0 +1,7 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.vwma example.
+indicator("ref vwma")
+pine_vwma(x, y) =>
+    ta.sma(x * volume, y) / ta.sma(volume, y)
+plot(pine_vwma(close, 14))
+plot(ta.vwma(close, 14))

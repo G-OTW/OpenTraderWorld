@@ -1,0 +1,52 @@
+{
+  "label": "English",
+  "description": "Self-hosted, modular platform for traders and investors: journal, market data, backtesting, portfolios and more, on your own machine.",
+  "nav": {
+    "guide": "Guide",
+    "config": "Configuration",
+    "modules": "Modules",
+    "site": "opentraderworld.com",
+    "website": "Project website",
+    "demo": "Live demo",
+    "community": "Community Docs",
+    "suggestions": "Suggestions & polls"
+  },
+  "sidebar": {
+    "gettingStarted": "Getting started",
+    "introduction": "What is OpenTraderWorld?",
+    "docker": "Get Docker",
+    "install": "Installation",
+    "firstSteps": "First steps",
+    "updating": "Updating",
+    "backup": "Backup & restore",
+    "troubleshooting": "Troubleshooting",
+    "demoMode": "Demo mode",
+    "online": "Put it online",
+    "whenItBreaks": "When it breaks",
+    "configuration": "Configuration",
+    "network": "Network & remote access",
+    "security": "Account security",
+    "social": "Social sign-in",
+    "settings": "Settings reference",
+    "connectors": "Data connectors",
+    "brokers": "Broker accounts",
+    "aiAgents": "AI agents (MCP)",
+    "externalControl": "External control (chat)",
+    "voice": "Voice control",
+    "modules": "Modules",
+    "overview": "Overview",
+    "dashboard": "Dashboard & navigation",
+    "journal": "Trading Journal",
+    "marketData": "Market data & backtesting",
+    "fundamentals": "Fundamentals",
+    "portfolio": "Portfolios & wealth",
+    "news": "News & research",
+    "productivity": "Notes & organization",
+    "automator": "Automator (workflows)",
+    "agent": "Agent (AI assistant)"
+  },
+  "ui": {
+    "editLink": "Suggest a change to this page",
+    "footer": "Free for personal & non-commercial use. Source-available. <a href=\"https://opentraderworld.com\">opentraderworld.com</a> · <a href=\"https://demo.opentraderworld.com\">Live demo</a> · <a href=\"https://opentraderworld.com/suggestions\">Suggest a feature</a>"
+  }
+}

@@ -1,0 +1,46 @@
+# KuCoin spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "kucoin"
+label = "KuCoin"
+venue = "KUCOIN"
+api_version = "v1"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# The daily bar opens at midnight UTC. The weekly one opens on Thursday (epoch weeks), so it
+# is not declared: a week is folded from days, Monday to Sunday like every other venue.
+native_timeframes = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"]
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (`/market/ticker` / `/contractMarket/tickerV2`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 1500
+paging = "time"
+
+# Public pool: 2000 weight per 30 s per IP (`gw-ratelimit-limit`); a candle page weighs 3.
+[[rate_limits]]
+scope = "ip"
+capacity = 2000
+refill_ms = 30000
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+fills_need_symbols = true
+require_listed_pairs = true
+spot_only = true
+quote_preference = ["USDT", "USDC", "EUR", "BTC"]
+quote_reverse = true
+venue_label = "KuCoin"

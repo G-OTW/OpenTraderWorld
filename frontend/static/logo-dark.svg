@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="646" height="674" viewBox="224 181 646 674" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">OpenTraderWorld</title>
+  <desc id="desc">Logo redessiné en courbes de Bézier et dégradés vectoriels : anneau sombre aux reflets verts, centre et fond transparents.</desc>
+  <defs>
+    <path id="ring" fill-rule="evenodd" clip-rule="evenodd" d="M554 182 C632 181 719 225 777 295 C832 361 868 445 868 520 C870 632 809 735 720 795 C651 841 565 864 495 848 C423 834 362 790 315 735 C259 674 225 596 225 515 C223 435 256 361 307 299 C371 225 471 179 554 182 Z M554 186 C551 216 545 253 542 272 C540 291 532 301 514 315 C485 338 441 364 410 382 C390 393 382 404 373 424 C352 471 349 519 357 565 C362 596 374 630 387 650 C391 656 394 659 398 660 C434 667 492 701 537 731 C545 737 549 738 557 732 C591 708 645 678 682 658 C691 653 696 648 701 636 C721 594 730 555 730 519 C730 471 717 421 693 385 C650 360 592 322 572 302 C561 291 558 282 556 265 C553 242 553 212 554 186 Z"/>
+    <clipPath id="clip"><use href="#ring"/></clipPath>
+    <linearGradient id="body" x1="285" y1="335" x2="755" y2="755" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#050a0d"/>
+      <stop offset=".34" stop-color="#080e16"/>
+      <stop offset=".7" stop-color="#070d16"/>
+      <stop offset="1" stop-color="#03060b"/>
+    </linearGradient>
+    <radialGradient id="topLight" cx="747" cy="305" r="278" gradientUnits="userSpaceOnUse" gradientTransform="translate(747 305) rotate(132) scale(1 .61) translate(-747 -305)">
+      <stop stop-color="#21343d" stop-opacity=".75"/>
+      <stop offset=".57" stop-color="#142833" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#132733" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="leftLight" cx="324" cy="653" r="215" gradientUnits="userSpaceOnUse" gradientTransform="translate(324 653) rotate(-32) scale(.71 1) translate(-324 -653)">
+      <stop stop-color="#0e4245" stop-opacity=".86"/>
+      <stop offset=".45" stop-color="#07363b" stop-opacity=".53"/>
+      <stop offset="1" stop-color="#07363b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bottomLight" cx="372" cy="730" r="258" gradientUnits="userSpaceOnUse" gradientTransform="translate(372 730) rotate(28) scale(1 .56) translate(-372 -730)">
+      <stop stop-color="#074449" stop-opacity=".82"/>
+      <stop offset=".46" stop-color="#063139" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#09232e" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rightLight" cx="844" cy="462" r="218" gradientUnits="userSpaceOnUse" gradientTransform="translate(844 462) rotate(100) scale(1 .66) translate(-844 -462)">
+      <stop stop-color="#609c8d" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#2d6864" stop-opacity=".76"/>
+      <stop offset=".66" stop-color="#14464b" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#0d333b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mint" x1="722" y1="346" x2="831" y2="545" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e8eeE7"/>
+      <stop offset=".3" stop-color="#cee3d5"/>
+      <stop offset=".63" stop-color="#a2cdb8"/>
+      <stop offset="1" stop-color="#76b398"/>
+    </linearGradient>
+    <linearGradient id="mintFacet" x1="753" y1="354" x2="816" y2="414" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f3f4ea" stop-opacity=".28"/>
+      <stop offset=".68" stop-color="#e8f1df" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#d9ead8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="sage" x1="242" y1="663" x2="402" y2="676" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#79a77d"/>
+      <stop offset=".3" stop-color="#72a38a"/>
+      <stop offset="1" stop-color="#548d80"/>
+    </linearGradient>
+    <linearGradient id="sageShade" x1="259" y1="641" x2="327" y2="731" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1b593e" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#92b78a" stop-opacity=".08"/>
+    </linearGradient>
+    <linearGradient id="leftFacet" x1="278" y1="352" x2="357" y2="357" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142c34" stop-opacity="0"/>
+      <stop offset=".53" stop-color="#0c2530" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#102832" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="761" y1="299" x2="865" y2="637" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f1f6ec" stop-opacity=".5"/>
+      <stop offset=".37" stop-color="#d6ebd8" stop-opacity=".42"/>
+      <stop offset=".64" stop-color="#83b7a0" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#81a88c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="255" y1="313" x2="818" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7c867b" stop-opacity=".18"/>
+      <stop offset=".43" stop-color="#879a8c" stop-opacity="0"/>
+      <stop offset=".69" stop-color="#709384" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#a2ab8c" stop-opacity=".14"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#clip)">
+    <use href="#ring" fill="url(#body)"/>
+    <path d="M224 181H870V855H224Z" fill="url(#topLight)"/>
+    <path d="M224 181H870V855H224Z" fill="url(#leftLight)"/>
+    <path d="M224 181H870V855H224Z" fill="url(#bottomLight)"/>
+    <path d="M224 181H870V855H224Z" fill="url(#rightLight)"/>
+    <path d="M307 299 C329 324 353 353 371 392 L349 453 C330 395 307 357 278 337Z" fill="url(#leftFacet)"/>
+    <path d="M777 295 C813 337 839 393 851 450 C834 499 789 543 726 558 C735 497 725 440 693 385Z" fill="url(#mint)"/>
+    <path d="M777 295 C795 316 809 340 821 364 C793 394 756 425 718 446 C712 424 704 403 693 385Z" fill="url(#mintFacet)"/>
+    <path d="M244 612 C278 604 321 619 381 640 C387 651 393 658 398 660 C356 663 337 695 330 749 C292 710 260 661 244 612Z" fill="url(#sage)"/>
+    <path d="M244 612 C251 611 256 610 263 611 C268 656 292 708 330 743 L330 749 C291 708 262 665 244 612Z" fill="url(#sageShade)"/>
+    <path d="M778 299 C830 365 861 447 862 520 C863 568 852 613 834 651" stroke="url(#edge)" stroke-width="4"/>
+    <path d="M247 615 C263 663 292 711 330 750" stroke="#b5c990" stroke-opacity=".18" stroke-width="3"/>
+    <use href="#ring" stroke="url(#rim)" stroke-width="3"/>
+  </g>
+</svg>
