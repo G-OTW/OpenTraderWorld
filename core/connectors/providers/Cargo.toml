@@ -50,7 +50,7 @@ time.workspace = true
 # An IBKR Flex statement is XML.
 quick-xml = "0.42"
 # IB Gateway / TWS speak the TWS socket API; one long-lived client per gateway.
-ibapi = { version = "2.12", default-features = false, features = ["async"] }
+ibapi = { version = "5.2", default-features = false, features = ["async"] }
 tokio.workspace = true
 # Alpha Vantage stamps its intraday series in a named zone (US/Eastern).
 time-tz = { version = "2", features = ["db"] }
