@@ -1,0 +1,11 @@
+[[case]]
+name = "Trading result at a 30 % marginal rate"
+source = "CGI 92: BNC at the progressive scale"
+inputs = { realized_capital_gains = 10000.0, marginal_rate = 30.0 }
+expect = { total_tax = 3000.0 }
+
+[[case]]
+name = "Without a marginal rate nothing is computed (and the form warns)"
+source = "engine: marginal schedule needs the input"
+inputs = { realized_capital_gains = 10000.0 }
+expect = { total_tax = 0.0 }

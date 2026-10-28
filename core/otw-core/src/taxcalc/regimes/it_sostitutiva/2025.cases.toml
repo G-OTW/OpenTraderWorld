@@ -1,0 +1,11 @@
+[[case]]
+name = "Share gain at 26 %"
+source = "D.Lgs. 461/1997 art. 5"
+inputs = { realized_capital_gains = 1000.0 }
+expect = { total_tax = 260.0 }
+
+[[case]]
+name = "Crypto at 26 % in 2025, no allowance"
+source = "L. 197/2022; franchise removed for 2025"
+inputs = { crypto_gains = 1000.0 }
+expect = { total_tax = 260.0 }

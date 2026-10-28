@@ -1,0 +1,21 @@
+[[case]]
+name = "Gain across three brackets"
+source = "LIRPF 66/76: 6 000 x 19 % + 44 000 x 21 % + 10 000 x 23 %"
+inputs = { realized_capital_gains = 60000.0 }
+expect = { total_tax = 12680.0 }
+
+[[case]]
+name = "Gains and dividends share one scale"
+source = "LIRPF 46: one savings base"
+inputs = { realized_capital_gains = 10000.0, dividends = 5000.0 }
+expect = { total_tax = 3030.0 }
+
+[[lots_case]]
+name = "Repurchase within two months defers the loss"
+source = "LIRPF 33.5 f)"
+fills = [
+  { at = "2025-01-02", side = "buy", qty = 10, price = 100 },
+  { at = "2025-03-01", side = "sell", qty = 10, price = 80 },
+  { at = "2025-04-25", side = "buy", qty = 10, price = 85 },
+]
+expect = { total_gain = 0.0, disallowed = 200.0 }

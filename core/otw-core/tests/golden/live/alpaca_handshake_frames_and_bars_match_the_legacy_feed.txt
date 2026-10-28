@@ -1,0 +1,165 @@
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity Iex url
+"wss://stream.data.alpaca.markets/v2/iex"
+#### equity: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "key": String("k"),
+        "secret": String("s"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "bars": Array [
+            String("AAPL"),
+            String("MSFT"),
+        ],
+    },
+]
+#### alpaca equity bars
+47 lines, 8553 bytes, sha256 ff1da2ce20b64bdb580419a223d6b0217dce1f9dc71671e163f74a91c952a589
+[
+    "AAPL|equity|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "AAPL|equity|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "MSFT|equity|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "MSFT|equity|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### equity code 402
+Some(
+    "Auth",
+)
+#### equity code 406
+Some(
+    "Conflict",
+)
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### equity socket
+"stocks"
+#### equity Sip url
+"wss://stream.data.alpaca.markets/v2/sip"
+#### equity: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "key": String("k"),
+        "secret": String("s"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "bars": Array [
+            String("AAPL"),
+            String("MSFT"),
+        ],
+    },
+]
+#### alpaca equity bars
+47 lines, 8553 bytes, sha256 ff1da2ce20b64bdb580419a223d6b0217dce1f9dc71671e163f74a91c952a589
+[
+    "AAPL|equity|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "AAPL|equity|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "MSFT|equity|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "MSFT|equity|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### equity code 402
+Some(
+    "Auth",
+)
+#### equity code 406
+Some(
+    "Conflict",
+)
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### crypto socket
+"crypto"
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### crypto socket
+"crypto"
+#### crypto grain
+Bars {
+    secs: 60,
+    grace: 4,
+}
+#### crypto socket
+"crypto"
+#### crypto Iex url
+"wss://stream.data.alpaca.markets/v1beta3/crypto/us"
+#### crypto: login then the waiting subscription
+[
+    Object {
+        "action": String("auth"),
+        "key": String("k"),
+        "secret": String("s"),
+    },
+    Object {
+        "action": String("subscribe"),
+        "bars": Array [
+            String("BTC/USD"),
+            String("ETH/USD"),
+        ],
+    },
+]
+#### alpaca crypto bars
+47 lines, 8688 bytes, sha256 d1b0b3d869c3512cd52bbb7b02203b07da0e181fee554c73e284716573fbc15c
+[
+    "BTC/USD|crypto|1d|2026-09-05 10:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639485190814774067|4639548522684533965|4639448247224080794|4639499264563609600|4636737291354636288",
+    "BTC/USD|crypto|1d|2026-09-05 10:02:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4639555559558951731|4639618891428711629|4639518615968258458|4639569633307787264|4636878028842991616",
+...
+    "ETH/USD|crypto|5m|2026-09-05 10:27:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640435168861172531|4640498500730932429|4640398225270479258|4640449242610008064|4638637247447433216",
+    "ETH/USD|crypto|5m|2026-09-05 10:29:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|true|4640505537605350195|4640568869475110093|4640468594014656922|4640519611354185728|4638742800563699712",
+]
+#### crypto code 402
+Some(
+    "Auth",
+)
+#### crypto code 406
+Some(
+    "Conflict",
+)

@@ -1,0 +1,35 @@
+[package]
+name = "otw-connector-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld connector framework: the adapter contract, transports, signers and parsers"
+
+[dependencies]
+otw-connector-model = { path = "../model" }
+rust_decimal.workspace = true
+serde.workspace = true
+# `raw_value`: numbers are parsed from their JSON text, never through an f64.
+serde_json = { workspace = true, features = ["raw_value"] }
+reqwest.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+secrecy.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+time.workspace = true
+url = "2"
+hmac = "0.13"
+sha2 = "0.11"
+hex = "0.4"
+
+[dev-dependencies]
+wiremock = "0.6.5"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+float_arithmetic = "deny"

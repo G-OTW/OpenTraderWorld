@@ -1,0 +1,47 @@
+# MEXC spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "mexc"
+label = "MEXC"
+venue = "MEXC"
+api_version = "v3"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Daily bars open at midnight UTC, weekly ones (`1W`) on Monday, monthly ones (`1M`) on the
+# first of the calendar month.
+native_timeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"]
+# One socket carries 30 subscriptions at most.
+max_subs_per_connection = 30
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (spot `aggre.bookTicker`, contracts `sub.ticker`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 500
+paging = "time"
+
+# 500 requests per 10 s per endpoint and IP.
+[[rate_limits]]
+scope = "ip"
+capacity = 500
+refill_ms = 10000
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+fills_need_symbols = true
+spot_only = true
+quote_preference = ["USDT", "USDC", "BTC", "ETH"]
+quote_reverse = true
+venue_label = "MEXC"

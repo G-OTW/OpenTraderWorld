@@ -1,0 +1,78 @@
+# Unit and integration tests, on every push to master and every pull request.
+#
+#   rust      the whole Cargo workspace. Tests that reach a real venue, a broker account or
+#             a database are gated on environment variables (OTW_NET_TEST, OTW_LIVE_TEST with
+#             OTW_TEST_DATABASE_URL, OTW_BINANCE_TESTNET, OTW_IBKR_*, ...) and return early
+#             when they are unset, which they are here. Pools built by the remaining tests are
+#             lazy and never connect, so no Postgres or Docker service is needed.
+#   clippy    the crates that are lint-clean today, with warnings as errors, so they stay
+#             clean. otw-core, otw-store, otw-feeds, otw-connector-model and
+#             otw-connector-providers still carry warnings: add each here once it is clean.
+#   frontend  the Node unit tests (helpers, Svelte rendering). `npm run build` is left out:
+#             it needs the script engine compiled to WebAssembly first (wasm-bindgen CLI and
+#             a release wasm32 build), which the image build already covers.
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Test the workspace
+        working-directory: core
+        run: cargo test --workspace --locked
+
+  clippy:
+    name: cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Lint the clean crates
+        working-directory: core
+        run: >
+          cargo clippy --locked --no-deps --all-targets
+          -p otw-connector-engine -p otw-connector-sdk -p otw-connector-testkit
+          -p otw-i18n -p otw-modules -p otw-queue -p otw-runner -p otw-scheduler
+          -p otw-script -p otw-script-wasm -p otw-theme
+          -- -D warnings
+
+  frontend:
+    name: frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      # Some tests read the Rust sources (diagnostic codes, shared fixtures) from ../core,
+      # present in the checkout.
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:widgets

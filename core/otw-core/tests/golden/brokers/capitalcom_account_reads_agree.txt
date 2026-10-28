@@ -1,0 +1,185 @@
+#### capitalcom fills one   [] from <time>
+86 lines, 12171 bytes, sha256 4b04618d69895fc62db84feeb8941ca606427f5f80f7a4985b4cc97c5f25969f
+[
+    "deal--4:2022-01-02T00:00:00.000:buy|deal--4|1641081600000|OIL_CRUDE|buy|4607182418800017408|4635028738246002606|0||USD|other|1|Capital.com|",
+    "deal--4:2022-01-02T00:00:10.000:sell|deal--4|1641081610000|OIL_CRUDE|sell|4607182418800017408|4635029441933444383|0||USD|other|1|Capital.com|",
+...
+    "deal-37:2022-01-12T06:00:00.000:buy|deal-37|1641967200000|GOLD|buy|4611686018427387904|4634738115332548854|0||USD|other|1|Capital.com|",
+    "deal-37:2022-01-12T06:00:10.000:sell|deal-37|1641967210000|GOLD|sell|4611686018427387904|4634738819019990630|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills one   ["gold", "EURUSD"] from <time>
+18 lines, 2287 bytes, sha256 08e4e9bc003199fb6ceafe88d39e23d90f6865aceb100a48baa50ea46feb7765
+[
+    "deal-3:2022-01-03T18:00:00.000:buy|deal-3|1641232800000|EURUSD|buy|4616189618054758400|4634852112698116669|0||USD|other|1|Capital.com|",
+    "deal-3:2022-01-03T18:00:10.000:sell|deal-3|1641232810000|EURUSD|sell|4616189618054758400|4634852816385558446|0||USD|other|1|Capital.com|",
+...
+    "deal-13:2022-01-06T06:00:00.000:buy|deal-13|1641448800000|GOLD|buy|4611686018427387904|4634971739563218698|0||USD|other|1|Capital.com|",
+    "deal-13:2022-01-06T06:00:10.000:sell|deal-13|1641448810000|GOLD|sell|4611686018427387904|4634972443250660475|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills one   [] from <time>
+18 lines, 2335 bytes, sha256 56b869d6790a10bde611910f0913d09bcaf052c9437e392758c3f09580403f8a
+[
+    "deal--12:2021-12-31T00:00:00.000:buy|deal--12|1640908800000|EURUSD|buy|4607182418800017408|4635059700493440778|0||USD|other|1|Capital.com|",
+    "deal--12:2021-12-31T00:00:10.000:sell|deal--12|1640908810000|EURUSD|sell|4607182418800017408|4635060404180882555|0||USD|other|1|Capital.com|",
+...
+    "deal--5:2022-01-01T18:00:00.000:buy|deal--5|1641060000000|GOLD|buy|4616189618054758400|4634953443689732506|0||USD|other|1|Capital.com|",
+    "deal--5:2022-01-01T18:00:10.000:sell|deal--5|1641060010000|GOLD|sell|4616189618054758400|4634954147377174282|0||USD|other|1|Capital.com|",
+]
+#### positions one 
+[
+    "DE40|long|4613937818241073152|Some(16000.0)|EUR|other|1|Capital.com|",
+    "EURUSD|long|4652007308841189376|Some(1.0812)|USD|forex|1|Capital.com|",
+    "GOLD|short|4611686018427387904|Some(1950.25)|USD|other|10|Capital.com|",
+]
+#### holdings one 
+[
+    "DE40|Germany 40|4613937818241073152|long|other|Some(16000.0)|EUR|Capital.com|",
+    "EURUSD|EUR/USD|4652007308841189376|long|forex|Some(1.0812)|USD|Capital.com|",
+    "GOLD|Gold|4611686018427387904|short|other|Some(1950.25)|USD|Capital.com|",
+]
+#### orders one 
+[
+    "w1|EURUSD|buy|LIMIT|4652007308841189376|0|Some(1.05)|None|USD|forex|Some(1641222094228)|Capital.com|",
+    "w2|AAPL|sell|STOP|4607182418800017408|0|None|Some(150.0)|USD|other|Some(1641286800000)|Capital.com|",
+]
+#### suggestions one 
+[
+    "AAPL",
+    "DE40",
+    "EURUSD",
+    "GOLD",
+]
+#### quotes one 
+[
+    "eurusd|4622100592565682176|USD|EURUSD",
+    "GOLD|4622663542519103488|USD|GOLD",
+    "de40|4623789442425946112|EUR|DE40",
+]
+#### test one 
+"Live sign-in accepted, 2 account(s); reading USD account (USD), balance 10250.75"
+#### capitalcom fills one demo  [] from <time>
+86 lines, 12171 bytes, sha256 4b04618d69895fc62db84feeb8941ca606427f5f80f7a4985b4cc97c5f25969f
+[
+    "deal--4:2022-01-02T00:00:00.000:buy|deal--4|1641081600000|OIL_CRUDE|buy|4607182418800017408|4635028738246002606|0||USD|other|1|Capital.com|",
+    "deal--4:2022-01-02T00:00:10.000:sell|deal--4|1641081610000|OIL_CRUDE|sell|4607182418800017408|4635029441933444383|0||USD|other|1|Capital.com|",
+...
+    "deal-37:2022-01-12T06:00:00.000:buy|deal-37|1641967200000|GOLD|buy|4611686018427387904|4634738115332548854|0||USD|other|1|Capital.com|",
+    "deal-37:2022-01-12T06:00:10.000:sell|deal-37|1641967210000|GOLD|sell|4611686018427387904|4634738819019990630|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills one demo  ["gold", "EURUSD"] from <time>
+18 lines, 2287 bytes, sha256 08e4e9bc003199fb6ceafe88d39e23d90f6865aceb100a48baa50ea46feb7765
+[
+    "deal-3:2022-01-03T18:00:00.000:buy|deal-3|1641232800000|EURUSD|buy|4616189618054758400|4634852112698116669|0||USD|other|1|Capital.com|",
+    "deal-3:2022-01-03T18:00:10.000:sell|deal-3|1641232810000|EURUSD|sell|4616189618054758400|4634852816385558446|0||USD|other|1|Capital.com|",
+...
+    "deal-13:2022-01-06T06:00:00.000:buy|deal-13|1641448800000|GOLD|buy|4611686018427387904|4634971739563218698|0||USD|other|1|Capital.com|",
+    "deal-13:2022-01-06T06:00:10.000:sell|deal-13|1641448810000|GOLD|sell|4611686018427387904|4634972443250660475|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills one demo  [] from <time>
+18 lines, 2335 bytes, sha256 56b869d6790a10bde611910f0913d09bcaf052c9437e392758c3f09580403f8a
+[
+    "deal--12:2021-12-31T00:00:00.000:buy|deal--12|1640908800000|EURUSD|buy|4607182418800017408|4635059700493440778|0||USD|other|1|Capital.com|",
+    "deal--12:2021-12-31T00:00:10.000:sell|deal--12|1640908810000|EURUSD|sell|4607182418800017408|4635060404180882555|0||USD|other|1|Capital.com|",
+...
+    "deal--5:2022-01-01T18:00:00.000:buy|deal--5|1641060000000|GOLD|buy|4616189618054758400|4634953443689732506|0||USD|other|1|Capital.com|",
+    "deal--5:2022-01-01T18:00:10.000:sell|deal--5|1641060010000|GOLD|sell|4616189618054758400|4634954147377174282|0||USD|other|1|Capital.com|",
+]
+#### positions one demo
+[
+    "DE40|long|4613937818241073152|Some(16000.0)|EUR|other|1|Capital.com|",
+    "EURUSD|long|4652007308841189376|Some(1.0812)|USD|forex|1|Capital.com|",
+    "GOLD|short|4611686018427387904|Some(1950.25)|USD|other|10|Capital.com|",
+]
+#### holdings one demo
+[
+    "DE40|Germany 40|4613937818241073152|long|other|Some(16000.0)|EUR|Capital.com|",
+    "EURUSD|EUR/USD|4652007308841189376|long|forex|Some(1.0812)|USD|Capital.com|",
+    "GOLD|Gold|4611686018427387904|short|other|Some(1950.25)|USD|Capital.com|",
+]
+#### orders one demo
+[
+    "w1|EURUSD|buy|LIMIT|4652007308841189376|0|Some(1.05)|None|USD|forex|Some(1641222094228)|Capital.com|",
+    "w2|AAPL|sell|STOP|4607182418800017408|0|None|Some(150.0)|USD|other|Some(1641286800000)|Capital.com|",
+]
+#### suggestions one demo
+[
+    "AAPL",
+    "DE40",
+    "EURUSD",
+    "GOLD",
+]
+#### quotes one demo
+[
+    "eurusd|4622100592565682176|USD|EURUSD",
+    "GOLD|4622663542519103488|USD|GOLD",
+    "de40|4623789442425946112|EUR|DE40",
+]
+#### test one demo
+"Demo sign-in accepted, 2 account(s); reading USD account (USD), balance 10250.75"
+#### capitalcom fills two  A2 [] from <time>
+86 lines, 12171 bytes, sha256 4b04618d69895fc62db84feeb8941ca606427f5f80f7a4985b4cc97c5f25969f
+[
+    "deal--4:2022-01-02T00:00:00.000:buy|deal--4|1641081600000|OIL_CRUDE|buy|4607182418800017408|4635028738246002606|0||USD|other|1|Capital.com|",
+    "deal--4:2022-01-02T00:00:10.000:sell|deal--4|1641081610000|OIL_CRUDE|sell|4607182418800017408|4635029441933444383|0||USD|other|1|Capital.com|",
+...
+    "deal-37:2022-01-12T06:00:00.000:buy|deal-37|1641967200000|GOLD|buy|4611686018427387904|4634738115332548854|0||USD|other|1|Capital.com|",
+    "deal-37:2022-01-12T06:00:10.000:sell|deal-37|1641967210000|GOLD|sell|4611686018427387904|4634738819019990630|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills two  A2 ["gold", "EURUSD"] from <time>
+18 lines, 2287 bytes, sha256 08e4e9bc003199fb6ceafe88d39e23d90f6865aceb100a48baa50ea46feb7765
+[
+    "deal-3:2022-01-03T18:00:00.000:buy|deal-3|1641232800000|EURUSD|buy|4616189618054758400|4634852112698116669|0||USD|other|1|Capital.com|",
+    "deal-3:2022-01-03T18:00:10.000:sell|deal-3|1641232810000|EURUSD|sell|4616189618054758400|4634852816385558446|0||USD|other|1|Capital.com|",
+...
+    "deal-13:2022-01-06T06:00:00.000:buy|deal-13|1641448800000|GOLD|buy|4611686018427387904|4634971739563218698|0||USD|other|1|Capital.com|",
+    "deal-13:2022-01-06T06:00:10.000:sell|deal-13|1641448810000|GOLD|sell|4611686018427387904|4634972443250660475|0||USD|other|1|Capital.com|",
+]
+#### capitalcom fills two  A2 [] from <time>
+18 lines, 2335 bytes, sha256 56b869d6790a10bde611910f0913d09bcaf052c9437e392758c3f09580403f8a
+[
+    "deal--12:2021-12-31T00:00:00.000:buy|deal--12|1640908800000|EURUSD|buy|4607182418800017408|4635059700493440778|0||USD|other|1|Capital.com|",
+    "deal--12:2021-12-31T00:00:10.000:sell|deal--12|1640908810000|EURUSD|sell|4607182418800017408|4635060404180882555|0||USD|other|1|Capital.com|",
+...
+    "deal--5:2022-01-01T18:00:00.000:buy|deal--5|1641060000000|GOLD|buy|4616189618054758400|4634953443689732506|0||USD|other|1|Capital.com|",
+    "deal--5:2022-01-01T18:00:10.000:sell|deal--5|1641060010000|GOLD|sell|4616189618054758400|4634954147377174282|0||USD|other|1|Capital.com|",
+]
+#### positions two 
+[
+    "DE40|long|4613937818241073152|Some(16000.0)|EUR|other|1|Capital.com|",
+    "EURUSD|long|4647503709213818880|Some(1.0812)|USD|forex|1|Capital.com|",
+    "GOLD|short|4611686018427387904|Some(1950.25)|USD|other|10|Capital.com|",
+]
+#### holdings two 
+[
+    "DE40|Germany 40|4613937818241073152|long|other|Some(16000.0)|EUR|Capital.com|",
+    "EURUSD|EUR/USD|4647503709213818880|long|forex|Some(1.0812)|USD|Capital.com|",
+    "GOLD|Gold|4611686018427387904|short|other|Some(1950.25)|USD|Capital.com|",
+]
+#### orders two 
+[
+    "w1|EURUSD|buy|LIMIT|4652007308841189376|0|Some(1.05)|None|USD|forex|Some(1641222094228)|Capital.com|",
+    "w2|AAPL|sell|STOP|4607182418800017408|0|None|Some(150.0)|USD|other|Some(1641286800000)|Capital.com|",
+]
+#### suggestions two 
+[
+    "AAPL",
+    "DE40",
+    "EURUSD",
+    "GOLD",
+]
+#### quotes two 
+[
+    "eurusd|4622100592565682176|USD|EURUSD",
+    "GOLD|4622663542519103488|USD|GOLD",
+    "de40|4623789442425946112|EUR|DE40",
+]
+#### test two 
+"Live sign-in accepted, 2 account(s); reading EUR account (EUR), balance 0"
+#### env ``
+true
+#### env `live`
+true
+#### env `demo`
+true
+#### env `paper`
+false

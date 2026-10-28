@@ -1,0 +1,72 @@
+# Binance spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "binance"
+label = "Binance"
+venue = "BINANCE"
+api_version = "v3"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# The resolutions OTW serves today (same set as the legacy connector), plus 1s on the
+# socket for fast tests. Binance also serves 3m 30m 2h 6h 8h 12h 3d 1M.
+native_timeframes = ["1s", "1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+# Socket: 5 incoming frames per second, 1024 streams per connection.
+max_subs_per_connection = 1024
+
+[live]
+candles = "push"
+# Best bid and ask on every change (`<symbol>@bookTicker`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 1000
+paging = "time"
+timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[[rate_limits]]
+scope = "ip"
+capacity = 6000
+refill_ms = 60000
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+fills_need_symbols = true
+spot_only = true
+quote_preference = ["USDT", "USDC", "FDUSD", "EUR", "BTC"]
+quote_reverse = true
+require_listed_pairs = true
+sandbox_env = "testnet"
+
+# Execution (v2). Testnet (Spot Demo Mode) only until `level` is E4. Binance has no
+# day order. A change is a cancel-replace that keeps the client id. An OCO is an order list
+# (`orderList/oco`); a limit entry's exits ride with it (`oto`, `otoco`), a market entry's go
+# out once it filled. Post-only is LIMIT_MAKER; a trailing stop trails in whole basis points,
+# from a start price when given; if-touched orders are TAKE_PROFIT(_LIMIT). Spot has no
+# cancel on disconnect.
+[orders]
+types = ["market", "limit", "stop", "stop_limit", "trailing_stop", "mit", "lit"]
+tif = ["gtc", "ioc", "fok"]
+amend = true
+brackets = true
+oca = true
+post_only = true
+trail = ["percent"]
+trail_start = true
+iceberg = true
+client_id = true
+level = "E4"
+cancel_on_disconnect = false
+
+[regions]
+blocked = ["US"]
+# Spot Demo Mode: same API and filters as live, prices close to live. The older
+# testnet.binance.vision takes other keys.
+sandbox_url = "https://demo-api.binance.com"

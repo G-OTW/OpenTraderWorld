@@ -1,0 +1,25 @@
+[package]
+name = "otw-connector-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld connector framework: planner and shared stages (candles, validation, rate limits)"
+
+[dependencies]
+otw-connector-model = { path = "../model" }
+otw-connector-sdk = { path = "../sdk" }
+tokio.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+proptest = "1"
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+float_arithmetic = "deny"

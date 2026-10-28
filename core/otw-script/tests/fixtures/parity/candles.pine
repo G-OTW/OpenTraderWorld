@@ -1,0 +1,8 @@
+//@version=6
+indicator("candles")
+o = ta.ema(open, 5)
+h = ta.ema(high, 5)
+l = ta.ema(low, 5)
+c = ta.ema(close, 5)
+plotcandle(o, h, l, c, "ema candles", color=c > o ? color.teal : color.red)
+plotbar(o, h, l, c, "ema bars", color=color.gray)

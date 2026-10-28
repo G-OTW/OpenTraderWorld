@@ -1,0 +1,29 @@
+# Massive (formerly Polygon.io). Every claim below is sourced in PROVIDER.md.
+
+provider = "massive"
+label = "Massive (Polygon.io)"
+venue = "MASSIVE"
+api_version = "v2 aggregates, v3 quotes and reference, futures v1, socket"
+maturity = "M2"
+asset_classes = ["equity", "etf", "option", "spot", "forex", "index", "future"]
+instrument_discovery = "search_only"
+auth = "api_key"
+native_timeframes = ["1m", "5m", "15m", "1h", "1d", "1w"]
+
+# Minute aggregates on the socket (a paid feature): every larger timeframe is folded.
+[live]
+candles = "push"
+candle_timeframes = ["1m"]
+# Best bid and ask (`Q.` / `XQ.` / `C.`), a separate Massive plan; none on indices.
+quote = "push"
+
+[history]
+quote = true
+quotes_at = ["equity", "etf", "option", "forex"]
+
+[history.candles]
+max_items_per_call = 50000
+paging = "time"
+final_flag = false
+
+# No bucket: the limit depends on the plan (5 a minute free, unlimited paid). PROVIDER.md.

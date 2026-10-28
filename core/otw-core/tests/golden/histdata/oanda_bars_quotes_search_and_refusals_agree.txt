@@ -1,0 +1,249 @@
+#### ~oanda 1m from <time>
+(varies with the clock)
+#### ~oanda 1m bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1m quote bars from <time>
+(varies with the clock)
+#### oanda 5m from <time>
+578 lines, 85587 bytes, sha256 f81cf0f63292cc9068f46820281c6a42ec1fa167936b6fdf13615a2673e034ca
+[
+    "2023-11-14 22:15:00.0 +00:00:00|4607573286211676893|4607575538011490579|4607571484771825945|4607573601463650809|4645163948469911552|None|None",
+    "2023-11-14 22:20:00.0 +00:00:00|4607574952543539020|4607577204343352706|4607573151103688072|4607575267795512936|4645181540655955968|None|None",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|4607629040775063740|4607631292574877425|4607627239335212792|4607629356027037656|4651488339352879104|None|None",
+    "2023-11-16 22:10:00.0 +00:00:00|4607630707106925867|4607542886914192142|4607628905667074919|4607631022358899783|4651497135445901312|None|None",
+]
+#### oanda 5m bid/ask from <time>
+578 lines, 114446 bytes, sha256 8c0d569571a82ed0a2b4fdc987807f48eda3ecd655f2e12f27a254334697a9eb
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.08676, bid_high: 1.08726, bid_low: 1.08636, bid_close: 1.08683, ask_open: 1.08682, ask_high: 1.08732, ask_low: 1.08642, ask_close: 1.08689 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.08713, bid_high: 1.08763, bid_low: 1.08673, bid_close: 1.0872, ask_open: 1.08719, ask_high: 1.08769, ask_low: 1.08679, ask_close: 1.08726 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.09914, bid_high: 1.09964, bid_low: 1.09874, bid_close: 1.09921, ask_open: 1.0992, ask_high: 1.0997, ask_low: 1.0988, ask_close: 1.09927 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.09951, bid_high: 1.08001, bid_low: 1.09911, bid_close: 1.09958, ask_open: 1.09957, ask_high: 1.08007, ask_low: 1.09917, ask_close: 1.09964 }",
+]
+#### oanda 5m quote bars from <time>
+578 lines, 114446 bytes, sha256 8c0d569571a82ed0a2b4fdc987807f48eda3ecd655f2e12f27a254334697a9eb
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.08676, bid_high: 1.08726, bid_low: 1.08636, bid_close: 1.08683, ask_open: 1.08682, ask_high: 1.08732, ask_low: 1.08642, ask_close: 1.08689 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.08713, bid_high: 1.08763, bid_low: 1.08673, bid_close: 1.0872, ask_open: 1.08719, ask_high: 1.08769, ask_low: 1.08679, ask_close: 1.08726 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.09914, bid_high: 1.09964, bid_low: 1.09874, bid_close: 1.09921, ask_open: 1.0992, ask_high: 1.0997, ask_low: 1.0988, ask_close: 1.09927 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.09951, bid_high: 1.08001, bid_low: 1.09911, bid_close: 1.09958, ask_open: 1.09957, ask_high: 1.08007, ask_low: 1.09917, ask_close: 1.09964 }",
+]
+#### ~oanda 15m from <time>
+(varies with the clock)
+#### ~oanda 15m bid/ask from <time>
+(varies with the clock)
+#### ~oanda 15m quote bars from <time>
+(varies with the clock)
+#### ~oanda 1h from <time>
+(varies with the clock)
+#### ~oanda 1h bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1h quote bars from <time>
+(varies with the clock)
+#### oanda 4h from <time>
+1802 lines, 267303 bytes, sha256 e312516ec6366027eba12615969dbd1d5d7d36658eb48cd0b7b18c0e0f828d46
+[
+    "2020-09-13 16:00:00.0 +00:00:00|4607594227949944166|4607596479749757851|4607592426510093218|4607594543201918082|4647714815446351872|None|None",
+    "2020-09-13 20:00:00.0 +00:00:00|4607595894281806293|4607598146081619978|4607594092841955345|4607596209533780209|4647723611539374080|None|None",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|4607617916883984135|4607620168683797820|4607616115444133187|4607618232135958051|4647679631074263040|None|None",
+    "2021-07-10 12:00:00.0 +00:00:00|4607619583215846262|4607621835015659947|4607617781775995314|4607619898467820178|4647697223260307456|None|None",
+]
+#### oanda 4h bid/ask from <time>
+1802 lines, 357507 bytes, sha256 533014828db9282a71eab8bde8b394018d5cb57e9c6c75922b309b132062ca70
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.09141, bid_high: 1.09191, bid_low: 1.09101, bid_close: 1.09148, ask_open: 1.09147, ask_high: 1.09197, ask_low: 1.09107, ask_close: 1.09154 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.09178, bid_high: 1.09228, bid_low: 1.09138, bid_close: 1.09185, ask_open: 1.09184, ask_high: 1.09234, ask_low: 1.09144, ask_close: 1.09191 }",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|Quote { bid_open: 1.09667, bid_high: 1.09717, bid_low: 1.09627, bid_close: 1.09674, ask_open: 1.09673, ask_high: 1.09723, ask_low: 1.09633, ask_close: 1.0968 }",
+    "2021-07-10 12:00:00.0 +00:00:00|Quote { bid_open: 1.09704, bid_high: 1.09754, bid_low: 1.09664, bid_close: 1.09711, ask_open: 1.0971, ask_high: 1.0976, ask_low: 1.0967, ask_close: 1.09717 }",
+]
+#### oanda 4h quote bars from <time>
+1802 lines, 357507 bytes, sha256 533014828db9282a71eab8bde8b394018d5cb57e9c6c75922b309b132062ca70
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.09141, bid_high: 1.09191, bid_low: 1.09101, bid_close: 1.09148, ask_open: 1.09147, ask_high: 1.09197, ask_low: 1.09107, ask_close: 1.09154 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.09178, bid_high: 1.09228, bid_low: 1.09138, bid_close: 1.09185, ask_open: 1.09184, ask_high: 1.09234, ask_low: 1.09144, ask_close: 1.09191 }",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|Quote { bid_open: 1.09667, bid_high: 1.09717, bid_low: 1.09627, bid_close: 1.09674, ask_open: 1.09673, ask_high: 1.09723, ask_low: 1.09633, ask_close: 1.0968 }",
+    "2021-07-10 12:00:00.0 +00:00:00|Quote { bid_open: 1.09704, bid_high: 1.09754, bid_low: 1.09664, bid_close: 1.09711, ask_open: 1.0971, ask_high: 1.0976, ask_low: 1.0967, ask_close: 1.09717 }",
+]
+#### ~oanda 1d from <time>
+(varies with the clock)
+#### ~oanda 1d bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1d quote bars from <time>
+(varies with the clock)
+#### oanda 1w from <time>
+102 lines, 14803 bytes, sha256 2957e698ed771f1bd90ed8ffd8ab7d9a9eea96a47e78716a930efff353c90c3d
+[
+    "2020-09-14 0:00:00.0 +00:00:00|4607626698903257507|4607628950703071193|4607624897463406559|4607627014155231423|4651523523724967936|None|None",
+    "2020-09-21 0:00:00.0 +00:00:00|4607628365235119635|4607630617034933320|4607626563795268686|4607628680487093550|4651532319817990144|None|None",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|4607609855440651142|4607612107240464827|4607608054000800194|4607610170692625058|4639235381772943360|None|None",
+    "2022-08-08 0:00:00.0 +00:00:00|4607611521772513269|4607613773572326954|4607609720332662321|4607611837024487185|4639270566145032192|None|None",
+]
+#### oanda 1w bid/ask from <time>
+102 lines, 19815 bytes, sha256 8a25e7a7fd4546ee19272c55bf7feb8867fe5a2989a7b3b59bb54b1dc9a06d69
+[
+    "2020-09-14 0:00:00.0 +00:00:00|Quote { bid_open: 1.09862, bid_high: 1.09912, bid_low: 1.09822, bid_close: 1.09869, ask_open: 1.09868, ask_high: 1.09918, ask_low: 1.09828, ask_close: 1.09875 }",
+    "2020-09-21 0:00:00.0 +00:00:00|Quote { bid_open: 1.09899, bid_high: 1.09949, bid_low: 1.09859, bid_close: 1.09906, ask_open: 1.09905, ask_high: 1.09955, ask_low: 1.09865, ask_close: 1.09912 }",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|Quote { bid_open: 1.09488, bid_high: 1.09538, bid_low: 1.09448, bid_close: 1.09495, ask_open: 1.09494, ask_high: 1.09544, ask_low: 1.09454, ask_close: 1.09501 }",
+    "2022-08-08 0:00:00.0 +00:00:00|Quote { bid_open: 1.09525, bid_high: 1.09575, bid_low: 1.09485, bid_close: 1.09532, ask_open: 1.09531, ask_high: 1.09581, ask_low: 1.09491, ask_close: 1.09538 }",
+]
+#### oanda 1w quote bars from <time>
+102 lines, 19815 bytes, sha256 8a25e7a7fd4546ee19272c55bf7feb8867fe5a2989a7b3b59bb54b1dc9a06d69
+[
+    "2020-09-14 0:00:00.0 +00:00:00|Quote { bid_open: 1.09862, bid_high: 1.09912, bid_low: 1.09822, bid_close: 1.09869, ask_open: 1.09868, ask_high: 1.09918, ask_low: 1.09828, ask_close: 1.09875 }",
+    "2020-09-21 0:00:00.0 +00:00:00|Quote { bid_open: 1.09899, bid_high: 1.09949, bid_low: 1.09859, bid_close: 1.09906, ask_open: 1.09905, ask_high: 1.09955, ask_low: 1.09865, ask_close: 1.09912 }",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|Quote { bid_open: 1.09488, bid_high: 1.09538, bid_low: 1.09448, bid_close: 1.09495, ask_open: 1.09494, ask_high: 1.09544, ask_low: 1.09454, ask_close: 1.09501 }",
+    "2022-08-08 0:00:00.0 +00:00:00|Quote { bid_open: 1.09525, bid_high: 1.09575, bid_low: 1.09485, bid_close: 1.09532, ask_open: 1.09531, ask_high: 1.09581, ask_low: 1.09491, ask_close: 1.09538 }",
+]
+#### ~oanda 1m from <time>
+(varies with the clock)
+#### ~oanda 1m bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1m quote bars from <time>
+(varies with the clock)
+#### oanda 5m from <time>
+578 lines, 85587 bytes, sha256 f81cf0f63292cc9068f46820281c6a42ec1fa167936b6fdf13615a2673e034ca
+[
+    "2023-11-14 22:15:00.0 +00:00:00|4607573286211676893|4607575538011490579|4607571484771825945|4607573601463650809|4645163948469911552|None|None",
+    "2023-11-14 22:20:00.0 +00:00:00|4607574952543539020|4607577204343352706|4607573151103688072|4607575267795512936|4645181540655955968|None|None",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|4607629040775063740|4607631292574877425|4607627239335212792|4607629356027037656|4651488339352879104|None|None",
+    "2023-11-16 22:10:00.0 +00:00:00|4607630707106925867|4607542886914192142|4607628905667074919|4607631022358899783|4651497135445901312|None|None",
+]
+#### oanda 5m bid/ask from <time>
+578 lines, 114446 bytes, sha256 8c0d569571a82ed0a2b4fdc987807f48eda3ecd655f2e12f27a254334697a9eb
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.08676, bid_high: 1.08726, bid_low: 1.08636, bid_close: 1.08683, ask_open: 1.08682, ask_high: 1.08732, ask_low: 1.08642, ask_close: 1.08689 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.08713, bid_high: 1.08763, bid_low: 1.08673, bid_close: 1.0872, ask_open: 1.08719, ask_high: 1.08769, ask_low: 1.08679, ask_close: 1.08726 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.09914, bid_high: 1.09964, bid_low: 1.09874, bid_close: 1.09921, ask_open: 1.0992, ask_high: 1.0997, ask_low: 1.0988, ask_close: 1.09927 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.09951, bid_high: 1.08001, bid_low: 1.09911, bid_close: 1.09958, ask_open: 1.09957, ask_high: 1.08007, ask_low: 1.09917, ask_close: 1.09964 }",
+]
+#### oanda 5m quote bars from <time>
+578 lines, 114446 bytes, sha256 8c0d569571a82ed0a2b4fdc987807f48eda3ecd655f2e12f27a254334697a9eb
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.08676, bid_high: 1.08726, bid_low: 1.08636, bid_close: 1.08683, ask_open: 1.08682, ask_high: 1.08732, ask_low: 1.08642, ask_close: 1.08689 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.08713, bid_high: 1.08763, bid_low: 1.08673, bid_close: 1.0872, ask_open: 1.08719, ask_high: 1.08769, ask_low: 1.08679, ask_close: 1.08726 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.09914, bid_high: 1.09964, bid_low: 1.09874, bid_close: 1.09921, ask_open: 1.0992, ask_high: 1.0997, ask_low: 1.0988, ask_close: 1.09927 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.09951, bid_high: 1.08001, bid_low: 1.09911, bid_close: 1.09958, ask_open: 1.09957, ask_high: 1.08007, ask_low: 1.09917, ask_close: 1.09964 }",
+]
+#### ~oanda 15m from <time>
+(varies with the clock)
+#### ~oanda 15m bid/ask from <time>
+(varies with the clock)
+#### ~oanda 15m quote bars from <time>
+(varies with the clock)
+#### ~oanda 1h from <time>
+(varies with the clock)
+#### ~oanda 1h bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1h quote bars from <time>
+(varies with the clock)
+#### oanda 4h from <time>
+1802 lines, 267303 bytes, sha256 e312516ec6366027eba12615969dbd1d5d7d36658eb48cd0b7b18c0e0f828d46
+[
+    "2020-09-13 16:00:00.0 +00:00:00|4607594227949944166|4607596479749757851|4607592426510093218|4607594543201918082|4647714815446351872|None|None",
+    "2020-09-13 20:00:00.0 +00:00:00|4607595894281806293|4607598146081619978|4607594092841955345|4607596209533780209|4647723611539374080|None|None",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|4607617916883984135|4607620168683797820|4607616115444133187|4607618232135958051|4647679631074263040|None|None",
+    "2021-07-10 12:00:00.0 +00:00:00|4607619583215846262|4607621835015659947|4607617781775995314|4607619898467820178|4647697223260307456|None|None",
+]
+#### oanda 4h bid/ask from <time>
+1802 lines, 357507 bytes, sha256 533014828db9282a71eab8bde8b394018d5cb57e9c6c75922b309b132062ca70
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.09141, bid_high: 1.09191, bid_low: 1.09101, bid_close: 1.09148, ask_open: 1.09147, ask_high: 1.09197, ask_low: 1.09107, ask_close: 1.09154 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.09178, bid_high: 1.09228, bid_low: 1.09138, bid_close: 1.09185, ask_open: 1.09184, ask_high: 1.09234, ask_low: 1.09144, ask_close: 1.09191 }",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|Quote { bid_open: 1.09667, bid_high: 1.09717, bid_low: 1.09627, bid_close: 1.09674, ask_open: 1.09673, ask_high: 1.09723, ask_low: 1.09633, ask_close: 1.0968 }",
+    "2021-07-10 12:00:00.0 +00:00:00|Quote { bid_open: 1.09704, bid_high: 1.09754, bid_low: 1.09664, bid_close: 1.09711, ask_open: 1.0971, ask_high: 1.0976, ask_low: 1.0967, ask_close: 1.09717 }",
+]
+#### oanda 4h quote bars from <time>
+1802 lines, 357507 bytes, sha256 533014828db9282a71eab8bde8b394018d5cb57e9c6c75922b309b132062ca70
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.09141, bid_high: 1.09191, bid_low: 1.09101, bid_close: 1.09148, ask_open: 1.09147, ask_high: 1.09197, ask_low: 1.09107, ask_close: 1.09154 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.09178, bid_high: 1.09228, bid_low: 1.09138, bid_close: 1.09185, ask_open: 1.09184, ask_high: 1.09234, ask_low: 1.09144, ask_close: 1.09191 }",
+...
+    "2021-07-10 8:00:00.0 +00:00:00|Quote { bid_open: 1.09667, bid_high: 1.09717, bid_low: 1.09627, bid_close: 1.09674, ask_open: 1.09673, ask_high: 1.09723, ask_low: 1.09633, ask_close: 1.0968 }",
+    "2021-07-10 12:00:00.0 +00:00:00|Quote { bid_open: 1.09704, bid_high: 1.09754, bid_low: 1.09664, bid_close: 1.09711, ask_open: 1.0971, ask_high: 1.0976, ask_low: 1.0967, ask_close: 1.09717 }",
+]
+#### ~oanda 1d from <time>
+(varies with the clock)
+#### ~oanda 1d bid/ask from <time>
+(varies with the clock)
+#### ~oanda 1d quote bars from <time>
+(varies with the clock)
+#### oanda 1w from <time>
+102 lines, 14803 bytes, sha256 2957e698ed771f1bd90ed8ffd8ab7d9a9eea96a47e78716a930efff353c90c3d
+[
+    "2020-09-14 0:00:00.0 +00:00:00|4607626698903257507|4607628950703071193|4607624897463406559|4607627014155231423|4651523523724967936|None|None",
+    "2020-09-21 0:00:00.0 +00:00:00|4607628365235119635|4607630617034933320|4607626563795268686|4607628680487093550|4651532319817990144|None|None",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|4607609855440651142|4607612107240464827|4607608054000800194|4607610170692625058|4639235381772943360|None|None",
+    "2022-08-08 0:00:00.0 +00:00:00|4607611521772513269|4607613773572326954|4607609720332662321|4607611837024487185|4639270566145032192|None|None",
+]
+#### oanda 1w bid/ask from <time>
+102 lines, 19815 bytes, sha256 8a25e7a7fd4546ee19272c55bf7feb8867fe5a2989a7b3b59bb54b1dc9a06d69
+[
+    "2020-09-14 0:00:00.0 +00:00:00|Quote { bid_open: 1.09862, bid_high: 1.09912, bid_low: 1.09822, bid_close: 1.09869, ask_open: 1.09868, ask_high: 1.09918, ask_low: 1.09828, ask_close: 1.09875 }",
+    "2020-09-21 0:00:00.0 +00:00:00|Quote { bid_open: 1.09899, bid_high: 1.09949, bid_low: 1.09859, bid_close: 1.09906, ask_open: 1.09905, ask_high: 1.09955, ask_low: 1.09865, ask_close: 1.09912 }",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|Quote { bid_open: 1.09488, bid_high: 1.09538, bid_low: 1.09448, bid_close: 1.09495, ask_open: 1.09494, ask_high: 1.09544, ask_low: 1.09454, ask_close: 1.09501 }",
+    "2022-08-08 0:00:00.0 +00:00:00|Quote { bid_open: 1.09525, bid_high: 1.09575, bid_low: 1.09485, bid_close: 1.09532, ask_open: 1.09531, ask_high: 1.09581, ask_low: 1.09491, ask_close: 1.09538 }",
+]
+#### oanda 1w quote bars from <time>
+102 lines, 19815 bytes, sha256 8a25e7a7fd4546ee19272c55bf7feb8867fe5a2989a7b3b59bb54b1dc9a06d69
+[
+    "2020-09-14 0:00:00.0 +00:00:00|Quote { bid_open: 1.09862, bid_high: 1.09912, bid_low: 1.09822, bid_close: 1.09869, ask_open: 1.09868, ask_high: 1.09918, ask_low: 1.09828, ask_close: 1.09875 }",
+    "2020-09-21 0:00:00.0 +00:00:00|Quote { bid_open: 1.09899, bid_high: 1.09949, bid_low: 1.09859, bid_close: 1.09906, ask_open: 1.09905, ask_high: 1.09955, ask_low: 1.09865, ask_close: 1.09912 }",
+...
+    "2022-08-01 0:00:00.0 +00:00:00|Quote { bid_open: 1.09488, bid_high: 1.09538, bid_low: 1.09448, bid_close: 1.09495, ask_open: 1.09494, ask_high: 1.09544, ask_low: 1.09454, ask_close: 1.09501 }",
+    "2022-08-08 0:00:00.0 +00:00:00|Quote { bid_open: 1.09525, bid_high: 1.09575, bid_low: 1.09485, bid_close: 1.09532, ask_open: 1.09531, ask_high: 1.09581, ask_low: 1.09491, ask_close: 1.09538 }",
+]
+#### native.quote_history('fx') as u8
+1
+#### (b.0.to_bits(), b.1.to_bits())
+(
+    4607605982344971603,
+    4607607153280874719,
+)
+#### oanda search `eur`
+[
+    "EUR_GBP|EUR/GBP|fx|CURRENCY",
+    "EUR_USD|EUR/USD|fx|CURRENCY",
+]
+#### oanda search `gold`
+[
+    "XAU_USD|Gold|fx|METAL",
+]
+#### oanda search ``
+[
+    "EUR_USD|EUR/USD|fx|CURRENCY",
+    "SPX500_USD|US SPX 500|fx|CFD",
+]
+#### oanda search `spx`
+[
+    "SPX500_USD|US SPX 500|fx|CFD",
+]
+#### NOPE_USD
+false
+#### LIMIT_USD
+true
+#### env ``
+true
+#### env `practice`
+true
+#### env `demo`
+false
+#### account_id `001-004-1234567-001`
+true
+#### account_id `token-pasted-here`
+false

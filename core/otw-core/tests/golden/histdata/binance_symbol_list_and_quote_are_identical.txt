@@ -1,0 +1,29 @@
+#### query ``
+[
+    "BTCUSDT|BTC/USDT|crypto|Binance",
+    "ETHBTC|ETH/BTC|crypto|Binance",
+    "BTCEUR|BTC/EUR|crypto|Binance",
+]
+#### query `btc`
+[
+    "BTCEUR|BTC/EUR|crypto|Binance",
+    "BTCUSDT|BTC/USDT|crypto|Binance",
+    "ETHBTC|ETH/BTC|crypto|Binance",
+]
+#### query `BTCUSDT`
+[
+    "BTCUSDT|BTC/USDT|crypto|Binance",
+]
+#### query `eth`
+[
+    "ETHBTC|ETH/BTC|crypto|Binance",
+]
+#### query `dead`
+[]
+#### query `zzz`
+[]
+#### (b.0.to_bits(), b.1.to_bits())
+(
+    4675318056236057887,
+    4675318057610447421,
+)
