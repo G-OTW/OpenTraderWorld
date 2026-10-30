@@ -1,0 +1,9 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.rma example.
+indicator("ref rma")
+pine_rma(src, length) =>
+    alpha = 1 / length
+    sum = 0.0
+    sum := na(sum[1]) ? ta.sma(src, length) : alpha * src + (1 - alpha) * nz(sum[1])
+plot(pine_rma(close, 14))
+plot(ta.rma(close, 14))

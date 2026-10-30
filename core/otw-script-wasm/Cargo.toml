@@ -1,0 +1,17 @@
+[package]
+name = "otw-script-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld: browser build of the script engine (wasm-bindgen wrapper)"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+otw-script = { path = "../otw-script" }
+# Exact: frontend/scripts/build-wasm.sh installs the matching wasm-bindgen-cli from Cargo.lock.
+wasm-bindgen = "=0.2.129"
+serde = { workspace = true }
+serde_json = { workspace = true }

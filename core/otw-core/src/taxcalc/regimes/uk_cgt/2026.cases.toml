@@ -1,0 +1,11 @@
+[[case]]
+name = "Dividends for a higher-rate taxpayer, 2026-27 rates"
+source = "ITA 13A as amended from 6 April 2026: (2 500 - 500) x 35.75 %"
+inputs = { dividends = 2500.0, other_income = 40000.0 }
+expect = { total_tax = 715.0 }
+
+[[case]]
+name = "CGT unchanged"
+source = "TCGA 1H"
+inputs = { realized_capital_gains = 13000.0, other_income = 40000.0 }
+expect = { total_tax = 2400.0 }

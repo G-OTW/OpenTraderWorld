@@ -1,0 +1,11 @@
+[[case]]
+name = "Private capital gains are exempt"
+source = "DBG 16 al. 3"
+inputs = { realized_capital_gains = 50000.0, crypto_gains = 5000.0 }
+expect = { total_tax = 0.0 }
+
+[[case]]
+name = "Dividends at the marginal rate"
+source = "DBG 20 al. 1 let. c"
+inputs = { dividends = 1000.0, marginal_rate = 30.0 }
+expect = { total_tax = 300.0 }

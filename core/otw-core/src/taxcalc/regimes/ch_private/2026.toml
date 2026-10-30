@@ -1,0 +1,32 @@
+id = "ch_private"
+year = 2026
+country = "CH"
+label = "Switzerland, private investor"
+currency = "CHF"
+coverage = "simple"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "DBG art. 16 al. 3 (private capital gains exempt)",
+  "ESTV Kreisschreiben Nr. 36 (professional securities dealer criteria)",
+  "LIA (35 % withholding, refundable to residents)",
+]
+notes = "Private capital gains are exempt unless the professional dealer criteria are missed. Dividends and interest at the marginal rate (federal + cantonal + communal). Wealth tax: use the profile's brackets. The 35 % withholding is refundable and not counted."
+inputs = ["marginal_rate"]
+
+[matching]
+method = "fifo"
+
+[[pools]]
+key = "all"
+buckets = ["capital", "derivative", "crypto"]
+carry_years = 0
+
+[[exempt]]
+items = ["capital", "derivative", "crypto"]
+
+[[schedules]]
+key = "income"
+label = "Income tax"
+items = ["dividends", "interest"]
+kind = "marginal"

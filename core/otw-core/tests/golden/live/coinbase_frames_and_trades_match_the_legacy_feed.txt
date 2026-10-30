@@ -1,0 +1,76 @@
+#### 1m
+Trades
+#### 1m
+""
+#### 5m
+Trades
+#### 5m
+""
+#### 15m
+Trades
+#### 15m
+""
+#### 1h
+Trades
+#### 1h
+""
+#### 4h
+Trades
+#### 4h
+""
+#### 1d
+Trades
+#### 1d
+""
+#### 1w
+Trades
+#### 1w
+""
+#### native.url()
+"wss://ws-feed.exchange.coinbase.com"
+#### opening frames
+[
+    Object {
+        "channels": Array [
+            String("matches"),
+        ],
+        "product_ids": Array [
+            String("BTC-USD"),
+            String("ETH-EUR"),
+        ],
+        "type": String("subscribe"),
+    },
+]
+#### json(&native.subscribe(&sol))
+[
+    Object {
+        "channels": Array [
+            String("matches"),
+        ],
+        "product_ids": Array [
+            String("SOL-USD"),
+        ],
+        "type": String("subscribe"),
+    },
+]
+#### json(&native.unsubscribe(&sol))
+[
+    Object {
+        "channels": Array [
+            String("matches"),
+        ],
+        "product_ids": Array [
+            String("SOL-USD"),
+        ],
+        "type": String("unsubscribe"),
+    },
+]
+#### coinbase trades
+602 lines, 14292 bytes, sha256 6880f5ea67cbdc41b795e656689c6252a431021c11ad0bb05a0afb82269acfd4
+[
+    (
+        "ETH-EUR|crypto|1h",
+...
+        2026-09-05 10:01:59.183 +00:00:00,
+    ),
+]

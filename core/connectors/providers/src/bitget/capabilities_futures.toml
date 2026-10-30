@@ -1,0 +1,35 @@
+# Bitget USDT-M futures. Every claim below is sourced in PROVIDER.md.
+
+provider = "bitget"
+label = "Bitget USDT-M futures"
+venue = "BITGET_USDTM"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["perp", "future"]
+instrument_discovery = "full"
+auth = "none"
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# Best bid and ask (`books1`).
+quote = "push"
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 200
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 1000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+venue_label = "Bitget USDT-M futures"

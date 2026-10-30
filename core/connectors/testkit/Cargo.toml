@@ -1,0 +1,17 @@
+[package]
+name = "otw-connector-testkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld connector framework: deterministic clock, mock venue, conformance checks"
+
+[dependencies]
+otw-connector-model = { path = "../model" }
+otw-connector-sdk = { path = "../sdk" }
+otw-connector-engine = { path = "../engine" }
+tokio.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+bytes.workspace = true
+wiremock = "0.6.5"

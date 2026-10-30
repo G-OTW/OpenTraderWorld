@@ -1,0 +1,42 @@
+id = "it_sostitutiva"
+year = 2026
+country = "IT"
+label = "Italy, individual (imposta sostitutiva)"
+currency = "EUR"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "D.Lgs. 461/1997 art. 5, 6, 7 (26 %, costo medio ponderato)",
+  "TUIR art. 67, 68 (redditi diversi; losses carried 4 years); crypto-attività a separate category (art. 67 c.1 lett. c-sexies, 68 c.9-bis)",
+  "L. 207/2024 (Legge di Bilancio 2025): crypto-attività 33 % from 2026, confirmed by the Legge di Bilancio 2026",
+]
+notes = "Euro e-money tokens (MiCA) stay at 26 % (Legge di Bilancio 2026), taxed here at 33 % like other crypto. Not modeled: 12.5 % on Italian and white-list government bonds, IVAFE, bollo. Losses (redditi diversi) never offset dividends or interest (redditi di capitale)."
+inputs = []
+
+[matching]
+method = "average"
+
+[[pools]]
+key = "diversi"
+buckets = ["capital", "derivative"]
+carry_years = 4
+
+[[pools]]
+key = "cripto"
+buckets = ["crypto"]
+carry_years = 4
+
+[[schedules]]
+key = "sostitutiva"
+label = "Imposta sostitutiva"
+items = ["capital", "derivative", "dividends", "interest"]
+kind = "brackets"
+brackets = [{ rate = 26 }]
+
+[[schedules]]
+key = "cripto"
+label = "Crypto-attività"
+items = ["crypto"]
+kind = "brackets"
+brackets = [{ rate = 33 }]

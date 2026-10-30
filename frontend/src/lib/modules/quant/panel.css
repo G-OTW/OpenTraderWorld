@@ -1,0 +1,219 @@
+/* Shared presentation for Quant panels. Keep selectors module-specific so the
+   application baseline remains unchanged for other tools. */
+.qp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.qp-params {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.qp-field {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+.qp-field:has(.combo, .dl) {
+  flex-basis: 260px;
+}
+.qp-field:has(.qp-seg) {
+  flex-basis: 240px;
+}
+.qp-params:has(.dl) {
+  align-items: flex-start;
+}
+.qp-params > button.primary {
+  margin-left: auto;
+  align-self: flex-end;
+}
+.qp-label {
+  font-size: var(--fs-metric-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: var(--lh-base);
+  color: var(--muted);
+}
+.qp-field input:not([type='checkbox']):not(.search),
+.qp-field select {
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.qp-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.qp-seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: var(--hairline) solid transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  min-height: var(--control-h);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+.qp-seg button:hover {
+  border-color: var(--border-control);
+  color: var(--text);
+}
+.qp-seg button.active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+  color: var(--text);
+}
+.qp-seg button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.qp-block {
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.qp-block h3 {
+  font-size: var(--fs-item-title);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-base);
+}
+.qp-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-desc);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+/* A standalone instruction is an empty state; descriptions inside a result stay
+   quiet and unframed. */
+.qp > .qp-hint:last-child:only-of-type {
+  padding: var(--space-4);
+  border-left: 2px solid var(--border-control);
+  background: var(--surface);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.qp-grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}
+.qp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  border-top: var(--hairline) solid var(--border);
+  border-left: var(--hairline) solid var(--border);
+  min-width: 0;
+}
+.qp-card {
+  background: var(--bg);
+  border-right: var(--hairline) solid var(--border);
+  border-bottom: var(--hairline) solid var(--border);
+  padding: var(--pad-metric);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qp-card .k {
+  font-size: var(--fs-metric-label);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: var(--lh-base);
+}
+.qp-card .k.raw {
+  /* Greek parameter names must retain their case. */
+  text-transform: none;
+  font-size: var(--fs-body);
+}
+.qp-card .v {
+  font-family: var(--mono);
+  font-size: var(--fs-metric-value);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-base);
+}
+.qp-card .s {
+  font-size: var(--fs-desc);
+  color: var(--muted);
+  line-height: var(--lh-base);
+}
+.qp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-body);
+  font-variant-numeric: tabular-nums;
+}
+.qp-table th {
+  text-align: left;
+  font-weight: var(--fw-medium);
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: var(--fs-metric-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--hairline) solid var(--border-control);
+}
+.qp-table th.raw {
+  text-transform: none;
+}
+.qp-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--hairline) solid var(--border);
+}
+.qp-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+.qp-table td.num,
+.qp-table th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.qp-table td.num {
+  font-family: var(--mono);
+}
+.qp-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.qp-good {
+  color: var(--green);
+}
+.qp-bad {
+  color: var(--red);
+}
+.qp-warn {
+  color: var(--amber);
+}
+.qp-muted {
+  color: var(--muted);
+}
+@container quant-page (max-width: 440px) {
+  .qp-params > button.primary {
+    width: 100%;
+  }
+}

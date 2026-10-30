@@ -1,0 +1,14 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.rsi example, plus the builtin's documented edge:
+// no losses over the window = 100 (the plain formula divides by zero there).
+indicator("ref rsi")
+pine_rsi(x, y) =>
+    u = math.max(x - x[1], 0)
+    d = math.max(x[1] - x, 0)
+    up = ta.rma(u, y)
+    down = ta.rma(d, y)
+    rs = up / down
+    res = down == 0 and up > 0 ? 100.0 : 100 - 100 / (1 + rs)
+    res
+plot(pine_rsi(close, 14))
+plot(ta.rsi(close, 14))

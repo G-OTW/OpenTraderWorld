@@ -1,0 +1,52 @@
+# Alpaca (market data v2 stocks, v1beta3 crypto, v1beta1 options; trading API v2). Every
+# claim below is sourced in PROVIDER.md.
+
+provider = "alpaca"
+label = "Alpaca"
+venue = "ALPACA"
+api_version = "data v2 / v1beta3 / v1beta1, trading v2"
+maturity = "M2"
+asset_classes = ["equity", "etf", "spot", "option"]
+instrument_discovery = "full"
+# Two plain headers (key id and secret), and an auth message on the socket.
+auth = "api_key"
+# 1w is folded from 1d by the engine, each week stamped with its first session's bar.
+native_timeframes = ["1m", "5m", "15m", "1h", "1d"]
+
+# One-minute bars on the socket: every larger timeframe is folded by the engine.
+[live]
+candles = "push"
+candle_timeframes = ["1m"]
+# Best bid and ask (`quotes`, stocks and crypto; IEX on the free feed).
+quote = "push"
+
+[history]
+quote = true
+# Past quotes for stocks and crypto; options keep none.
+quotes_at = ["equity", "etf", "spot"]
+
+[history.candles]
+max_items_per_call = 10000
+paging = "cursor"
+final_flag = false
+aggregate_stamp = "first_bar"
+
+# Free key: 200 requests a minute.
+[[rate_limits]]
+scope = "account"
+capacity = 200
+refill_ms = 60000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+resolve_by_id = true
+holdings_from_positions = true
+quotes_from_positions = true
+sandbox_env = "paper"
+
+[regions]
+sandbox_url = "https://paper-api.alpaca.markets"
+sandbox_base = "trading"

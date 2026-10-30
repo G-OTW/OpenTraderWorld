@@ -1,0 +1,11 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.mfi; ta.obv = ta.cum(math.sign(ta.change(close)) * volume).
+indicator("ref mfi")
+pine_mfi(src, length) =>
+    float upper = math.sum(volume * (ta.change(src) <= 0.0 ? 0.0 : src), length)
+    float lower = math.sum(volume * (ta.change(src) >= 0.0 ? 0.0 : src), length)
+    100.0 - (100.0 / (1.0 + upper / lower))
+plot(pine_mfi(hlc3, 14))
+plot(ta.mfi(hlc3, 14))
+plot(ta.cum(math.sign(ta.change(close)) * volume))
+plot(ta.obv)

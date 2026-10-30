@@ -1,0 +1,7 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.stoch.
+indicator("ref stoch")
+pine_stoch(src, h, l, len) =>
+    100 * (src - ta.lowest(l, len)) / (ta.highest(h, len) - ta.lowest(l, len))
+plot(pine_stoch(close, high, low, 14))
+plot(ta.stoch(close, high, low, 14))

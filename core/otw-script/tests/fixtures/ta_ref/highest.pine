@@ -1,0 +1,19 @@
+//@version=6
+// Reference: highest/lowest over the last `length` bars, na until `length` bars exist.
+indicator("ref highest")
+pine_highest(src, length) =>
+    float h = na
+    for i = 0 to length - 1
+        if not na(src[i])
+            h := na(h) ? src[i] : math.max(h, src[i])
+    bar_index >= length - 1 ? h : na
+pine_lowest(src, length) =>
+    float l = na
+    for i = 0 to length - 1
+        if not na(src[i])
+            l := na(l) ? src[i] : math.min(l, src[i])
+    bar_index >= length - 1 ? l : na
+plot(pine_highest(high, 10))
+plot(ta.highest(high, 10))
+plot(pine_lowest(low, 10))
+plot(ta.lowest(10))

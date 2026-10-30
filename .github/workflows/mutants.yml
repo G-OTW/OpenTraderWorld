@@ -1,0 +1,103 @@
+# Mutation testing of the code that stands between a user and a wrong order.
+#
+# cargo mutants changes one operator, condition or return value at a time and runs the tests:
+# a change no test notices (a "missed" mutant) is behaviour nothing pins down. Scoped to three
+# places where an unpinned branch means an order that should have been refused goes out:
+#
+#   risk-gate        otw-core/src/brokers/risk.rs, the pre-trade risk limits. Every mutant
+#                    rebuilds otw-core, so the file is split over four shards.
+#   order-checks     connectors/model/src/order.rs: OrderStatus::is_final, check_orders,
+#                    check_orders_for, check_amend and check_opts (what a venue declares it takes).
+#   binance-filters  connectors/providers/src/binance/trade.rs: check_rules, check_filters,
+#                    check_open, check_client_id, needs_reference (PRICE_FILTER, LOT_SIZE,
+#                    MIN_NOTIONAL, open order caps).
+#
+# Report only: missed and timed out mutants do not fail the job, they are listed in the run
+# summary and kept in the `mutants-*` artifacts (mutants.out: missed.txt, caught.txt,
+# outcomes.json, a diff and a log per mutant). The job fails when cargo mutants cannot run:
+# a usage error, or an unmutated tree that does not build or whose tests fail.
+#
+# cargo-mutants 27 applies the name filter (-F) to every mutant except struct field
+# deletions, so a few of those from other functions of trade.rs are tested too.
+name: mutants
+
+on:
+  schedule:
+    # Sundays, 03:43 UTC. Off the hour so it does not queue behind everyone else's cron.
+    - cron: '43 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutants:
+    name: cargo mutants (${{ matrix.scope }} ${{ matrix.shard }}/${{ matrix.of }})
+    if: github.repository == 'G-OTW/OpenTraderWorld'
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `args`: what to mutate, then after `--` the tests cargo test runs for each mutant.
+          - { scope: risk-gate, shard: 0, of: 4, args: "-f otw-core/src/brokers/risk.rs -- brokers::" }
+          - { scope: risk-gate, shard: 1, of: 4, args: "-f otw-core/src/brokers/risk.rs -- brokers::" }
+          - { scope: risk-gate, shard: 2, of: 4, args: "-f otw-core/src/brokers/risk.rs -- brokers::" }
+          - { scope: risk-gate, shard: 3, of: 4, args: "-f otw-core/src/brokers/risk.rs -- brokers::" }
+          - scope: order-checks
+            shard: 0
+            of: 1
+            args: >-
+              -f connectors/model/src/order.rs
+              -F '(in|replace) (OrderStatus::is_final|check_orders|check_orders_for|check_amend|check_opts)\b'
+          - scope: binance-filters
+            shard: 0
+            of: 1
+            args: >-
+              -f connectors/providers/src/binance/trade.rs
+              -F '(in|replace) (check_rules|check_filters|check_open|check_client_id|needs_reference)\b'
+              -- binance::
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+      - name: Run cargo mutants
+        working-directory: core
+        env:
+          OUT: ${{ github.workspace }}/mutants/${{ matrix.scope }}-${{ matrix.shard }}
+        run: |
+          set +e
+          cargo mutants --no-shuffle --shard ${{ matrix.shard }}/${{ matrix.of }} -o "$OUT" ${{ matrix.args }}
+          status=$?
+          set -e
+          out="$OUT/mutants.out"
+          {
+            echo "### ${{ matrix.scope }} shard ${{ matrix.shard }}/${{ matrix.of }}"
+            for k in caught missed timeout unviable; do
+              [ -f "$out/$k.txt" ] && echo "- $k: $(wc -l < "$out/$k.txt")"
+            done
+            if [ -s "$out/missed.txt" ]; then
+              echo
+              echo '```'
+              cat "$out/missed.txt"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 0 every mutant caught, 2 some missed, 3 some timed out: a report, not a failure.
+          # 1 usage error, 4 the unmutated tree does not build or its tests fail, 70 internal.
+          case $status in
+            0|2|3) exit 0 ;;
+            *) exit "$status" ;;
+          esac
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mutants-${{ matrix.scope }}-${{ matrix.shard }}
+          path: mutants/${{ matrix.scope }}-${{ matrix.shard }}/mutants.out
+          if-no-files-found: warn
+          retention-days: 30
