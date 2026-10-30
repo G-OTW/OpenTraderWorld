@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ❓ Questions & help
+    url: https://github.com/G-OTW/OpenTraderWorld/discussions
+    about: Setup help, usage questions, and general discussion happen in Discussions.
+  - name: 📖 Documentation
+    url: https://g-otw.github.io/OpenTraderWorld/
+    about: Install guide, module tour, and configuration docs.

@@ -1,0 +1,131 @@
+#### ~kraken 1m from <time>
+(varies with the clock)
+#### ~kraken 1m from <time>
+(varies with the clock)
+#### ~kraken 1m from <time>
+(varies with the clock)
+#### kraken 1m from <time>
+[]
+#### ~kraken 1m: requests
+(varies with the clock)
+#### ~kraken 5m from <time>
+(varies with the clock)
+#### ~kraken 5m from <time>
+(varies with the clock)
+#### ~kraken 5m from <time>
+(varies with the clock)
+#### kraken 5m from <time>
+[]
+#### ~kraken 5m: requests
+(varies with the clock)
+#### ~kraken 15m from <time>
+(varies with the clock)
+#### ~kraken 15m from <time>
+(varies with the clock)
+#### ~kraken 15m from <time>
+(varies with the clock)
+#### kraken 15m from <time>
+[]
+#### ~kraken 15m: requests
+(varies with the clock)
+#### ~kraken 1h from <time>
+(varies with the clock)
+#### ~kraken 1h from <time>
+(varies with the clock)
+#### ~kraken 1h from <time>
+(varies with the clock)
+#### kraken 1h from <time>
+[]
+#### ~kraken 1h: requests
+(varies with the clock)
+#### ~kraken 4h from <time>
+(varies with the clock)
+#### ~kraken 4h from <time>
+(varies with the clock)
+#### ~kraken 4h from <time>
+(varies with the clock)
+#### kraken 4h from <time>
+[]
+#### ~kraken 4h: requests
+(varies with the clock)
+#### ~kraken 1d from <time>
+(varies with the clock)
+#### ~kraken 1d from <time>
+(varies with the clock)
+#### ~kraken 1d from <time>
+(varies with the clock)
+#### kraken 1d from <time>
+[]
+#### ~kraken 1d: requests
+(varies with the clock)
+#### kraken 1w from <time>
+102 lines, 14803 bytes, sha256 7fbd3d186c47b8b0daf257d222ea0e47af8c7cb490b762cafe1718d353e8b1c9
+[
+    "2021-01-21 0:00:00.0 +00:00:00|4675822459482284312|4675822661979340800|4675822318383331510|4675822490180648960|4631670858000491863|None|None",
+    "2021-01-28 0:00:00.0 +00:00:00|4675822596922612174|4675822799418294272|4675822455822284982|4675822627619602432|4631811595532475813|None|None",
+...
+    "2022-12-08 0:00:00.0 +00:00:00|4675835928634414743|4675836130996781056|4675835787400771766|4675835959198089216|4634415183047899516|None|None",
+    "2022-12-15 0:00:00.0 +00:00:00|4675836066074742604|4675836268435734528|4675835924839725238|4675836096637042688|4634485551813891490|None|None",
+]
+#### kraken 1w from <time>
+102 lines, 14803 bytes, sha256 7fbd3d186c47b8b0daf257d222ea0e47af8c7cb490b762cafe1718d353e8b1c9
+[
+    "2021-01-21 0:00:00.0 +00:00:00|4675822459482284312|4675822661979340800|4675822318383331510|4675822490180648960|4631670858000491863|None|None",
+    "2021-01-28 0:00:00.0 +00:00:00|4675822596922612174|4675822799418294272|4675822455822284982|4675822627619602432|4631811595532475813|None|None",
+...
+    "2022-12-08 0:00:00.0 +00:00:00|4675835928634414743|4675836130996781056|4675835787400771766|4675835959198089216|4634415183047899516|None|None",
+    "2022-12-15 0:00:00.0 +00:00:00|4675836066074742604|4675836268435734528|4675835924839725238|4675836096637042688|4634485551813891490|None|None",
+]
+#### ~kraken 1w from <time>
+(varies with the clock)
+#### kraken 1w from <time>
+485 lines, 71487 bytes, sha256 1ffa5fcd851372fbc8aa4746528ce1f610f83360c75d8e63e54a0bb4a130394f
+[
+    "2017-07-13 0:00:00.0 +00:00:00|4675797170461957790|4675797373211901952|4675797029615892662|4675797201413210112|4625197033707461487|None|None",
+    "2017-07-20 0:00:00.0 +00:00:00|4675797307902285652|4675797510650855424|4675797167054846134|4675797338852163584|4625478508771429386|None|None",
+...
+    "2026-10-01 0:00:00.0 +00:00:00|4675863279259659188|4675863481348521984|4675863137752512694|4675863309549830144|4630122758586283808|None|None",
+    "2026-10-08 0:00:00.0 +00:00:00|4675863416699987050|4675863618787475456|4675863275191466166|4675863446988783616|4630263496118267758|None|None",
+]
+#### ~kraken 1w: requests
+(varies with the clock)
+#### kraken query ``
+[
+    "NEWUSD|NEWUSD|crypto|Kraken",
+    "ETHEUR|ETH/EUR|crypto|Kraken",
+    "XBTUSD|XBT/USD|crypto|Kraken",
+]
+#### kraken query `xbt`
+[
+    "XBTUSD|XBT/USD|crypto|Kraken",
+]
+#### kraken query `usd`
+[
+    "NEWUSD|NEWUSD|crypto|Kraken",
+    "XBTUSD|XBT/USD|crypto|Kraken",
+]
+#### kraken query `old`
+[]
+#### kraken query `new`
+[
+    "NEWUSD|NEWUSD|crypto|Kraken",
+]
+#### (b.0.to_bits(), b.1.to_bits())
+(
+    4675318068605563699,
+    4675318082349459046,
+)
+#### NOPEUSD: rate limit
+false
+#### NOPEUSD: retry
+false
+#### LIMITED: rate limit
+true
+#### LIMITED: retry
+true
+#### BUSY: rate limit
+false
+#### DOWN: rate limit
+false
+#### DOWN: retry
+true

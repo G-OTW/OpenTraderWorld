@@ -1,0 +1,6348 @@
+<script>
+  import Icon from '$lib/ui/Icon.svelte';
+  // ECharts price chart. Main pane: candlestick / OHLC bar / line / Renko. Below: volume,
+  // then one sub-pane per distinct oscillator type in use (RSI, MACD, …) plus one per custom
+  // indicator the user sent off the price pane. Overlay indicators (SMA/EMA/Bollinger/…) draw
+  // on the price pane. Indicators come from the `instances` prop ({id, type, params, visible});
+  // `computeInstance` produces the series generically, so adding a catalog entry needs no
+  // change here, and `paneOf`/`paneKey` own every pane decision.
+  //
+  // ── Navigation is hand-rolled, NOT ECharts' built-in roam ──
+  // ECharts' inside dataZoom animates every pan step over 100ms (roams.js, not overridable),
+  // so dragging only ever nudged the window and felt stuck. Here the inside dataZoom is inert
+  // (all its gestures off) and the visible window lives in `win` as *bar indices* — pointer
+  // drag pans 1:1 with the cursor, the wheel zooms anchored under it, the axis gutters
+  // drag-scale, and the keyboard mirrors all of it. Index-based (startValue/endValue) instead
+  // of percent so every gesture is exact arithmetic instead of a percentage round-trip.
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import * as echarts from 'echarts';
+  import { chartColors } from '$lib/theme/chart.svelte.js';
+  import { t } from '$lib/i18n';
+  import {
+    chartView,
+    PRICE_DRIVEN,
+    LINE_TYPES,
+    catalogDef,
+    DEFAULT_STYLE,
+    instanceLabel,
+    isCustom,
+    isScript,
+    paneOf,
+    paneKey,
+    computeAll
+  } from './indicators.js';
+  import { scriptSeries, scriptBarColors, scriptLegend } from '$lib/script/render.js';
+  import {
+    drawTool,
+    makeDrawing,
+    translate,
+    moveAnchor,
+    copyDrawing,
+    pasteDrawing,
+    canPaste,
+    nearestAnchor,
+    DEFAULT_DRAW_STYLE,
+    FIB_LEVELS,
+    isThreePoint,
+    fibExtPrices
+  } from './drawings.js';
+  import { priceDigitsOf, makePriceFmt, makeAxisFmt, decimalsOf } from './format.js';
+  import { tz } from '$lib/tz.svelte.js';
+  import { makeStampFmt, timeTicks } from './timeAxis.js';
+  import { formatSize } from './quicktest.js';
+  import { STYLE_KEYS, inkOn, withAlpha } from './settings.js';
+  import { registerCrispCandles, deviceWidth } from './crispCandles.js';
+  import { typeAt, roundPrice, snapToTick } from './orders.js';
+
+  let {
+    bars = null,
+    // Bumped by the pane when a live tick edited `bars` in place (the forming bar): what reads
+    // bar values follows it, and the chart sends only the series that changed.
+    tick = 0,
+    /** The instrument's tick size when its facts give one: prices read off the scale (the
+     *  cursor, the `+`, a dragged order) land on it. Null = the precision the chart prints. */
+    tickSize = null,
+    type = 'candlestick',
+    instances = [],
+    // Script runs by instance id (`$lib/script/runs.svelte.js`): meta, output, warnings, error.
+    scriptRuns = new Map(),
+    brick = 0,
+    settings = {},
+    fullscreen = false,
+    // Set by the parent to re-open a specific time span on the next dataset (timeframe
+    // switch keeps you looking at the same dates). Consumed once, then `onrestored` fires.
+    restoreRange = null,
+    loadingMore = false,
+    atHistoryStart = true,
+    // Label and (optional) reason for the left-edge history button. History is never
+    // fetched by scrolling: the user asks for the previous slice explicitly.
+    loadMoreLabel = '',
+    loadMoreNotice = '',
+    // Drawing rail state, owned by the page so the rail can live outside the chart box.
+    tool = $bindable('cursor'),
+    drawings = $bindable([]),
+    selectedDrawing = $bindable(null),
+    magnet = $bindable(false),
+    drawingsHidden = $bindable(false),
+    // Sub-pane heights set by dragging the boundary between two panes, in % of the chart
+    // (gap included), keyed by `paneKey`. A pane without an entry takes the default share.
+    paneHeights = $bindable({}),
+    // ── Quick backtest ──
+    // The chart is only the surface: it turns gestures into (instant, price) and paints the
+    // markers the engine replayed. The position itself lives with the page.
+    quick = false,
+    marks = [],
+    // Print the size next to each marker. A click-through session sizes by hand, so the number
+    // means something; a simulated fill's size is arithmetic, and only clutters the chart.
+    markSizes = true,
+    quickSize = $bindable(1),
+    quickUnitLabel = '', // what the size box counts: units, contracts, dollars…
+    // ── Broker book ──
+    // Price levels a synced broker account holds or has working on *this* instrument, already
+    // matched and flattened by the page (`book.js`). The chart draws them and nothing else:
+    // there is no way from here to open, change or cancel anything.
+    book = [],
+    // The venue's best bid and ask on a live chart ({ bid, ask }), or null. Only ever what the
+    // broker streams: the pane passes nothing when the setting is off or the feed is not live.
+    quote = null,
+    // Stretches the pane could not read back ({before, after, message}): marked between the
+    // bars either side, which the index axis would otherwise draw as consecutive.
+    holes = [],
+    // Instrument identity, printed on the chart itself the way market tools do it.
+    title = null, // { ticker, timeframe, provider }
+    ontoggle,
+    onedit,
+    onremove,
+    onsymbol,
+    onfullscreen,
+    // Pane controls, set only by a workspace pane: drawn at the end of the nav pill.
+    maximized = false,
+    onmaximize = null,
+    closable = true,
+    onclose = null,
+    // Out: the scales' footprint at the host's edges ({ left, right, bottom } px), so a
+    // widget docked on an edge can sit past the scale instead of over it.
+    plotInset = $bindable(null),
+    onrestored,
+    onloadmore,
+    // Linked panes: what this chart is pointing at, and the span it is showing. Both fire
+    // only on the user's own gestures, never when the link itself moved this chart.
+    onhover,
+    onwindow,
+    // Comparison series: other instruments rebased onto this chart's own clock. Values are
+    // percentages (or a ratio rebased to 100), so they ride the hidden overlay scale and
+    // cannot flatten the price axis.
+    compare = [],
+    oncomparetoggle,
+    oncompareremove,
+    oncompareedit,
+    // A change to the *global* chart settings made from inside the chart (the drawing
+    // templates live there, next to the colours and the scale).
+    onsettings,
+    onquickclick,
+    onquickfill,
+    onquicktoggle,
+    // ── Chart trading ──
+    // `trading`: a broker is connected for this chart, so the `+` riding the crosshair on the
+    // price scale is live. The orders themselves live with the page; the chart draws their
+    // levels (`orderLines`, see orders.js) and reports what was clicked or dragged.
+    trading = false,
+    tradeQty = 1,
+    orderLines = [],
+    ontradeat, // ({ side, type, price }): a resting order straight from the `+` menu
+    onticketat, // ({ side, type, price }): the same order, opened in the ticket instead
+    // ({ price, last }): an alert at the `+`'s price. Set, the `+` shows without a broker too.
+    onalertat = null,
+    onordermove, // ({ id, level, price })
+    onordercancel, // (id)
+    onorderedit, // (id): double-click on an order's label, to change it in the ticket
+    onbookorderedit, // (brokerOrderId): the same on a broker order drawn from the book
+    onpositionclose, // (position): its ✕, on the line or on its price-scale tag
+    // The warning / error marker of a script row was clicked.
+    onscriptinfo
+  } = $props();
+
+  const GRID_AXIS = 50; // narrowest price scale (the y drag gutter); widened to its prices
+  const GRID_PAD = 16; // breathing room on the side without the axis
+  const DATE_STRIP_PX = 22; // px under the panes for the date labels (and their drag)
+  const PANE_GAP_PX = 6; // left empty under each pane: room for the next pane's top label
+  const MIN_SUB_PX = 12; // a sub-pane can be squeezed this small, never hidden by a drag
+  const MIN_PRICE_PX = 60;
+  const DIVIDER_SLOP = 4; // px either side of a boundary that still grab it
+  const MIN_BARS = 8; // tightest zoom
+  const DEFAULT_BARS = 200; // bars shown on first load / Fit before the pane has a width
+  // The window is sized in pixels per bar, so a wide screen shows more bars, not wider ones.
+  const FIT_PX = 8; // bar spacing on first load / Fit
+  const LINE_PX = 3; // under this spacing a candle is drawn as one high-low line
+  const CANDLE_MAX_PX = 24; // widest candle body, however far in
+  const ZOOM_STEP = 0.032; // ≈3 % per mouse notch — smooth, never a jump
+  const ZOOM_MIN_UNIT = 0.25; // floor: ≈4 % per trackpad tick, which fires far more often
+
+  let el;
+  let host;
+  let chart = $state(null); // reactive: the render effect must re-run once init lands
+  // The first rebuild has given the chart its axes: until then a pixel conversion throws.
+  let built = false;
+
+  onDestroy(() => {
+    if (quickTimer) clearTimeout(quickTimer);
+    clearTimeout(plusTimer);
+    clearTimeout(rebuildTimer);
+    cancelAnimationFrame(rebuildRaf);
+    chart?.dispose();
+  });
+
+  // ── Theme palette, with per-setting color overrides (blank setting = keep theme) ──
+  // chartColors() is what makes this derived depend on the theme: a bare getComputedStyle
+  // read is not reactive, so the canvas would keep the old palette until the next data change.
+  const palette = $derived.by(() => {
+    const c = chartColors();
+    const up = settings.upColor || c.green;
+    const down = settings.downColor || c.red;
+    const accent = settings.lineColor || c.accent;
+    return {
+      up,
+      down,
+      // Candle styling: a translucent body, borders and wicks in their own colour.
+      bodyUp: withAlpha(up, settings.bodyOpacity),
+      bodyDown: withAlpha(down, settings.bodyOpacity),
+      borderUp: settings.borderUpColor || up,
+      borderDown: settings.borderDownColor || down,
+      // Volume has its own pair, independent of the candles.
+      volUp: settings.volumeUpColor || c.green,
+      volDown: settings.volumeDownColor || c.red,
+      axisText: settings.axisTextColor || c.dim,
+      crosshair: settings.crosshairColor || c.muted,
+      green: up,
+      red: down,
+      text: c.text,
+      muted: c.muted,
+      dim: c.dim,
+      faint: c.faint,
+      border: c.border,
+      gridLine: settings.gridColor || c.gridLine,
+      accent,
+      // Orders and positions keep the theme's buy and sell colours whatever the candles wear:
+      // a white bearish candle must not make a sell order white.
+      buy: c.accent,
+      sell: c.red,
+      // A bracket's links: take-profit and stop-loss, in the theme's green and red.
+      tp: c.green,
+      sl: c.red,
+      amber: c.amber,
+      surface: c.surface,
+      bg: c.bg,
+      mono: c.mono
+    };
+  });
+
+  // Heikin Ashi, Renko, line break, Kagi, P&F and range bars replace the source bars with a
+  // synthetic series; every other type draws the bars as they are.
+  const view = $derived.by(() => {
+    // The plain types draw `bars` itself; a transform is rebuilt from it on every tick.
+    if (type === 'heikinashi' || PRICE_DRIVEN.has(type)) void tick;
+    return chartView(type, bars, brick);
+  });
+  const priceDriven = $derived(PRICE_DRIVEN.has(type));
+
+  const n = $derived(view?.ts?.length ?? 0);
+
+  // Which side the price scale (and everything pinned to it — value tags, the last-price
+  // tag, the drag gutter) lives on. Default left, as this chart has always drawn it.
+  const axisRight = $derived(settings.yAxisSide === 'right');
+  const gridLeft = $derived(axisRight ? GRID_PAD : axisW);
+  const gridRight = $derived(axisRight ? axisW : GRID_PAD);
+  $effect(() => {
+    const next = { left: axisRight ? 0 : axisW, right: axisRight ? axisW : 0, bottom: DATE_STRIP_PX };
+    const cur = untrack(() => plotInset);
+    if (cur?.left !== next.left || cur?.right !== next.right || cur?.bottom !== next.bottom) plotInset = next;
+  });
+
+  // ── Right margin ──
+  // Market tools never pin the last bar to the axis: they keep empty space after it so the
+  // crosshair tags clear the edge and you can pan past the end. We do it by padding the
+  // category axis with extrapolated future timestamps — no data is drawn there.
+  //
+  // `margin` is the gap a fit, a zoom or "latest" leaves. A drag may go further, until the
+  // last bar reaches the left edge: the axis then grows `room`, in doubling steps, so a pan
+  // pays a rebuild only when it crosses one. It never shrinks until another dataset loads.
+  const margin = $derived(n ? Math.max(3, Math.round(Math.min(n, DEFAULT_BARS) * 0.1)) : 0);
+  let room = $state(0);
+  const pad = $derived(Math.max(margin, room));
+  /** What zoom, fit and "latest" measure against: the bars and the margin. */
+  const span = $derived(n + margin);
+  /** The axis length: the bars and every empty slot after them. */
+  const total = $derived(n + pad);
+
+  // Bar spacing in ms, from the last two bars — drives both the pad labels and the date format.
+  const stepMs = $derived.by(() => {
+    if (!view || n < 2) return 86400000;
+    const a = Date.parse(view.ts[n - 2]);
+    const b = Date.parse(view.ts[n - 1]);
+    return Number.isFinite(a) && Number.isFinite(b) && b > a ? b - a : 86400000;
+  });
+  const intraday = $derived(stepMs < 86400000);
+
+  const cats = $derived.by(() => {
+    if (!view) return [];
+    const last = Date.parse(view.ts[n - 1]);
+    const future = Number.isFinite(last)
+      ? Array.from({ length: pad }, (_, k) => new Date(last + stepMs * (k + 1)).toISOString())
+      : Array.from({ length: pad }, (_, k) => `+${k + 1}`);
+    return [...view.ts, ...future];
+  });
+
+  // RFC3339 in, readable stamp out ("Mon 27 Oct '26 06:56"), in the timezone picked in
+  // Settings → Defaults. Slicing the string is what it used to do, and it printed two clocks
+  // in one axis: a provider stamps its bars in the exchange's offset, the live hub and the
+  // future-pad stamp theirs in UTC, so the same wall clock jumped two hours mid-scale.
+  // Parsing to an instant and formatting it is the only way the labels are comparable at all.
+  // Daily and coarser stamps are read as a *date*, not an instant: shifting midnight UTC into
+  // a western zone would re-label the bar as the day before.
+  const fmtTs = $derived(makeStampFmt(tz.value, intraday));
+
+  // The bottom axis labels for the window on screen (see timeAxis.js). The label interval
+  // and formatter run per category on every layout, so the set is computed once per window,
+  // width and data, not per call.
+  let tickMemo = { cats: null, key: '', map: new Map() };
+  function axisTicks(fontPx) {
+    const r = rect(0);
+    const w = drawWin();
+    const key = `${w.s}|${w.e}|${r ? Math.round(r.width) : 0}|${fontPx}|${tz.value}|${intraday}`;
+    if (tickMemo.cats !== cats || tickMemo.key !== key) {
+      tickMemo = { cats, key, map: timeTicks(cats, w.s, w.e, r?.width ?? 0, fontPx, intraday, tz.value) };
+    }
+    return tickMemo.map;
+  }
+
+  // ── Memoized indicator outputs ──
+  // compute() used to run three times per render (once for the legend swatch, once for the
+  // crosshair tags, once for the series) — on 10k bars with a few indicators that was the
+  // hitch on every toggle. One map, three consumers.
+  // Through computeAll: a study can read another study's output as its source.
+  // A script's plots in the generic output shape (legend, tags, sources for other studies).
+  const scriptOut = $derived(
+    new Map(
+      instances
+        .filter(isScript)
+        .map((i) => [i.id, scriptLegend(scriptRuns.get(i.id)?.output, scriptRuns.get(i.id)?.meta, new Set(i.script?.hidden ?? []))])
+    )
+  );
+  const computed = $derived.by(() => {
+    void tick;
+    return computeAll(instances, view, scriptOut);
+  });
+  // Candle colors from the visible scripts' `barcolor` (a later instance wins on a bar).
+  const barColors = $derived.by(() => {
+    const n = view?.c?.length ?? 0;
+    let out = null;
+    for (const i of instances) {
+      if (!isScript(i) || !i.visible) continue;
+      const c = scriptBarColors(scriptRuns.get(i.id)?.output, n);
+      if (!c) continue;
+      out ??= new Array(n).fill(null);
+      c.forEach((x, k) => x && (out[k] = x));
+    }
+    return out;
+  });
+  /** A script drawn on the price pane keeps the price scale when it declares
+   *  `overlay=true`; anything else put there (a DAG custom indicator, an oscillator script
+   *  moved onto the price pane) rides the hidden second scale. */
+  const onCustomAxis = (ind) => isCustom(ind) || (isScript(ind) && !scriptRuns.get(ind.id)?.meta?.overlay);
+  const indLabel = (ind) =>
+    isCustom(ind) ? ind.custom?.name || '' : isScript(ind) ? ind.script?.name || '' : instanceLabel(ind.type, ind.params ?? {});
+
+  // Visible indicator instances, split by pane.
+  const active = $derived(instances.filter((i) => i.visible));
+  const overlays = $derived(active.filter((i) => paneOf(i) === 'overlay'));
+  // Distinct sub-panes, in first-seen order (catalog oscillators share one pane per type;
+  // a custom indicator sent to its own pane gets one of its own).
+  const oscPanes = $derived.by(() => {
+    const seen = [];
+    for (const i of active) {
+      const key = paneKey(i);
+      if (paneOf(i) === 'oscillator' && !seen.includes(key)) seen.push(key);
+    }
+    return seen;
+  });
+
+  // Hidden price-pane scales, appended after the per-grid axes (price, then the sub-panes):
+  // one for volume (drawn inside the price pane, market-tool style) and one for custom
+  // overlays. Their indices are what the crosshair tags convert against.
+  const volAxisIndex = () => 1 + oscPanes.length;
+  const customAxisIndex = () => 2 + oscPanes.length;
+
+  let legendOpen = $state(true);
+  // Built-in series (price + volume) are toggleable from the legend like indicators.
+  let priceVisible = $state(true);
+  let volumeVisible = $state(true);
+  // Manual price-axis range, set by dragging the y gutter. null = auto-fit the window.
+  /** Manual y ranges, keyed by pane index: 0 is the price pane, 1..n the oscillator panes.
+   *  Per pane and not one for all, because an RSI pane and the price pane are two scales:
+   *  zooming one has nothing to say about the other. Always reassigned, never mutated in
+   *  place, so the render effect sees the change. */
+  let yMan = $state({});
+  /** The range a gesture is currently painting, per pane, deliberately *outside* `$state`:
+   *  writing `yMan` on every pointer event rebuilt the whole option each time, which is what
+   *  made scaling and panning stutter. A gesture writes here and merges the one axis it
+   *  touches; `yMan` is written once, on release. */
+  let yLive = {};
+  const yRange = (i) => yLive[i] ?? yMan[i];
+  const clearY = (i) => {
+    if (yLive[i] != null) {
+      const l = { ...yLive };
+      delete l[i];
+      yLive = l;
+    }
+    if (yMan[i] == null) return;
+    const next = { ...yMan };
+    delete next[i];
+    yMan = next;
+  };
+  const setY = (i, r) => (yMan = { ...yMan, [i]: r });
+  /** Push a pane's range onto its own axis. It lands with the window in the frame's one
+   *  render (see applyWindow), never as a render of its own. */
+  function pushY(i, r) {
+    yLive = { ...yLive, [i]: r };
+    if (i === 0 && priceLogNow()) logRange = r;
+    patchAxis(i, { min: r.min, max: r.max, scale: false });
+  }
+  /** Turn what the gesture painted into the pane's stored range: one rebuild, on release. */
+  function commitY() {
+    const live = yLive;
+    yLive = {};
+    for (const k of Object.keys(live)) setY(Number(k), live[k]);
+  }
+  let hoverIdx = $state(null); // crosshair bar index, null when the cursor is off-chart
+  let tags = $state([]); // [{ label, color, top(px), value }]
+  let logGrid = $state([]); // [{ top(px), text }] custom left-axis labels for the log scale
+  let lastTag = $state(null); // { top(px), text, color } — latest close on the price axis
+  let indTags = $state([]); // [{ top(px), text, color }] — each indicator line's latest value
+  // Countdown to bar close. Ticks on its own clock (the tag's *value* changes every second,
+  // its position only when the geometry does), and only while the setting is on.
+  let nowMs = $state(Date.now());
+  $effect(() => {
+    if (!settings.countdown) return;
+    nowMs = Date.now();
+    const id = setInterval(() => (nowMs = Date.now()), 1000);
+    return () => clearInterval(id);
+  });
+  /** ms → `1d 04:12`, `4:12:07` or `12:07`. */
+  function fmtLeft(ms) {
+    const s = Math.floor(ms / 1000);
+    const pad = (x) => String(x).padStart(2, '0');
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${pad(h)}:${pad(m)}`;
+    if (h > 0) return `${h}:${pad(m)}:${pad(s % 60)}`;
+    return `${pad(m)}:${pad(s % 60)}`;
+  }
+  // The last bar is a period, not an instant: it closes one step after it opened. Nothing is
+  // shown once that moment has passed — stale history has no bar still running. Renko bars
+  // close on price, not on the clock, so they have no countdown at all.
+  const countdown = $derived.by(() => {
+    if (!settings.countdown || settings.lastPrice === false || !view || !n) return '';
+    if (priceDriven) return '';
+    const closeMs = Date.parse(view.ts[n - 1]) + stepMs;
+    if (!Number.isFinite(closeMs)) return '';
+    const left = closeMs - nowMs;
+    return left > 0 && left <= stepMs ? fmtLeft(left) : '';
+  });
+  let logRange = { min: 0, max: 0 }; // set by buildOption when the log scale is active
+  let win = $state({ s: 0, e: 0 }); // visible window, in bar indices into the padded axis
+  let gridLayout = []; // [{left,right,topPct,heightPct}] — authored by buildOption
+
+  // ────────────────────────── Window plumbing ──────────────────────────
+
+  function clampWin(s, e) {
+    const T = span;
+    if (T < 2) return { s: 0, e: 0 };
+    let w = Math.min(Math.max(e - s, MIN_BARS), T - 1);
+    if (s < 0) s = 0;
+    e = s + w;
+    // Free to the right until the last bar sits on the left edge, no further.
+    const eMax = n - 1 + w;
+    if (e > eMax) {
+      e = eMax;
+      s = Math.max(0, e - w);
+    }
+    const need = Math.ceil(e) - (n - 1);
+    if (need > pad) room = 2 ** Math.ceil(Math.log2(need));
+    return { s, e };
+  }
+
+  /** True while the link is driving this chart, so following a neighbour never echoes back
+   *  as a gesture of our own. Without it two linked panes push each other forever. */
+  let linking = false;
+  let reportTimer = 0;
+
+  function setWin(s, e) {
+    win = clampWin(s, e);
+    if (!linking) reportWindow();
+  }
+
+  /** Tell the page what span is on screen, coalesced: a drag is hundreds of `setWin` calls
+   *  and the neighbours only need the result. */
+  function reportWindow() {
+    if (!onwindow) return;
+    clearTimeout(reportTimer);
+    reportTimer = setTimeout(() => {
+      const r = getTimeRange();
+      if (r) onwindow(r);
+    }, 60);
+  }
+
+  // Small sets open whole (plus the right margin); large ones open on the recent window.
+  function defaultWin() {
+    const bars = fitBars();
+    if (n <= bars) return clampWin(0, span - 1);
+    return clampWin(span - 1 - (bars + margin), span - 1);
+  }
+
+  /** Width of the price pane in px: the laid-out grid, or the chart less its gutters. */
+  function plotWidth() {
+    const r = rect(0);
+    if (r) return r.width;
+    const W = chart?.getWidth() ?? 0;
+    return W > 0 ? Math.max(1, W - GRID_AXIS - GRID_PAD) : 0;
+  }
+  /** Bars a fit shows: the pane's width at FIT_PX each. */
+  function fitBars() {
+    const w = plotWidth();
+    return w ? Math.max(MIN_BARS, Math.round(w / FIT_PX)) : DEFAULT_BARS;
+  }
+  /** Candles too narrow for a body are drawn as lines (ECharts' `large` mode). */
+  function candleLines() {
+    const bars = win.e - win.s;
+    const w = plotWidth();
+    return !!w && bars > 0 && w / bars < LINE_PX;
+  }
+  let linesHeld = null; // what the last build drew: lines (true) or bodies (false)
+
+  // ── One render per frame ──
+  // Every setOption and every dataZoom action is a full ECharts render. A pan frame used to
+  // pay three (the window, the pane's dragged range, the fitted volume scale), so everything
+  // a frame changes is collected here and applied in one merged setOption. A merged
+  // setOption emits no `datazoom` event, so nothing writes back into `win`.
+  let axisPatch = {}; // yAxis index -> { min, max, scale } for the next frame
+  let raf = 0;
+  function patchAxis(i, p) {
+    axisPatch[i] = { ...axisPatch[i], ...p };
+    schedule();
+  }
+  function applyWindow() {
+    // Before the first rebuild there are no axes for the window to land on; the rebuild
+    // carries the window itself.
+    if (!chart || !built) return;
+    // The scales that follow the window: volume always, the price axis when it is not
+    // dragged by hand.
+    if (view && volumeVisible) {
+      const vi = volAxisIndex();
+      axisPatch[vi] = { ...axisPatch[vi], max: visibleVolumeMax(view) };
+    }
+    if (view && !yRange(0)) {
+      const fit = priceFit(view);
+      if (fit) {
+        if (priceLogNow()) logRange = fit;
+        axisPatch[0] = { ...axisPatch[0], min: fit.min, max: fit.max };
+      }
+    }
+    const keys = Object.keys(axisPatch).map(Number);
+    const yAxis = keys.length ? Array.from({ length: Math.max(...keys) + 1 }, (_, k) => axisPatch[k] ?? {}) : null;
+    axisPatch = {};
+    const z = { startValue: win.s, endValue: win.e };
+    chart.setOption(yAxis ? { dataZoom: [z], yAxis } : { dataZoom: [z] });
+    // Zoomed across the line threshold: the candles change shape, which takes a rebuild.
+    if (linesHeld !== null && candleLines() !== linesHeld) scheduleRebuild();
+    // The price axis re-fits to the new window, so a fixed price lands on a new pixel.
+    if (priceLogNow()) updateLogGrid();
+    updateLastTag();
+    requestCursorTag();
+    updateDrawings();
+  }
+  function schedule() {
+    if (raf || !chart) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      applyWindow();
+    });
+  }
+
+  // Integer window bounds clamped to real data — for y-fitting and the legend readout.
+  function dataWin() {
+    return {
+      from: Math.max(0, Math.floor(win.s)),
+      to: Math.min(n - 1, Math.ceil(win.e))
+    };
+  }
+
+  // Pixel rect of pane `i`, derived from the layout buildOption authored (no ECharts internals).
+  function rect(i) {
+    const g = gridLayout[i];
+    if (!g || !chart) return null;
+    const W = chart.getWidth();
+    const H = chart.getHeight();
+    return {
+      x: g.left,
+      y: (H * g.topPct) / 100,
+      width: Math.max(1, W - g.left - g.right),
+      height: Math.max(1, (H * g.heightPct) / 100)
+    };
+  }
+  function plotBottom() {
+    const last = gridLayout[gridLayout.length - 1];
+    if (!last || !chart) return chart?.getHeight() ?? 0;
+    return (chart.getHeight() * (last.topPct + last.heightPct)) / 100;
+  }
+
+  /** The pane heights a resize is painting, outside `$state` like `yLive`: written per frame
+   *  and merged into the grids alone, committed to `paneHeights` on release. */
+  let paneLive = null;
+
+  /** Where the stacked panes end, in % of a chart `H` px tall: the date strip is below. */
+  const panesBottom = (H) => 100 - (100 * DATE_STRIP_PX) / Math.max(H, 1);
+
+  /** Sub-pane heights in % of a chart `H` px tall, gap included: the user's or the default
+   *  share, each at least MIN_SUB_PX, shrunk together when the price pane would get less
+   *  than MIN_PRICE_PX. */
+  function subHeights(H, set = paneLive ?? paneHeights) {
+    const k = oscPanes.length;
+    if (!k) return [];
+    const pct = (px) => (100 * px) / Math.max(H, 1);
+    const min = pct(PANE_GAP_PX + MIN_SUB_PX);
+    const def = Math.max(min, Math.min(16, 40 / k));
+    const hs = oscPanes.map((key) => (Number.isFinite(set?.[key]) ? Math.max(min, set[key]) : def));
+    const room = Math.max(k * min, panesBottom(H) - 2 - pct(MIN_PRICE_PX));
+    const sum = hs.reduce((a, b) => a + b, 0);
+    if (sum <= room) return hs;
+    const f = (room - k * min) / (sum - k * min);
+    return hs.map((h) => min + (h - min) * f);
+  }
+
+  /** Lay the panes out (price on top, then the sub-panes) into `gridLayout`; the grids. */
+  function layoutGrids() {
+    const top = 2;
+    const H = chart?.getHeight() ?? 600;
+    const gap = (100 * PANE_GAP_PX) / Math.max(H, 1);
+    const hs = subHeights(H);
+    const priceBottom = panesBottom(H) - hs.reduce((a, b) => a + b, 0);
+    const layout = [{ left: gridLeft, right: gridRight, topPct: top, heightPct: priceBottom - top - (hs.length ? gap : 0) }];
+    let y = priceBottom;
+    for (const h of hs) {
+      layout.push({ left: gridLeft, right: gridRight, topPct: y, heightPct: h - gap });
+      y += h;
+    }
+    gridLayout = layout;
+    return layout.map((g) => ({ left: g.left, right: g.right, top: `${g.topPct}%`, height: `${g.heightPct}%` }));
+  }
+
+  /** The boundary a y pixel grabs: k for the one under pane k (the gap below it, give or take
+   *  DIVIDER_SLOP), -1 for none. */
+  function dividerAt(y) {
+    if (!chart) return -1;
+    const H = chart.getHeight();
+    for (let k = 0; k + 1 < gridLayout.length; k++) {
+      const a = gridLayout[k];
+      const lo = (H * (a.topPct + a.heightPct)) / 100 - DIVIDER_SLOP;
+      const hi = (H * gridLayout[k + 1].topPct) / 100 + DIVIDER_SLOP;
+      if (y >= lo && y <= hi) return k;
+    }
+    return -1;
+  }
+
+  // ────────────────────────── Gestures ──────────────────────────
+
+  let drag = null;
+  let panning = $state(false);
+
+  function hitZone(x, y) {
+    if (!chart) return 'none';
+    const bottom = plotBottom();
+    // Below the panes: the date strip, draggable.
+    if (y > bottom) return 'xaxis';
+    if (dividerAt(y) >= 0) return 'divider';
+    if (axisRight) {
+      if (x > chart.getWidth() - axisW) return 'yaxis';
+      if (x < GRID_PAD) return 'none';
+    } else {
+      if (x < axisW) return 'yaxis';
+      if (x > chart.getWidth() - GRID_PAD) return 'none';
+    }
+    return 'plot';
+  }
+
+  /** Which pane a y pixel falls in. A gesture belongs to the scale it started on. */
+  function paneAt(y) {
+    if (!chart) return 0;
+    const H = chart.getHeight();
+    for (let i = 0; i < gridLayout.length; i++) {
+      const g = gridLayout[i];
+      const top = (H * g.topPct) / 100;
+      if (y >= top && y <= top + (H * g.heightPct) / 100) return i;
+    }
+    return gridLayout.length - 1;
+  }
+
+  // A pane's current extent in data units, read through the public pixel API.
+  function paneExtent(i = 0) {
+    const r = rect(i);
+    if (!r || !chart || !built) return null;
+    const hi = chart.convertFromPixel({ gridIndex: i }, [0, r.y]);
+    const lo = chart.convertFromPixel({ gridIndex: i }, [0, r.y + r.height]);
+    if (!hi || !lo) return null;
+    const max = hi[1];
+    const min = lo[1];
+    return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : null;
+  }
+
+  /** True while the pointer is over a value gutter: the only time the scale controls show.
+   *  Measured from the coordinates, not the event target, so moving onto a button that sits
+   *  in the gutter does not count as leaving it. */
+  let axisHover = $state(false);
+  // Over a pane boundary, or dragging one: the resize cursor.
+  let dividerHover = $state(false);
+  let resizing = $state(false);
+
+  function onHostMove(e) {
+    if (!chart || !el) return;
+    const box = el.getBoundingClientRect();
+    const zone = hitZone(e.clientX - box.left, e.clientY - box.top);
+    axisHover = zone === 'yaxis';
+    dividerHover = zone === 'divider';
+    if (markShapes.length || markHover) hoverMark(e.clientX - box.left, e.clientY - box.top);
+  }
+
+  function onPointerDown(e) {
+    if (e.button !== 0 || !chart) return;
+    const box = el.getBoundingClientRect();
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    const zone = hitZone(x, y);
+    if (zone === 'none') return;
+    quickMenu = null;
+    plusMenu = null;
+    tplusMenu = null;
+    if (quick && !armed && zone === 'plot') startQuickPress(e);
+    if (!armed) selectedDrawing = null; // a press on bare chart deselects, as in every editor
+    host?.focus?.({ preventScroll: true });
+    drag = {
+      zone,
+      x0: e.clientX,
+      y0: e.clientY,
+      win0: { ...win },
+      pane: paneAt(y),
+      // The plot drag needs the extent too: it slides the pane's scale as well as time.
+      ext0: zone === 'yaxis' || zone === 'plot' ? paneExtent(paneAt(y)) : null,
+      // Where a plot drag's vertical slide counts from: the press on a manual scale, null
+      // while the pane is on auto (set by the first clear vertical move).
+      yv: zone === 'plot' && yRange(paneAt(y)) != null ? e.clientY : null,
+      // A boundary drag: the boundary under pane `div` and the sub-pane heights at the press.
+      div: zone === 'divider' ? dividerAt(y) : -1,
+      hs0: zone === 'divider' ? subHeights(chart.getHeight()) : null,
+      moved: false
+    };
+    if (zone === 'yaxis' && !drag.ext0) {
+      drag = null;
+      return;
+    }
+    el.setPointerCapture?.(e.pointerId);
+    if (zone === 'plot') panning = true;
+    if (zone === 'divider') resizing = true;
+    e.preventDefault();
+  }
+
+  // A pointer stream is faster than the screen (120Hz trackpads, coalesced mouse moves), and
+  // every event used to redraw the chart: the gesture ran ahead of the frames and read as a
+  // stutter. Keep the last position, do the work once per frame.
+  let moveRaf = 0;
+  let pendingMove = null;
+
+  function onPointerMove(e) {
+    // A press that travels is a pan, never a trade.
+    if (quickPress && (Math.abs(e.clientX - quickPress.x0) > CLICK_SLOP || Math.abs(e.clientY - quickPress.y0) > CLICK_SLOP))
+      cancelQuickPress();
+    if (!drag || !chart) return;
+    pendingMove = { x: e.clientX, y: e.clientY };
+    if (moveRaf) return;
+    moveRaf = requestAnimationFrame(() => {
+      moveRaf = 0;
+      flushMove();
+    });
+  }
+
+  // Vertical travel (px) a plot drag needs before it takes a pane off auto scale: less, and
+  // the hand's drift on a sideways pan would freeze the scale.
+  const PAN_VERT_PX = 8;
+  function flushMove() {
+    const p = pendingMove;
+    pendingMove = null;
+    if (!p || !drag || !chart) return;
+    const dx = p.x - drag.x0;
+    const dy = p.y - drag.y0;
+    if (!drag.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    drag.moved = true;
+
+    if (drag.zone === 'plot') {
+      const r = rect(0);
+      if (!r) return;
+      const w = drag.win0.e - drag.win0.s;
+      const shift = (-dx * w) / r.width; // 1:1 with the cursor
+      setWin(drag.win0.s + shift, drag.win0.e + shift);
+      // A pane on auto scale stays on it through a sideways pan and refits to the new window,
+      // as on market tools. The first clear vertical move takes it off auto: from there its
+      // extent, as shown at that moment, is translated by the cursor, so the candles keep
+      // their size whichever way the drag goes. The "auto" button on the gutter is the way
+      // back, exactly as after a gutter drag. A pane already on a manual scale slides from
+      // the press.
+      const gi = drag.pane;
+      if (drag.yv == null && Math.abs(dy) >= PAN_VERT_PX) {
+        drag.yv = p.y;
+        drag.ext0 = paneExtent(gi);
+      }
+      if (drag.ext0 && drag.yv != null) {
+        const ext = drag.ext0;
+        const pr = rect(gi) ?? r;
+        const vy = p.y - drag.yv;
+        if (gi === 0 && priceLogNow()) {
+          const lo = Math.log(Math.max(ext.min, Number.EPSILON));
+          const hi = Math.log(Math.max(ext.max, Number.EPSILON * 2));
+          const d = ((hi - lo) * vy) / pr.height;
+          pushY(gi, { min: Math.exp(lo + d), max: Math.exp(hi + d) });
+        } else {
+          const d = ((ext.max - ext.min) * vy) / pr.height;
+          pushY(gi, { min: ext.min + d, max: ext.max + d });
+        }
+      }
+    } else if (drag.zone === 'xaxis') {
+      // Drag the date strip to zoom, right edge pinned — the market-tool convention: the
+      // grabbed date follows the cursor, so pulling left away from the pinned edge stretches
+      // the bars (zoom in) and pushing right compresses them (zoom out).
+      const r = rect(0);
+      if (!r) return;
+      const f = Math.exp(dx / Math.max(80, r.width / 4));
+      const w = (drag.win0.e - drag.win0.s) * f;
+      setWin(drag.win0.e - w, drag.win0.e);
+    } else if (drag.zone === 'divider') {
+      // The pane above the boundary takes what the one below gives, both kept at their
+      // minimum. Boundary 0 sits under the price pane, which simply takes the rest.
+      const H = chart.getHeight();
+      const pct = (px) => (100 * px) / Math.max(H, 1);
+      const min = pct(PANE_GAP_PX + MIN_SUB_PX);
+      const k = drag.div;
+      const hs = [...drag.hs0];
+      const above = k > 0 ? hs[k - 1] - min : panesBottom(H) - 2 - hs.reduce((a, b) => a + b, 0) - pct(MIN_PRICE_PX);
+      const d = Math.min(hs[k] - min, Math.max(-Math.max(0, above), pct(dy)));
+      hs[k] -= d;
+      if (k > 0) hs[k - 1] += d;
+      paneLive = Object.fromEntries(oscPanes.map((key, i) => [key, hs[i]]));
+      chart.setOption({ grid: layoutGrids() });
+      tags = [];
+      updateLogGrid();
+      updateLastTag();
+      updateDrawings();
+      requestCursorTag();
+    } else if (drag.zone === 'yaxis') {
+      // Drag a value gutter to scale that pane manually; its centre stays put.
+      const gi = drag.pane;
+      const r = rect(gi);
+      if (!r) return;
+      const f = Math.exp(dy / Math.max(80, r.height / 2));
+      const ext = drag.ext0;
+      if (gi === 0 && priceLogNow()) {
+        const lo = Math.log(Math.max(ext.min, Number.EPSILON));
+        const hi = Math.log(Math.max(ext.max, Number.EPSILON * 2));
+        const mid = (lo + hi) / 2;
+        const half = ((hi - lo) / 2) * f;
+        pushY(gi, { min: Math.exp(mid - half), max: Math.exp(mid + half) });
+      } else {
+        const mid = (ext.min + ext.max) / 2;
+        const half = ((ext.max - ext.min) / 2) * f;
+        pushY(gi, { min: mid - half, max: mid + half });
+      }
+    }
+  }
+
+  function onPointerUp(e) {
+    // The last move may still be queued for the next frame: land it before reading `moved`.
+    if (moveRaf) {
+      cancelAnimationFrame(moveRaf);
+      moveRaf = 0;
+      flushMove();
+    }
+    // Short press, no travel: one click on the chart = one entry or exit.
+    if (quickPress) {
+      const p = quickPress.p;
+      const moved = !!drag?.moved;
+      cancelQuickPress();
+      if (!moved) onquickclick?.(p);
+    }
+    if (!drag) return;
+    el?.releasePointerCapture?.(e.pointerId);
+    drag = null;
+    panning = false;
+    resizing = false;
+    if (paneLive) {
+      paneHeights = paneLive;
+      paneLive = null;
+    }
+    commitY();
+  }
+
+  function onWheel(e) {
+    if (!chart || !n) return;
+    const box = el.getBoundingClientRect();
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    if (hitZone(x, y) === 'none') return;
+    e.preventDefault();
+
+    // Normalize across mice (lines), pages, and trackpad pixel deltas.
+    const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+    const dy = e.deltaY * scale;
+    const dx = e.deltaX * scale;
+
+    // Trackpad horizontal swipe or shift+wheel pans; everything else zooms at the cursor.
+    if (!e.ctrlKey && (e.shiftKey || Math.abs(dx) > Math.abs(dy))) {
+      const r = rect(0);
+      if (!r) return;
+      const w = win.e - win.s;
+      const src = e.shiftKey && Math.abs(dx) < Math.abs(dy) ? dy : dx;
+      const shift = (src * w) / r.width;
+      setWin(win.s + shift, win.e + shift);
+      return;
+    }
+
+    const r = rect(0);
+    if (!r) return;
+    const frac = Math.min(1, Math.max(0, (x - r.x) / r.width));
+    const w = win.e - win.s;
+    const anchor = win.s + frac * w;
+    // One event = one gentle step. Raw deltas differ by an order of magnitude between a
+    // mouse notch (~100) and a trackpad tick (~5), so normalize to a unit step, floor it
+    // (a trackpad would otherwise barely move) and cap it (a flick must not jump several
+    // zoom levels). ctrlKey = pinch, which arrives with larger deltas.
+    const unit =
+      Math.sign(dy) *
+      Math.max(ZOOM_MIN_UNIT, Math.min(Math.abs(dy) / (e.ctrlKey ? 30 : 50), 1));
+    const f = Math.exp(unit * ZOOM_STEP);
+    const w2 = Math.min(Math.max(w * f, MIN_BARS), span - 1);
+    setWin(anchor - frac * w2, anchor - frac * w2 + w2);
+  }
+
+  function onDblClick(e) {
+    if (!chart) return;
+    const box = el.getBoundingClientRect();
+    const zone = hitZone(e.clientX - box.left, e.clientY - box.top);
+    if (zone === 'yaxis') clearY(paneAt(e.clientY - box.top)); // that pane back to auto-fit
+    else if (zone === 'divider') paneHeights = {}; // every pane back to its default height
+    else if (zone !== 'none') zoomFit();
+  }
+
+  function onKeyDown(e) {
+    if (!chart || !n) return;
+    // Copy, paste and duplicate, on the keys every editor uses. There is no text to copy on a
+    // chart, so taking these over costs the user nothing.
+    if (e.metaKey || e.ctrlKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'c' && selectedDrawing) {
+        copySelected();
+        e.preventDefault();
+        return;
+      }
+      if (k === 'v' && canPaste()) {
+        pasteCopied();
+        e.preventDefault();
+        return;
+      }
+      if (k === 'd' && selectedDrawing) {
+        if (copySelected()) pasteCopied();
+        e.preventDefault();
+        return;
+      }
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (!selectedDrawing) return;
+      removeSelected();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && quickMenu) {
+      quickMenu = null;
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && (plusMenu || tplusMenu)) {
+      plusMenu = null;
+      tplusMenu = null;
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'Escape' && (draft || selectedDrawing || armed)) {
+      draft = null;
+      selectedDrawing = null;
+      guides = null;
+      tool = 'cursor';
+      updateDrawings();
+      e.preventDefault();
+      return;
+    }
+    const w = win.e - win.s;
+    const step = w * (e.shiftKey ? 0.25 : 0.05);
+    switch (e.key) {
+      case 'ArrowLeft':
+        setWin(win.s - step, win.e - step);
+        break;
+      case 'ArrowRight':
+        setWin(win.s + step, win.e + step);
+        break;
+      case '+':
+      case '=':
+        zoomBy(1 / 1.25);
+        break;
+      case '-':
+      case '_':
+        zoomBy(1.25);
+        break;
+      case 'Home':
+        goStart();
+        break;
+      case 'End':
+        goEnd();
+        break;
+      case '0':
+        zoomFit();
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  }
+
+  // Zoom about the window centre (keyboard / buttons; the wheel anchors at the cursor).
+  function zoomBy(f) {
+    const w = win.e - win.s;
+    const mid = (win.s + win.e) / 2;
+    const w2 = Math.min(Math.max(w * f, MIN_BARS), span - 1);
+    setWin(mid - w2 / 2, mid + w2 / 2);
+  }
+  function moveBy(direction) {
+    const step = (win.e - win.s) * 0.25 * direction;
+    setWin(win.s + step, win.e + step);
+  }
+  function zoomFit() {
+    yMan = {};
+    win = defaultWin();
+  }
+  function goStart() {
+    const w = win.e - win.s;
+    setWin(0, w);
+  }
+  function goEnd() {
+    const w = win.e - win.s;
+    setWin(span - 1 - w, span - 1);
+  }
+
+  // ────────────────────────── Crosshair readout ──────────────────────────
+
+  // Price precision follows the instrument, not the magnitude (see format.js): the same
+  // decimals everywhere on the chart — tags, legend, drawings, trade markers.
+  const priceDigits = $derived(priceDigitsOf(view));
+  const fmtPrice = $derived(makePriceFmt(priceDigits));
+
+  /** A price on the instrument's grid: its tick when known, else the precision it prints. */
+  function snapPrice(v) {
+    if (!(Number(tickSize) > 0)) return roundPrice(v, priceDigits);
+    return roundPrice(Math.round(v / tickSize) * tickSize, Math.max(priceDigits, decimalsOf(tickSize)));
+  }
+
+  // The price scale is as wide as its widest price. The tags on it (the last price, the
+  // cursor, the quotes) take its width, so a long price is never cut and the `+` sits on the
+  // plot side of them, against the scale.
+  let measureCtx = null;
+  function tagTextWidth(text) {
+    measureCtx ??= document.createElement('canvas').getContext('2d');
+    if (!measureCtx) return text.length * 7.5;
+    measureCtx.font = `12px ${palette.mono}`;
+    return measureCtx.measureText(text).width;
+  }
+  const axisW = $derived.by(() => {
+    if (!view?.h?.length) return GRID_AXIS;
+    let hi = -Infinity;
+    let lo = Infinity;
+    for (let i = 0; i < view.h.length; i++) {
+      if (view.h[i] > hi) hi = view.h[i];
+      if (view.l[i] < lo) lo = view.l[i];
+    }
+    if (!Number.isFinite(hi) || !Number.isFinite(lo)) return GRID_AXIS;
+    const w = Math.max(tagTextWidth(fmtPrice(hi)), tagTextWidth(fmtPrice(lo)));
+    // The tag's padding on both sides, in steps of 4 px so a price gaining a digit on a tick
+    // does not shake the panes.
+    return Math.max(GRID_AXIS, Math.ceil((w + 10) / 4) * 4);
+  });
+  // Axis labels sit on round tick values in a narrow gutter, so they keep the instrument's
+  // precision as a *ceiling* and drop trailing zeros — a tag reading 63 060.00 lines up under
+  // a gridline labelled 63 000, and a sub-cent instrument still gets all its decimals.
+  const fmtAxisPrice = $derived(makeAxisFmt(priceDigits));
+  const fmtVal = (x) =>
+    Math.abs(x) >= 1000 ? x.toLocaleString(undefined, { maximumFractionDigits: 2 }) : x.toPrecision(5);
+  const fmtQty = (x) => {
+    const a = Math.abs(x);
+    if (a >= 1e9) return `${(x / 1e9).toFixed(2)}B`;
+    if (a >= 1e6) return `${(x / 1e6).toFixed(2)}M`;
+    if (a >= 1e3) return `${(x / 1e3).toFixed(1)}K`;
+    return x.toFixed(0);
+  };
+
+  // Bar the legend reads from: the crosshair when hovering, otherwise the newest visible bar
+  // (the same fallback every market tool uses so the readout is never blank).
+  const readIdx = $derived.by(() => {
+    if (!n) return null;
+    if (hoverIdx != null && hoverIdx >= 0 && hoverIdx < n) return hoverIdx;
+    return Math.min(n - 1, Math.max(0, Math.floor(win.e)));
+  });
+
+  const ohlc = $derived.by(() => {
+    void tick;
+    const i = readIdx;
+    if (i == null || !view) return null;
+    const o = view.o[i];
+    const c = view.c[i];
+    // Change against the previous close, like every quote screen — the open-to-close move is
+    // already visible in the candle itself.
+    const ref = i > 0 ? view.c[i - 1] : o;
+    const delta = c - ref;
+    const chg = ref ? (delta / ref) * 100 : 0;
+    return {
+      o: fmtPrice(o),
+      h: fmtPrice(view.h[i]),
+      l: fmtPrice(view.l[i]),
+      c: fmtPrice(c),
+      delta: `${delta >= 0 ? '+' : ''}${fmtPrice(delta)}`,
+      chg: `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`,
+      up: delta >= 0,
+      ts: fmtTs(view.ts[i])
+    };
+  });
+
+  function paletteColor(key) {
+    // A script's plot color arrives as CSS already.
+    if (typeof key === 'string' && (key.startsWith('rgb') || key.startsWith('#'))) return key;
+    return palette[key] ?? palette.accent;
+  }
+
+  // ── In-chart legend model (HTML overlay, replaces the ECharts legend) ──
+  // One row per series: swatch + label + its value at `readIdx`. Price/Volume lead. All
+  // instances are listed (visible + hidden) so a hidden one can be clicked back on.
+  const legend = $derived.by(() => {
+    void tick;
+    const i = readIdx;
+    const rows = [
+      {
+        ...(LINE_TYPES.has(type)
+          ? { label: $t('histviz.chart.close'), color: palette.accent, icon: 'line' }
+          : { label: $t('histviz.chart.price'), color: palette.up, color2: palette.down, icon: 'candle' }),
+        builtin: 'price',
+        hidden: !priceVisible
+      },
+      {
+        label: $t('histviz.chart.volume'),
+        color: palette.volUp,
+        color2: palette.volDown,
+        icon: 'bar',
+        builtin: 'volume',
+        hidden: !volumeVisible,
+        value: i != null && view ? fmtQty(view.v[i] ?? 0) : ''
+      }
+    ];
+    for (const ind of instances) {
+      const outs = computed.get(ind.id) ?? [];
+      const out = outs[0];
+      const swatch = ind.style?.color || (out?.color === 'updown' ? palette.up : paletteColor(out?.color));
+      // Multi-output indicators (MACD, Bollinger…) read out every line, space permitting.
+      // An overlay sits on the price scale, so it is read out with the price precision.
+      const onPrice = paneOf(ind) === 'overlay' && !onCustomAxis(ind);
+      const vals = [];
+      if (i != null) {
+        for (const o of outs) {
+          const x = o.data?.[i];
+          if (x != null && Number.isFinite(x)) vals.push(onPrice ? fmtPrice(x) : fmtVal(x));
+        }
+      }
+      rows.push({
+        id: ind.id,
+        label: indLabel(ind),
+        // Script rows flag what was skipped or refused, and when they run on bricks.
+        script: isScript(ind)
+          ? {
+              issues: (scriptRuns.get(ind.id)?.warnings?.length ?? 0) +
+                (scriptRuns.get(ind.id)?.error || scriptRuns.get(ind.id)?.diagnostics?.length || scriptRuns.get(ind.id)?.inputErrors?.length ? 1 : 0),
+              failed: !!(scriptRuns.get(ind.id)?.error || scriptRuns.get(ind.id)?.diagnostics?.length || scriptRuns.get(ind.id)?.inputErrors?.length),
+              onBricks: !!scriptRuns.get(ind.id)?.onBricks
+            }
+          : null,
+        color: swatch,
+        icon: out?.kind === 'scatter' ? 'dot' : out?.kind === 'bar' ? 'bar' : 'line',
+        dashed: !!out?.dashed,
+        hidden: !ind.visible,
+        value: vals.join(' '),
+        // Which pane the row belongs to: null = the price pane (overlays), otherwise the
+        // sub-pane's key. A title belongs over the pane that draws the series — and a hidden
+        // one has no pane, so it falls back to the price header where it can be switched
+        // back on instead of disappearing with its pane.
+        pane: paneOf(ind) === 'oscillator' && ind.visible ? paneKey(ind) : null
+      });
+    }
+    return rows;
+  });
+
+  // Legend row click: toggle a built-in series locally, or an indicator via the parent.
+  function toggleRow(row) {
+    if (row.builtin === 'price') priceVisible = !priceVisible;
+    else if (row.builtin === 'volume') volumeVisible = !volumeVisible;
+    else if (row.id != null) ontoggle?.(row.id);
+  }
+
+  // ── Custom crosshair value tags (right-edge vignettes, one per visible value series) ──
+  // Built from the same outputs as the chart series so colors/labels match. `gridIndex`
+  // tells us which pane's y-axis to convert against.
+  const tagSeries = $derived.by(() => {
+    if (!view) return [];
+    // No entry for the price itself: the scale shows the price *under the cursor*
+    // (`cursorTag`), not the close of the bar being hovered — that is the market-tool
+    // behaviour, and it is what makes the scale readable while measuring.
+    const out = [];
+    for (const ind of instances) {
+      if (!ind.visible) continue;
+      // Overlays live on pane 0; everything else on its sub-pane (2 + position).
+      let gridIndex = 0;
+      if (paneOf(ind) === 'oscillator') {
+        const pos = oscPanes.indexOf(paneKey(ind));
+        if (pos < 0) continue;
+        gridIndex = 1 + pos;
+      }
+      for (const o of computed.get(ind.id) ?? []) {
+        if (o.kind === 'bar' || o.kind === 'scatter') continue; // tag lines only
+        out.push({
+          label: o.name,
+          color: ind.style?.color || (o.color === 'updown' ? palette.up : paletteColor(o.color)),
+          data: o.data,
+          gridIndex,
+          // A custom overlay hangs on the price pane's hidden second scale, so its tag is
+          // positioned against that axis and formatted as a plain value, not as a price.
+          // In its own pane it sits on that pane's scale like any oscillator.
+          custom: gridIndex === 0 && onCustomAxis(ind),
+          onPrice: gridIndex === 0 && !onCustomAxis(ind)
+        });
+      }
+    }
+    return out;
+  });
+
+  // convertToPixel per series per mousemove was the other hot path — coalesce into one frame.
+  let tagRaf = 0;
+  let tagIdx = null;
+  // Last pointer position over the chart, in chart pixels. A live bar rebuilds the option,
+  // which drops ECharts' axis pointer — replaying this position puts the crosshair (and our
+  // tags) straight back instead of waiting for the user to jiggle the mouse.
+  let lastPointer = null;
+  let cursorTag = $state(null); // { top, text } — the value under the cursor, on the scale
+  let cursorRaf = 0;
+  function requestTags(dataIndex) {
+    tagIdx = dataIndex;
+    if (tagRaf) return;
+    tagRaf = requestAnimationFrame(() => {
+      tagRaf = 0;
+      updateTags(tagIdx);
+    });
+  }
+
+  function updateTags(dataIndex) {
+    if (!chart || !built || dataIndex == null || settings.crosshair === false || settings.crosshairTags === false) {
+      tags = [];
+      return;
+    }
+    const next = [];
+    for (const s of tagSeries) {
+      const val = s.data[dataIndex];
+      if (val == null || !Number.isFinite(val)) continue;
+      // A pane added since the last rebuild has no axis yet (rebuilds run a frame later).
+      if (s.gridIndex >= gridLayout.length) continue;
+      const target = s.custom
+        ? { xAxisIndex: 0, yAxisIndex: customAxisIndex() }
+        : { gridIndex: s.gridIndex };
+      let px = null;
+      try {
+        px = chart.convertToPixel(target, [dataIndex, val]);
+      } catch {
+        continue;
+      }
+      if (!px) continue;
+      next.push({ label: s.label, color: s.color, top: px[1], value: s.onPrice ? fmtPrice(val) : fmtVal(val) });
+    }
+    tags = next;
+  }
+
+  function color(key, p, fallback) {
+    return p[key] ?? fallback ?? p.accent;
+  }
+
+  /** The scale label that rides the crosshair: the value at the cursor's own pixel, on the
+   *  pane it is over — a price on the price pane, the pane's own unit below. It is *not* the
+   *  hovered bar's close: the point of the label is to read the level you are pointing at. */
+  function requestCursorTag() {
+    if (cursorRaf) return;
+    cursorRaf = requestAnimationFrame(() => {
+      cursorRaf = 0;
+      updateCursorTag();
+    });
+  }
+
+  function updateCursorTag() {
+    if (!chart || !built || !lastPointer || settings.crosshair === false || settings.crosshairTags === false) {
+      cursorTag = null;
+      if (!tplusHover) tplus = null;
+      return;
+    }
+    placeTimePlus();
+    const y = lastPointer.y;
+    for (let i = 0; i < gridLayout.length; i++) {
+      const r = rect(i);
+      if (!r || y < r.y || y > r.y + r.height) continue;
+      const val = chart.convertFromPixel({ gridIndex: i }, [0, y])?.[1];
+      if (val == null || !Number.isFinite(val)) break;
+      cursorTag = { top: y, text: i === 0 ? fmtPrice(snapPrice(val)) : fmtVal(val) };
+      if (i === 0 && (trading || onalertat)) placePlus(y, snapPrice(val), r);
+      else if (!plusHover) plus = null;
+      return;
+    }
+    cursorTag = null;
+    if (!plusHover) plus = null;
+  }
+
+  /** Put the crosshair back where the cursor is. Rebuilding the option (a live bar, a new
+   *  indicator, a settings change) drops ECharts' axis pointer; without this it only comes
+   *  back on the next mouse move, which on a live chart means it blinks every few seconds. */
+  function restoreCrosshair() {
+    if (!chart || !lastPointer || settings.crosshair === false) return;
+    chart.dispatchAction({
+      type: 'updateAxisPointer',
+      currTrigger: 'mousemove',
+      x: lastPointer.x,
+      y: lastPointer.y
+    });
+  }
+
+  // ────────────────────────── Price-axis range ──────────────────────────
+
+  // The log axis applies to the price pane only, and only when every low is positive.
+  function priceLogNow() {
+    return settings.scale === 'log' && !priceDriven && !!view && view.l.every((x) => x > 0);
+  }
+
+  /** Top of the hidden volume scale: 4× the biggest bar in view, so volume occupies the
+   *  bottom quarter of the price pane and never climbs into the candles. */
+  function visibleVolumeMax(v) {
+    if (!v?.v?.length) return 1;
+    const { from, to } = dataWin();
+    let m = 0;
+    for (let k = from; k <= to; k++) if (v.v[k] > m) m = v.v[k];
+    return m > 0 ? m * 4 : 1;
+  }
+
+  // Auto scale, fitted the way market tools fit it: the *visible* bars and every study drawn
+  // on the price scale, exactly, plus a fixed margin above and below. One fit for both axes,
+  // the log one in log space. ECharts' own `scale` fit rounds the extent out to the next
+  // tick, so the candles filled a varying share of the pane and the scale jumped whenever
+  // the tick step changed; and a log axis does not honor `scale` at all.
+  const FIT_TOP = 0.1;
+  const FIT_BOTTOM = 0.08;
+  function priceFit(v) {
+    if (!v) return null;
+    const log = priceLogNow();
+    const cols = [];
+    if (priceVisible) cols.push(...(LINE_TYPES.has(type) ? [v.c] : [v.h, v.l]));
+    for (const ind of overlays) {
+      if (onCustomAxis(ind)) continue;
+      for (const o of computed.get(ind.id) ?? []) if (o.kind === 'line' || o.kind === 'scatter') cols.push(o.data);
+    }
+    const extent = (a, b) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const col of cols) {
+        for (let k = a; k <= b; k++) {
+          const x = col[k];
+          if (!Number.isFinite(x) || (log && x <= 0)) continue;
+          if (x < lo) lo = x;
+          if (x > hi) hi = x;
+        }
+      }
+      return hi >= lo ? [lo, hi] : null;
+    };
+    const { from, to } = dataWin();
+    // A window over the right margin alone holds no bar: fit the whole history instead.
+    const e = extent(from, to) ?? extent(0, n - 1);
+    if (!e) return null;
+    let lo = log ? Math.log(e[0]) : e[0];
+    let hi = log ? Math.log(e[1]) : e[1];
+    if (hi - lo < 1e-12) {
+      const w = log ? 0.01 : Math.abs(lo) * 0.01 || 1;
+      lo -= w;
+      hi += w;
+    }
+    const span = (hi - lo) / (1 - FIT_TOP - FIT_BOTTOM);
+    lo -= span * FIT_BOTTOM;
+    hi += span * FIT_TOP;
+    return log ? { min: Math.exp(lo), max: Math.exp(hi) } : { min: lo, max: hi };
+  }
+
+  /** One candle, cut to the price range the pane actually shows. `lim` null = auto-fit, in
+   *  which case the box is already inside and the values pass through untouched. */
+  const OUT = ['-', '-', '-', '-']; // ECharts skips it
+  function clipCandle(o, c, l, h, lim) {
+    if (!lim) return [o, c, l, h];
+    if (!(h >= lim.min) || !(l <= lim.max)) return OUT; // wholly above/below, or a gap
+    const k = (x) => (x < lim.min ? lim.min : x > lim.max ? lim.max : x);
+    let co = k(o);
+    let cc = k(c);
+    // A body cut flat still has a direction: keep open ≠ close or the candle changes colour.
+    if (co === cc && o !== c) {
+      const eps = (lim.max - lim.min) * 1e-6;
+      if (o > c) cc = co - eps;
+      else co = cc - eps;
+    }
+    return [co, cc, k(l), k(h)];
+  }
+
+  // Latest close, pinned on the price axis where it sits right now. Recomputed with the
+  // other pixel overlays: the value never changes with the window, its height does.
+  function updateLastTag() {
+    updateIndTags();
+    const v = view;
+    if (!chart || !built || !v || !n || settings.lastPrice === false) {
+      lastTag = null;
+      return;
+    }
+    const last = v.c[n - 1];
+    const prev = n > 1 ? v.c[n - 2] : last;
+    if (!Number.isFinite(last)) {
+      lastTag = null;
+      return;
+    }
+    const px = chart.convertToPixel({ gridIndex: 0 }, [n - 1, last]);
+    const r = rect(0);
+    if (!px || !r) {
+      lastTag = null;
+      return;
+    }
+    const top = px[1];
+    // Outside the price pane (the window is scrolled far from the last bar's level): a tag
+    // clamped to the edge would point at a price that isn't there.
+    if (top < r.y || top > r.y + r.height) {
+      lastTag = null;
+      return;
+    }
+    lastTag = {
+      top,
+      text: fmtPrice(last),
+      color: last >= prev ? palette.up : palette.down,
+      x: r.x,
+      width: r.width
+    };
+  }
+
+  // Each visible indicator line's value on the last bar, on its own pane's scale and in the
+  // line's colour. Same series and axes as the crosshair tags, pinned to the last bar.
+  function updateIndTags() {
+    if (!chart || !built || !view || !n || settings.indicatorTags === false) {
+      indTags = [];
+      return;
+    }
+    const next = [];
+    for (const s of tagSeries) {
+      const val = s.data[n - 1];
+      if (val == null || !Number.isFinite(val)) continue;
+      if (s.gridIndex >= gridLayout.length) continue;
+      const target = s.custom ? { xAxisIndex: 0, yAxisIndex: customAxisIndex() } : { gridIndex: s.gridIndex };
+      let px = null;
+      try {
+        px = chart.convertToPixel(target, [n - 1, val]);
+      } catch {
+        continue;
+      }
+      const r = rect(s.gridIndex);
+      if (!px || !r || px[1] < r.y || px[1] > r.y + r.height) continue;
+      next.push({ top: px[1], text: s.onPrice ? fmtPrice(val) : fmtVal(val), color: s.color });
+    }
+    indTags = next;
+  }
+
+  // Recompute the log-scale left-axis labels/gridlines from the current pixel geometry.
+  function updateLogGrid() {
+    if (!chart || !built || !priceLogNow() || !logRange.max) {
+      logGrid = [];
+      return;
+    }
+    const lgMin = Math.log(logRange.min);
+    const lgMax = Math.log(logRange.max);
+    const steps = 6;
+    const out = [];
+    for (let k = 0; k <= steps; k++) {
+      const val = Math.exp(lgMin + ((lgMax - lgMin) * k) / steps);
+      const px = chart.convertToPixel({ gridIndex: 0 }, [0, val]);
+      if (px) out.push({ top: px[1], text: fmtAxisPrice(val) });
+    }
+    logGrid = out;
+  }
+
+  // ────────────────────────── Drawings ──────────────────────────
+  //
+  // Objects are stored in time+price (drawings.js) and projected here, exactly like the value
+  // tags: every geometry change re-runs `updateDrawings`. The SVG layer is inert
+  // (`pointer-events: none`) so panning still works through it; only the shapes themselves —
+  // and the whole layer while a tool is armed — take the pointer.
+
+  // Projection is a *pure* read of (drawings, window, chart geometry) — writing it from an
+  // effect meant the same effect both read and wrote state, which Svelte rightly refuses.
+  // `paintTick` is the one signal the geometry hooks bump; everything else derives.
+  let paintTick = $state(0);
+  let draft = $state(null); // drawing being dragged out (with `c` once a three-point one awaits its click)
+  let dragging = null; // { id, mode: 'move' | 'a' | 'b' | 'c' | 'stop', from, orig }
+  let editing = $state(null); // { id, value } — the text tool's inline input
+  let noteInput = $state(null);
+  let svgEl = $state(null);
+  // Alignment guides: the anchor being placed lined up with an anchor already on the chart.
+  // Stored in data coordinates like everything else, projected in `guideLines`.
+  let guides = $state(null); // { x: ms|null, y: price|null }
+  let tplOpen = $state(false);
+  let tplName = $state('');
+
+  /** What the objects on this chart belong to. Two panes on one instrument share a board, so
+   *  pasting between them must not offset; pasting onto another instrument must not either. */
+  const instrumentKey = $derived(title ? `${title.provider}|${title.ticker}` : '');
+
+  const armed = $derived(tool !== 'cursor');
+
+  // A three-point drawing still waiting for its `c` is dropped when the tool changes under it.
+  $effect(() => {
+    if (draft && draft.tool !== tool) draft = null;
+  });
+
+  const clipId = `dclip-${Math.random().toString(36).slice(2, 8)}`;
+
+  const tsMs = (i) => Date.parse(view.ts[Math.min(n - 1, Math.max(0, i))]);
+
+  /** Bar index for an instant: interpolated between bars, extrapolated past either end so a
+   *  drawing pinned in the right margin (or before the loaded history) still lands. */
+  function idxFromMs(ms) {
+    if (!view || !n) return 0;
+    const t0 = tsMs(0);
+    if (ms <= t0) return (ms - t0) / stepMs;
+    const tl = tsMs(n - 1);
+    if (ms >= tl) return n - 1 + (ms - tl) / stepMs;
+    let lo = 0;
+    let hi = n - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (tsMs(mid) <= ms) lo = mid;
+      else hi = mid;
+    }
+    const span = tsMs(hi) - tsMs(lo) || stepMs;
+    return lo + (ms - tsMs(lo)) / span;
+  }
+  function msFromIdx(idx) {
+    if (!view || !n) return 0;
+    if (idx <= 0) return tsMs(0) + idx * stepMs;
+    if (idx >= n - 1) return tsMs(n - 1) + (idx - (n - 1)) * stepMs;
+    const lo = Math.floor(idx);
+    return tsMs(lo) + (idx - lo) * (tsMs(lo + 1) - tsMs(lo));
+  }
+
+  // The window ECharts actually draws: a category axis parses `startValue`/`endValue` through
+  // `Math.round`, while `win` keeps the fractional bounds a wheel zoom or a trackpad pan leaves
+  // behind. Projecting against the fractional pair puts every overlay (drawings, quick-backtest
+  // markers) up to half a bar beside its candle, and lands a click on the neighbouring bar.
+  function drawWin() {
+    return { s: Math.round(win.s), e: Math.round(win.e) };
+  }
+
+  // The category axis lays band `i` out centred in the visible span — the same arithmetic the
+  // window plumbing already uses, so no ECharts internals are needed for x.
+  function xPix(idx) {
+    const r = rect(0);
+    if (!r) return null;
+    const w = drawWin();
+    const span = w.e - w.s + 1;
+    return r.x + ((idx - w.s + 0.5) / span) * r.width;
+  }
+  function xIdx(px) {
+    const r = rect(0);
+    if (!r) return 0;
+    const w = drawWin();
+    const span = w.e - w.s + 1;
+    return w.s + ((px - r.x) / r.width) * span - 0.5;
+  }
+  const yPix = (price) => (built ? (chart?.convertToPixel({ gridIndex: 0 }, [0, price])?.[1] ?? null) : null);
+  const yPrice = (py) => (built ? (chart?.convertFromPixel({ gridIndex: 0 }, [0, py])?.[1] ?? null) : null);
+
+  /** Pointer event → data anchor. With the magnet on, the anchor lands on the nearest
+   *  open/high/low/close of the bar under the cursor instead of a pixel between candles. */
+  function dataAt(e) {
+    const box = el.getBoundingClientRect();
+    const idx = xIdx(e.clientX - box.left);
+    const y = yPrice(e.clientY - box.top);
+    if (!magnet || !view || !n || y == null) return { x: msFromIdx(idx), y };
+    const i = Math.min(n - 1, Math.max(0, Math.round(idx)));
+    const near = [view.o[i], view.h[i], view.l[i], view.c[i]].reduce((best, p) =>
+      Math.abs(p - y) < Math.abs(best - y) ? p : best
+    );
+    return { x: tsMs(i), y: near };
+  }
+
+  /** Pixels within which an anchor lines up with one already on the chart. Tight enough
+   *  that a deliberate placement is never moved, wide enough that a near miss is caught. */
+  const SNAP_PX = 6;
+
+
+  /** Anchors the one being placed can line up with: every other object's, plus the first
+   *  anchor of the shape currently being dragged out (that is what makes a flat rectangle or
+   *  a horizontal trend line land flat). */
+  function alignTargets(skipId) {
+    const out = [];
+    for (const d of drawings) {
+      if (d.id === skipId || d.hidden) continue;
+      if (d.a) out.push(d.a);
+      if (d.b) out.push(d.b);
+      if (d.c) out.push(d.c);
+      if (d.stop != null && d.a) out.push({ x: d.a.x, y: d.stop });
+    }
+    if (draft?.a && skipId !== '__draft') out.push(draft.a);
+    return out;
+  }
+
+  /** Snap an anchor onto the nearest existing one and remember the guide to draw. */
+  function snapToObjects(p, skipId) {
+    const px = xPix(idxFromMs(p.x));
+    const py = yPix(p.y);
+    if (px == null || py == null) {
+      guides = null;
+      return p;
+    }
+    const hit = nearestAnchor(
+      px,
+      py,
+      alignTargets(skipId).map((t) => ({
+        x: t.x,
+        y: t.y,
+        px: xPix(idxFromMs(t.x)),
+        py: yPix(t.y)
+      })),
+      SNAP_PX
+    );
+    guides = hit.x == null && hit.y == null ? null : hit;
+    return { x: hit.x ?? p.x, y: hit.y ?? p.y };
+  }
+
+  /** Where an anchor lands: the magnet's bar price first, then the objects already drawn. */
+  const anchorAt = (e, skipId) => snapToObjects(dataAt(e), skipId);
+
+  /** Elapsed time, written the way a trader says it: "3d 4h", "45m". */
+  function fmtSpan(ms) {
+    const m = Math.round(ms / 60000);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+    const days = Math.floor(h / 24);
+    return h % 24 ? `${days}d ${h % 24}h` : `${days}d`;
+  }
+
+  function project(d, r) {
+    const color = d.style?.color || palette.accent;
+    const width = d.style?.width || 1.4;
+    const ax = xPix(idxFromMs(d.a.x));
+    const ay = yPix(d.a.y);
+    if (ax == null || ay == null) return null;
+    const bx = d.b ? xPix(idxFromMs(d.b.x)) : null;
+    const by = d.b ? yPix(d.b.y) : null;
+    const cx = d.c ? xPix(idxFromMs(d.c.x)) : null;
+    const cy = d.c ? yPix(d.c.y) : null;
+    const base = { id: d.id, tool: d.tool, color, width, sel: d.id === selectedDrawing, ax, ay, bx, by, cx, cy };
+    if (d.tool === 'hline') return { ...base, x1: r.x, x2: r.x + r.width, label: fmtPrice(d.a.y) };
+    if (d.tool === 'hray') return { ...base, x2: r.x + r.width, label: fmtPrice(d.a.y) };
+    if (d.tool === 'callout') {
+      // SVG cannot measure text before it is drawn; a per-character width is close enough
+      // for a box that only frames a short note.
+      const text = d.text ?? '';
+      return { ...base, text, tw: Math.max(24, text.length * 7 + 12) };
+    }
+    // Channel: the parallel runs through `c`, offset in pixels from the base line at c's x,
+    // so it stays parallel on screen on a log scale as well.
+    if (d.tool === 'channel' && bx != null) {
+      const off = cy == null ? 0 : cy - (bx === ax ? ay : ay + ((by - ay) * (cx - ax)) / (bx - ax));
+      return { ...base, off, poly: `${ax},${ay} ${bx},${by} ${bx},${by + off} ${ax},${ay + off}` };
+    }
+    // Fib extension: the a → b leg projected from `c`, the rungs as wide as the leg.
+    if (d.tool === 'fibext' && bx != null) {
+      if (cx == null) return base;
+      const levels = fibExtPrices(d)
+        .map(({ lv, price }) => ({ lv, y: yPix(price), price: fmtPrice(price) }))
+        .filter((l) => l.y != null);
+      return { ...base, x1: cx, x2: cx + Math.max(40, Math.abs(bx - ax)), levels };
+    }
+    if (d.tool === 'vline') return { ...base, y1: r.y, y2: r.y + r.height };
+    if (d.tool === 'text') return { ...base, text: d.text ?? '' };
+    if (d.tool === 'rect' && bx != null) {
+      return {
+        ...base,
+        rx: Math.min(ax, bx),
+        ry: Math.min(ay, by),
+        rw: Math.abs(bx - ax),
+        rh: Math.abs(by - ay)
+      };
+    }
+    // Position tools: an entry line with a target box above (green) and a stop box below
+    // (red), plus what a trader actually reads off it — the two distances and the R:R.
+    if ((d.tool === 'long' || d.tool === 'short') && bx != null && d.stop != null) {
+      const x1 = Math.min(ax, bx);
+      const x2 = Math.max(ax, bx);
+      const sy = yPix(d.stop);
+      const reward = Math.abs(d.b.y - d.a.y);
+      const risk = Math.abs(d.stop - d.a.y);
+      const pct = (v) => (d.a.y ? ((v - d.a.y) / d.a.y) * 100 : 0);
+      return {
+        ...base,
+        x1,
+        x2,
+        sy,
+        entryLabel: fmtPrice(d.a.y),
+        target: {
+          y1: Math.min(ay, by),
+          y2: Math.max(ay, by),
+          label: `${fmtPrice(d.b.y)} (${pct(d.b.y) >= 0 ? '+' : ''}${pct(d.b.y).toFixed(2)}%)`
+        },
+        stopBox: {
+          y1: Math.min(ay, sy),
+          y2: Math.max(ay, sy),
+          label: `${fmtPrice(d.stop)} (${pct(d.stop) >= 0 ? '+' : ''}${pct(d.stop).toFixed(2)}%)`
+        },
+        rr: risk > 0 ? `R:R ${(reward / risk).toFixed(2)}` : 'R:R —'
+      };
+    }
+    // Ruler: what changed between two points — price, percent, bars and elapsed time.
+    if (d.tool === 'ruler' && bx != null) {
+      const dy = d.b.y - d.a.y;
+      const pct = d.a.y ? (dy / d.a.y) * 100 : 0;
+      const barCount = Math.round(Math.abs(idxFromMs(d.b.x) - idxFromMs(d.a.x)));
+      return {
+        ...base,
+        rx: Math.min(ax, bx),
+        ry: Math.min(ay, by),
+        rw: Math.abs(bx - ax),
+        rh: Math.abs(by - ay),
+        up: dy >= 0,
+        tint: dy >= 0 ? palette.up : palette.down,
+        label: `${dy >= 0 ? '+' : ''}${fmtPrice(dy)}  (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`,
+        sub: `${barCount} ${$t('histviz.draw.bars')} · ${fmtSpan(Math.abs(d.b.x - d.a.x))}`
+      };
+    }
+    if (d.tool === 'fib' && bx != null) {
+      const x1 = Math.min(ax, bx);
+      const x2 = Math.max(ax, bx);
+      const levels = FIB_LEVELS.map((lv) => ({
+        lv,
+        y: ay + (by - ay) * lv,
+        price: fmtPrice(d.a.y + (d.b.y - d.a.y) * lv)
+      }));
+      return { ...base, x1, x2, levels };
+    }
+    return base;
+  }
+
+  /** Ask for a repaint: the pixels changed under the same data (pan, zoom, resize, re-render). */
+  function updateDrawings() {
+    paintTick++;
+  }
+
+  const clip = $derived.by(() => {
+    void paintTick;
+    return chart && view ? rect(0) : null;
+  });
+
+  const shapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || drawingsHidden) return [];
+    // An object hidden from the tree is not drawn; a locked one is drawn and left alone.
+    const visible = drawings.filter((d) => !d.hidden);
+    const list = draft ? [...visible, { ...draft, id: '__draft' }] : visible;
+    return list.map((d) => project(d, r)).filter(Boolean);
+  });
+
+  /** The guides in pixels, re-projected each frame like every other overlay. */
+  const guideLines = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!guides || !r) return null;
+    return {
+      x: guides.x == null ? null : xPix(idxFromMs(guides.x)),
+      y: guides.y == null ? null : yPix(guides.y)
+    };
+  });
+
+  /** Style bar for the selected object: presets + a free colour, right above its anchor. */
+  const STYLE_COLORS = $derived([
+    ...new Set([palette.accent, palette.up, palette.down, palette.amber, palette.text])
+  ]);
+  const selShape = $derived(shapes.find((s) => s.sel && s.id !== '__draft') ?? null);
+  const styleBar = $derived.by(() => {
+    if (!selShape || !clip || armed) return null;
+    const xs = [selShape.ax, selShape.bx].filter((v) => v != null);
+    const ys = [selShape.ay, selShape.by].filter((v) => v != null);
+    const left = Math.min(Math.max(clip.x, Math.min(...xs)), clip.x + clip.width - 190);
+    const top = Math.max(clip.y + 4, Math.min(...ys) - 38);
+    return { left, top };
+  });
+
+  function styleSelected(patch) {
+    if (!selectedDrawing) return;
+    drawings = drawings.map((d) =>
+      d.id === selectedDrawing ? { ...d, style: { ...d.style, ...patch } } : d
+    );
+  }
+
+  // ── Templates ──
+  // A named style, kept in the *global* chart settings next to the colours: a trader draws
+  // their supports the same way on every instrument, so a template that lived per chart
+  // would have to be rebuilt on each one.
+
+  const templates = $derived(
+    Array.isArray(settings.drawTemplates) ? settings.drawTemplates : []
+  );
+  /** Style a new object starts with: the user's default when they set one. */
+  const newStyle = () => ({ ...DEFAULT_DRAW_STYLE, ...(settings.drawDefault ?? {}) });
+  const selectedObj = $derived(drawings.find((d) => d.id === selectedDrawing) ?? null);
+
+  function saveTemplate() {
+    if (!selectedObj) return;
+    const name = tplName.trim() || $t(drawTool(selectedObj.tool).labelKey);
+    const tpl = {
+      id: `t${Date.now().toString(36)}`,
+      name,
+      style: { ...DEFAULT_DRAW_STYLE, ...(selectedObj.style ?? {}) }
+    };
+    onsettings?.({ drawTemplates: [...templates, tpl].slice(-12) });
+    tplName = '';
+  }
+
+  const removeTemplate = (id) =>
+    onsettings?.({ drawTemplates: templates.filter((x) => x.id !== id) });
+
+  /** Make the selection's style the one every new object starts with. */
+  function templateAsDefault() {
+    if (!selectedObj) return;
+    onsettings?.({ drawDefault: { ...DEFAULT_DRAW_STYLE, ...(selectedObj.style ?? {}) } });
+    tplOpen = false;
+  }
+
+  // ── Copy / paste ──
+
+  function copySelected() {
+    if (!selectedObj) return false;
+    return copyDrawing($state.snapshot(selectedObj), instrumentKey);
+  }
+
+  function pasteCopied() {
+    const d = pasteDrawing(instrumentKey, stepMs * 3);
+    if (!d) return false;
+    drawings = [...drawings, d];
+    selectedDrawing = d.id;
+    updateDrawings();
+    return true;
+  }
+
+  /** Where the inline text input sits: read from the projection, never stored. */
+  const notePos = $derived.by(() => {
+    const s = editing ? shapes.find((x) => x.id === editing.id) : null;
+    return s ? { left: s.bx ?? s.ax, top: s.by ?? s.ay } : null;
+  });
+
+  function commit(d) {
+    drawings = [...drawings, d];
+    selectedDrawing = d.id;
+    tool = 'cursor';
+  }
+
+  /** Open the inline input on a text or callout just placed. */
+  function startText(id) {
+    editing = { id, value: '' };
+    // `autofocus` on a node inserted into an already-focused document is unreliable, and
+    // an effect that focuses would re-run on every repaint; one frame after the mount is
+    // both deterministic and one-shot.
+    requestAnimationFrame(() => noteInput?.focus());
+  }
+
+  function removeSelected() {
+    if (!selectedDrawing) return;
+    drawings = drawings.filter((d) => d.id !== selectedDrawing);
+    selectedDrawing = null;
+    editing = null;
+    updateDrawings();
+  }
+
+  function onDrawDown(e) {
+    if (e.button !== 0 || !armed || !chart) return;
+    e.stopPropagation();
+    e.preventDefault();
+    host?.focus?.({ preventScroll: true }); // keep Delete/Escape working after a draw
+    const p = anchorAt(e, null);
+    if (p.y == null) return;
+    // The click after the a → b drag of a three-point tool places `c` and finishes it.
+    if (draft?.c) {
+      const d = draft;
+      draft = null;
+      commit(makeDrawing(d.tool, d.a, d.b, { c: p, style: d.style }));
+      updateDrawings();
+      return;
+    }
+    if (drawTool(tool).points === 1) {
+      const d = makeDrawing(tool, p, null, {
+        ...(tool === 'text' ? { text: '' } : {}),
+        style: newStyle()
+      });
+      commit(d);
+      updateDrawings();
+      if (d.tool === 'text') startText(d.id);
+      return;
+    }
+    draft = { tool, a: p, b: p, style: newStyle() };
+    svgEl?.setPointerCapture?.(e.pointerId);
+    updateDrawings();
+  }
+
+  function onDrawMove(e) {
+    if (draft) {
+      const p = anchorAt(e, '__draft');
+      if (p.y == null) return;
+      draft = draft.c ? { ...draft, c: p } : { ...draft, b: p };
+      updateDrawings();
+      return;
+    }
+    if (!dragging) return;
+    // An anchor being dragged snaps onto the others; a whole shape being moved does not, as
+    // there the pointer is a grab point and not the thing that has to line up.
+    const p = dragging.mode === 'move' ? dataAt(e) : anchorAt(e, dragging.id);
+    if (p.y == null) return;
+    const next =
+      dragging.mode === 'move'
+        ? translate(dragging.orig, p.x - dragging.from.x, p.y - dragging.from.y)
+        : moveAnchor(dragging.orig, dragging.mode, p);
+    drawings = drawings.map((d) => (d.id === dragging.id ? next : d));
+    updateDrawings();
+  }
+
+  function onDrawUp(e) {
+    if (draft && !draft.c) {
+      const d = draft;
+      draft = null;
+      // A stray click while a two-point tool is armed would otherwise leave a zero-size object.
+      const far =
+        Math.abs(xPix(idxFromMs(d.b.x)) - xPix(idxFromMs(d.a.x))) > 3 ||
+        Math.abs(yPix(d.b.y) - yPix(d.a.y)) > 3;
+      if (far && isThreePoint(d.tool)) draft = { ...d, c: d.b };
+      else if (far) {
+        const nd = makeDrawing(d.tool, d.a, d.b, { style: newStyle() });
+        commit(nd);
+        if (nd.tool === 'callout') startText(nd.id);
+      } else tool = 'cursor';
+      updateDrawings();
+    }
+    if (dragging) dragging = null;
+    guides = null;
+    svgEl?.releasePointerCapture?.(e.pointerId);
+  }
+
+  /** Cursor mode: press a shape to select and move it, press a handle to move that anchor. */
+  function startDrag(e, id, mode) {
+    if (armed || e.button !== 0) return;
+    // A locked object still selects (so it can be unlocked from the tree) but never moves.
+    if (drawings.find((d) => d.id === id)?.locked) {
+      e.stopPropagation();
+      selectedDrawing = id;
+      return;
+    }
+    e.stopPropagation();
+    e.preventDefault();
+    host?.focus?.({ preventScroll: true }); // ditto: selection without focus can't be deleted
+    selectedDrawing = id;
+    const orig = drawings.find((d) => d.id === id);
+    if (!orig) return;
+    dragging = { id, mode, from: dataAt(e), orig };
+    svgEl?.setPointerCapture?.(e.pointerId);
+    updateDrawings();
+  }
+
+  function commitText() {
+    if (!editing) return;
+    const { id, value } = editing;
+    editing = null;
+    const text = value.trim();
+    if (!text) drawings = drawings.filter((d) => d.id !== id);
+    else drawings = drawings.map((d) => (d.id === id ? { ...d, text } : d));
+    updateDrawings();
+  }
+
+  // ────────────────────────── Quick backtest ──────────────────────────
+  //
+  // Two gestures on the same press: a click posts one fill, a long press opens the side/size
+  // window. The chart only reports *where* — which bar and at what price — and paints the
+  // markers the engine sends back; the position lives with the page.
+
+  const LONG_PRESS_MS = 380;
+  const CLICK_SLOP = 4; // px of travel that still counts as a click
+
+  let quickPress = null;
+  let quickTimer = 0;
+  let quickMenu = $state(null); // { left, top, p } — the long-press window
+
+  /** Pointer → fill anchor: the bar under the cursor, at a price inside that bar's range.
+   *  Clicking above the wick would otherwise fill at a price the market never printed. */
+  function quickPoint(e) {
+    if (!view || !n) return null;
+    const box = el.getBoundingClientRect();
+    const y = yPrice(e.clientY - box.top);
+    if (y == null) return null;
+    const i = Math.min(n - 1, Math.max(0, Math.round(xIdx(e.clientX - box.left))));
+    return { x: tsMs(i), y: Math.min(view.h[i], Math.max(view.l[i], y)) };
+  }
+
+  function startQuickPress(e) {
+    const p = quickPoint(e);
+    if (!p) return;
+    const box = el.getBoundingClientRect();
+    quickPress = { x0: e.clientX, y0: e.clientY, left: e.clientX - box.left, top: e.clientY - box.top, p };
+    quickTimer = setTimeout(() => {
+      quickTimer = 0;
+      if (!quickPress) return;
+      quickMenu = { left: quickPress.left, top: quickPress.top, p: quickPress.p };
+      quickPress = null;
+      drag = null; // the press became a window, not a pan
+      panning = false;
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelQuickPress() {
+    if (quickTimer) clearTimeout(quickTimer);
+    quickTimer = 0;
+    quickPress = null;
+  }
+
+  function quickSubmit(side) {
+    const p = quickMenu?.p;
+    quickMenu = null;
+    if (!p) return;
+    // The page owns the unit arithmetic — the chart only reports what was typed.
+    onquickfill?.({ ...p, side, size: Number(quickSize) > 0 ? Number(quickSize) : 1 });
+  }
+
+  // A size sized in dollars comes back as 0.07865344051385237 units — printed raw next to a
+  // marker that is a dozen pixels wide, it is a smear. Six decimals, trailing zeros dropped.
+  // A marker is labelled in the user's own unit, not in the engine's. Sizing in contracts, a
+  // fill of 1 contract holds 2 units when the contract is worth 2, and the label reads 1: the
+  // multiplier belongs to the PnL, not to what was clicked. Sizing in notional it reads the
+  // currency that fill was worth at its own price. A fill from an older session carries no
+  // `lot` and is already in units.
+  const markSize = (m) => formatSize(m.qty / (Number(m.lot) > 0 ? Number(m.lot) : 1));
+
+  /** Marks in time order, so the visible slice can be found by binary search. A click-through
+   *  session has a handful of them; a backtest hands over one pair per trade, which on a long
+   *  run is six figures, and walking that list on every frame is what makes a chart stutter. */
+  const sortedMarks = $derived(marks.length > 1 ? [...marks].sort((a, b) => a.x - b.x) : marks);
+  /** Roughly one marker per bar is the point where a fill is still a shape you can aim at;
+   *  past that the chart is ink, not information, so it says so and draws none until the
+   *  window narrows. The floor keeps a handful readable at maximum zoom, the ceiling keeps a
+   *  full-history view from painting thousands of triangles. */
+  const markLimit = (visibleBars) => Math.max(40, Math.min(400, visibleBars));
+  /** Sizes are only legible while the markers are far apart. */
+  const MARK_LABELS = 30;
+
+  /** Markers, projected like drawings: a triangle at the fill price, blue up for a long and
+   *  red down for a short. Entries are solid, exits hollow. */
+  const markView = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !view || !sortedMarks.length) return { shapes: [], dense: false };
+    // One bar of slack each side so a marker sitting on the edge is not clipped away.
+    const t0 = msFromIdx(win.s - 1);
+    const t1 = msFromIdx(win.e + 1);
+    const lo = lowerBound(sortedMarks, t0);
+    const hi = lowerBound(sortedMarks, t1);
+    if (hi - lo > markLimit(win.e - win.s + 1)) return { shapes: [], dense: true };
+    const labels = markSizes && hi - lo <= MARK_LABELS;
+    const out = [];
+    for (let i = lo; i < hi; i++) {
+      const m = sortedMarks[i];
+      // On the centre of the bar that holds the fill: a broker fill keeps its own instant, and
+      // the interpolated index would slide it across the candle by the time elapsed in it.
+      const x = xPix(Math.floor(idxFromMs(m.x)));
+      const y = yPix(m.y);
+      if (x == null || y == null) continue;
+      const up = m.side === 'long';
+      const tip = up ? y - 1 : y + 1;
+      const base = up ? y + 12 : y - 12;
+      out.push({
+        id: m.id,
+        // The theme's buy and sell, like orders: a white bearish candle must not whiten a sell.
+        color: up ? settings.markLongColor || palette.buy : settings.markShortColor || palette.sell,
+        entry: m.role === 'entry' || m.role === 'add' || m.role === 'reverse',
+        points: `${x},${tip} ${x - 6},${base} ${x + 6},${base}`,
+        x,
+        y: base + (up ? 11 : -3),
+        label: labels ? markSize(m) : '',
+        top: Math.min(tip, base),
+        bottom: Math.max(tip, base),
+        tip: {
+          side: $t(`histviz.trade.${up ? 'buy' : 'sell'}`),
+          qty: markSize(m),
+          price: fmtPrice(m.y),
+          time: fmtFillTime(m.x)
+        }
+      });
+    }
+    return { shapes: out, dense: false };
+  });
+  const markShapes = $derived(markView.shapes);
+  /** A fill's own instant, to the second whatever the timeframe: an entry and its exit in
+   *  the same bar still read in order. */
+  const fmtFillStamp = $derived(makeStampFmt(tz.value, true, true));
+  const fmtFillTime = (ms) => (Number.isFinite(ms) ? fmtFillStamp(new Date(ms).toISOString()) : '');
+  /** The marker under the pointer, for its tooltip: hit-tested here so the layer stays inert
+   *  and a press on a marker still pans the chart. */
+  let markHover = $state(null);
+  function hoverMark(x, y) {
+    let hit = null;
+    for (const m of markShapes) {
+      if (Math.abs(x - m.x) <= 7 && y >= m.top - 2 && y <= m.bottom + 2) hit = m;
+    }
+    markHover = hit && !armed ? { x: hit.x, y: hit.top, bottom: hit.bottom, ...hit.tip } : null;
+  }
+
+  /** First index whose instant is >= `ms`. */
+  function lowerBound(list, ms) {
+    let lo = 0;
+    let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].x < ms) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  /** A dashed line where bars are missing and could not be read back. */
+  const holeShapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !holes.length || !n) return [];
+    const out = [];
+    for (const h of holes) {
+      const x = xPix(Math.floor(idxFromMs(Date.parse(h.before))) + 0.5);
+      if (x == null || x < r.x || x > r.x + r.width) continue;
+      out.push({ key: h.before, x, y1: r.y, y2: r.y + r.height, title: h.message });
+    }
+    return out;
+  });
+
+  // ────────────────────────── Bid / ask ──────────────────────────
+
+  /** Least gap between two axis tags: one tag row (`.last-box` line-height, 18px) plus its
+   *  1px outline above and below, so stacked tags touch without covering each other. */
+  const QUOTE_TAG_GAP = 20;
+
+  /** The live bid and ask in pixels: a line across the price pane each, and a tag on the
+   *  axis. A side outside the visible range is not pinned to an edge (it would read as a price
+   *  that is there). Tags that would print on top of each other, or on the last-price tag, are
+   *  moved apart; the lines stay at their price. */
+  const quoteShapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !quote || !settings.bidAsk) return null;
+    const sides = [
+      { key: 'ask', price: quote.ask, color: palette.down },
+      { key: 'bid', price: quote.bid, color: palette.accent }
+    ];
+    const lines = [];
+    const tags = {};
+    for (const q of sides) {
+      const y = yPix(q.price);
+      if (y == null || y < r.y || y > r.y + r.height) continue;
+      lines.push({ key: q.key, y, x1: r.x, x2: r.x + r.width, color: q.color });
+      tags[q.key] = { key: q.key, top: y, text: fmtPrice(q.price), color: q.color };
+    }
+    const { ask, bid } = tags;
+    if (ask && bid && bid.top - ask.top < QUOTE_TAG_GAP) {
+      const mid = (ask.top + bid.top) / 2;
+      ask.top = mid - QUOTE_TAG_GAP / 2;
+      bid.top = mid + QUOTE_TAG_GAP / 2;
+    }
+    const last = settings.lastPrice === false ? null : lastTag?.top;
+    if (last != null) {
+      // The countdown hangs a second row under the last-price tag: keep clear of both.
+      const lastEnd = last + (countdown ? QUOTE_TAG_GAP : 0);
+      const onLast = (y) => y > last - QUOTE_TAG_GAP && y < lastEnd + QUOTE_TAG_GAP;
+      if (ask && onLast(ask.top)) ask.top = last - QUOTE_TAG_GAP;
+      if (bid && onLast(bid.top)) bid.top = lastEnd + QUOTE_TAG_GAP;
+      if (ask && bid && bid.top - ask.top < QUOTE_TAG_GAP) ask.top = bid.top - QUOTE_TAG_GAP;
+    }
+    return { lines, tags: [ask, bid].filter(Boolean) };
+  });
+
+  // ────────────────────────── Chart trading ──────────────────────────
+
+  /** The `+` on the price scale: where the crosshair is, the price it reads. */
+  let plus = $state(null); // { top, left, price }
+  let plusHover = false;
+  let plusTimer = 0;
+  /** The menu the `+` opened: { top, left, price, last }. */
+  let plusMenu = $state(null);
+
+  function placePlus(y, price, r) {
+    const left = axisRight ? r.x + r.width - 20 : r.x + 2;
+    plus = { top: y, left, price };
+  }
+
+  function openPlusMenu() {
+    if (!plus || !view || !n) return;
+    const last = view.c[n - 1];
+    const price = snapPrice(plus.price);
+    plusMenu = { top: plus.top, left: plus.left, price, last };
+  }
+
+  /** The two resting orders a price allows, typed the way a broker reads them. */
+  const plusChoices = $derived(
+    plusMenu && trading
+      ? ['buy', 'sell'].map((side) => ({ side, type: typeAt(side, plusMenu.price, plusMenu.last) }))
+      : []
+  );
+
+  function plusPick(c, ticket = false) {
+    const m = plusMenu;
+    plusMenu = null;
+    plus = null;
+    if (!m) return;
+    (ticket ? onticketat : ontradeat)?.({ side: c.side, type: c.type, price: m.price });
+  }
+
+  function plusAlert() {
+    const m = plusMenu;
+    plusMenu = null;
+    plus = null;
+    if (m) onalertat?.({ price: m.price, last: m.last });
+  }
+
+  /** The `+` on the time axis: a time alert at the bar under the crosshair. Future bars
+   *  only, since a time already past cannot fire. */
+  let tplus = $state(null); // { left, top, at }
+  let tplusHover = false;
+  /** The menu the time `+` opened: { left, top, at }. */
+  let tplusMenu = $state(null);
+
+  function placeTimePlus() {
+    if (tplusHover) return;
+    const r = rect(0);
+    if (!onalertat || !lastPointer || !view || !n || !r) {
+      tplus = null;
+      return;
+    }
+    const idx = Math.round(xIdx(lastPointer.x));
+    const at = msFromIdx(idx);
+    const x = xPix(idx);
+    tplus = x != null && x >= r.x && x <= r.x + r.width && at > Date.now() ? { left: x - 9, top: plotBottom() - 11, at } : null;
+  }
+
+  function openTimePlusMenu() {
+    if (tplus) tplusMenu = { ...tplus };
+  }
+
+  function timePlusAlert() {
+    const m = tplusMenu;
+    tplusMenu = null;
+    tplus = null;
+    if (m) onalertat?.({ at: m.at });
+  }
+
+  // A working level is dragged by its label; the line follows, and the price is reported on
+  // release, rounded to what the chart prints.
+  let orderDrag = $state(null); // { key, id, level, y }
+
+  function orderDown(e, o) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    orderDrag = { key: o.key, id: o.id, level: o.level, y: o.y, y0: o.y, tick: o.tick };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  function orderMove(e) {
+    if (!orderDrag) return;
+    const r = clip;
+    const box = el.getBoundingClientRect();
+    const y = e.clientY - box.top;
+    orderDrag = { ...orderDrag, y: r ? Math.min(r.y + r.height, Math.max(r.y, y)) : y };
+  }
+  function orderUp() {
+    const d = orderDrag;
+    orderDrag = null;
+    // A click is not a move: a label pressed and released in place sends nothing.
+    if (!d || Math.abs(d.y - d.y0) < 2) return;
+    const price = yPrice(d.y);
+    if (price != null && price > 0) onordermove?.({ id: d.id, level: d.level, price: snapToTick(price, d.tick, snapPrice) });
+  }
+
+  /** Orders in pixels. Same rule as the book: a level outside the visible range is
+   *  left off rather than pinned to an edge. */
+  const orderShapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !orderLines.length) return [];
+    const out = [];
+    for (const o of orderLines) {
+      const dragging = orderDrag?.key === o.key;
+      const y = dragging ? orderDrag.y : yPix(o.price);
+      if (y == null || y < r.y || y > r.y + r.height) continue;
+      const price = dragging ? snapToTick(yPrice(y) ?? o.price, o.tick, snapPrice) : o.price;
+      const kind = o.type === 'stop_limit' || o.type === 'lit' ? $t(`histviz.trade.level.${o.level}`) : $t(`histviz.trade.type.${o.type}`);
+      const role = o.role === 'tp' || o.role === 'sl' ? ` ${$t(`histviz.trade.role.${o.role}`)}` : o.group ? ' OCO' : '';
+      const tight = settings.ordLine === 'tight';
+      out.push({
+        ...o,
+        y,
+        x1: tight ? r.x + r.width - TIGHT_LINE : r.x,
+        width: tight ? TIGHT_LINE : r.width,
+        right: r.x + r.width - 26,
+        dragging,
+        color: o.side === 'sell' ? palette.sell : palette.buy,
+        label: tradeLabel(settings.ordSide !== false && $t(`histviz.trade.${o.side}`), `${kind}${role}`, settings.ordQty !== false && formatSize(o.qty), fmtPrice(price)),
+        tag: orderTag(o.side, o.role === 'tp' || o.role === 'sl' ? o.role.toUpperCase() : o.level === 'stop' ? 'STP' : 'LMT', o.qty)
+      });
+    }
+    return out;
+  });
+
+  /** How long a "tight" order or position line is, ending at its label. */
+  const TIGHT_LINE = 140;
+
+  /** An order or position label from the parts the trading settings keep: the side and the
+   *  size each drop out when switched off (the colour still says the side). */
+  function tradeLabel(side, kind, qty, price) {
+    return `${[side, kind, qty].filter(Boolean).join(' ')} @ ${price}`;
+  }
+
+  /** An order's short form, for its tag on the price scale: `1@Buy LMT`, `1@Sell TP`, with
+   *  the size and the side dropping out as the settings say. */
+  function orderTag(side, code, qty) {
+    const head = [settings.ordQty !== false && formatSize(qty), settings.ordSide !== false && $t(`histviz.trade.${side}`)].filter(Boolean).join('@');
+    return [head, code].filter(Boolean).join(' ');
+  }
+  /** Orders shown as tags on the price scale instead of lines. */
+  const ordScale = $derived(settings.ordLine === 'scale');
+
+  /** The instrument's latest price, what a position's result is measured at. */
+  const lastPx = $derived.by(() => {
+    void tick;
+    const c = bars?.c;
+    return c?.length ? c[c.length - 1] : null;
+  });
+
+  /** A position's result at the latest price: percent of its entry, or the amount in its
+   *  currency (contract size included). '' when the setting is off or there is no price. */
+  function pnlText(b) {
+    const mode = settings.posPnl;
+    if (!mode || mode === 'off' || !(lastPx > 0) || !(b.price > 0)) return '';
+    const dir = b.side === 'short' ? -1 : 1;
+    const sign = (v) => (v > 0 ? '+' : v < 0 ? '−' : '');
+    if (mode === 'pct') {
+      const v = ((lastPx - b.price) / b.price) * 100 * dir;
+      return `${sign(v)}${Math.abs(v).toFixed(2)}%`;
+    }
+    const v = (lastPx - b.price) * b.qty * (b.multiplier || 1) * dir;
+    return `${sign(v)}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${b.currency ? ` ${b.currency}` : ''}`;
+  }
+
+  /** Positions in pixels: a solid line (full or tight) with its label and ✕, or, on the
+   *  `scale` setting, only a tag on the price scale at the entry. */
+  const positionShapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !book.length) return [];
+    const out = [];
+    for (const b of book) {
+      if (b.kind !== 'position') continue;
+      const y = yPix(b.price);
+      if (y == null || y < r.y || y > r.y + r.height) continue;
+      const tight = settings.posLine === 'tight';
+      const sideWord = settings.posSide !== false && $t(`histviz.book.side.${b.side}`);
+      const qty = settings.posQty !== false && formatSize(b.qty);
+      const pnl = pnlText(b);
+      out.push({
+        ...b,
+        y,
+        x1: tight ? r.x + r.width - TIGHT_LINE : r.x,
+        width: tight ? TIGHT_LINE : r.width,
+        right: r.x + r.width - 26,
+        color: b.side === 'short' ? palette.sell : palette.buy,
+        label: `${tradeLabel(sideWord, '', qty, fmtPrice(b.price))}${pnl ? ` · ${pnl}` : ''}`,
+        // The scale tag is the short form: `1@Long`, then the result.
+        tag: [[qty, sideWord].filter(Boolean).join('@'), pnl].filter(Boolean).join(' '),
+        title: [$t(`histviz.book.side.${b.side}`), formatSize(b.qty), '@', fmtPrice(b.price), b.currency, b.venue, b.account].filter(Boolean).join(' ')
+      });
+    }
+    return out;
+  });
+  const onScale = $derived(settings.posLine === 'scale');
+
+  // ── Bracket links ──
+  // Hovering an entry, its take-profit or its stop-loss draws the bracket: a dashed line from
+  // the entry to each exit, green to the take-profit, red to the stop-loss. `linkGroup` is
+  // the entry's id ('b:' + id for an order drawn from the broker's book).
+  let linkGroup = $state(null);
+  /** The bracket a level belongs to, or null when it is in none. */
+  function groupOf(o, all, prefix) {
+    if (o.parent) return prefix + o.parent;
+    return all.some((x) => x.parent === o.id) ? prefix + o.id : null;
+  }
+  const orderLinks = $derived.by(() => {
+    const g = linkGroup;
+    const r = clip;
+    if (!g || !r) return [];
+    const fromBook = g.startsWith('b:');
+    const id = fromBook ? g.slice(2) : g;
+    const shapes = fromBook ? bookShapes : orderShapes;
+    // A trailing stop's start line shares its order's id and hangs on it.
+    const entry = shapes.find((s) => s.id === id && s.parent !== id);
+    if (!entry) return [];
+    // In the gap between the labels and the price scale, where nothing else is drawn.
+    const x = r.x + r.width - 14;
+    return shapes
+      .filter((s) => s.parent === id)
+      .map((s) => ({
+        key: s.key,
+        x,
+        top: Math.min(entry.y, s.y),
+        height: Math.abs(s.y - entry.y),
+        color: s.role === 'tp' ? palette.tp : palette.sl
+      }));
+  });
+
+  // ────────────────────────── Broker book ──────────────────────────
+
+  /** Pixels between two book labels, so a stop and its limit stay separately readable. */
+  const LABEL_GAP = 12;
+
+  /** A book level, as the chart writes it: side, size, and the price it sits at. An order
+   *  also says which of its prices this line is, so a stop-limit's two levels are told
+   *  apart instead of printing the same label twice. */
+  function bookLabel(b) {
+    return tradeLabel(
+      settings.ordSide !== false && $t(`histviz.book.side.${b.side}`),
+      $t(`histviz.book.level.${b.level}`),
+      settings.ordQty !== false && formatSize(b.qty),
+      fmtPrice(b.price)
+    );
+  }
+
+  /** The book's levels in pixels, re-projected each frame like every other overlay. A level
+   *  outside the visible price range is dropped rather than pinned to an edge: a line parked
+   *  on the top of the plot reads as a level that is there, which it is not. */
+  const bookShapes = $derived.by(() => {
+    void paintTick;
+    const r = clip;
+    if (!r || !book.length) return [];
+    const out = [];
+    for (const b of book) {
+      // Positions are drawn as their own lines, with a close (see positionShapes).
+      if (b.kind !== 'order') continue;
+      const y = yPix(b.price);
+      if (y == null || y < r.y || y > r.y + r.height) continue;
+      const sell = b.side === 'short' || b.side === 'sell';
+      const label = bookLabel(b);
+      out.push({
+        key: b.key,
+        id: b.id,
+        kind: b.kind,
+        parent: b.parent,
+        role: b.role,
+        tag: orderTag(b.side, b.role ? b.role.toUpperCase() : b.level === 'stop' ? 'STP' : b.level === 'start' ? 'START' : 'LMT', b.qty),
+        y,
+        x1: settings.ordLine === 'tight' ? r.x + r.width - TIGHT_LINE : r.x,
+        x2: r.x + r.width,
+        // Direction gives the colour, working-or-held gives the dash: a resting order and a
+        // position on the same side are then told apart at a glance.
+        color: sell ? palette.sell : palette.buy,
+        dashed: true,
+        label,
+        title: [label, b.currency, b.type, b.venue, b.account].filter(Boolean).join(' · ')
+      });
+    }
+    // A stop and its limit sit a fraction of a percent apart, which at most zooms is a few
+    // pixels: the lines stay where the prices are and only the labels are spread, so two
+    // levels never print on top of each other.
+    out.sort((a, b) => a.y - b.y);
+    let floor = -Infinity;
+    for (const o of out) {
+      o.ly = Math.max(o.y - 4, floor + LABEL_GAP);
+      floor = o.ly;
+    }
+    return out;
+  });
+
+  /** Rows the price-pane header carries: the instrument, then the overlays drawn on it. */
+  const headRows = $derived(legend.slice(2).filter((r) => r.pane == null));
+
+  /** Comparison rows in the header: the instrument, and what it reads at the crosshair.
+   *  Percent for a comparison, an index for a ratio, and never a price: the whole point is
+   *  that two instruments with different prices become comparable. */
+  const compareRows = $derived.by(() => {
+    void paintTick;
+    const i = readIdx;
+    return compare.map((c) => {
+      const v = i != null ? c.values?.[i] : null;
+      return {
+        id: c.id,
+        label: c.label,
+        color: c.color,
+        dashed: !!c.lineType && c.lineType !== 'solid',
+        hidden: !!c.hidden,
+        value:
+          v == null
+            ? ''
+            : c.mode === 'ratio'
+              ? v.toFixed(2)
+              : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
+      };
+    });
+  });
+
+  /** One scale control per pane, sitting on that pane's own value gutter, shown while the
+   *  pointer is on that gutter: the gutter is where scaling is done, so it is where the way
+   *  back belongs, and off the gutter the chart stays clean. It is lit when that pane is on a
+   *  manual range and clicking it returns that pane to auto-fit. There is no single "auto scale" on a chart with several scales: the price pane
+   *  and an RSI pane are independent, and one button resetting both would undo work the user
+   *  did not ask about. A pane too short to hold the icon does not get one. */
+  const autoBtns = $derived.by(() => {
+    void paintTick;
+    if (!chart || !view) return [];
+    const W = chart.getWidth();
+    const out = [];
+    for (let i = 0; i < gridLayout.length; i++) {
+      const r = rect(i);
+      if (!r || r.height < 26) continue;
+      out.push({
+        i,
+        manual: yRange(i) != null,
+        // The log switch belongs to the price scale, and only where the chart can draw one.
+        log: i === 0 && !!onsettings && !priceDriven,
+        left: axisRight ? W - axisW + 3 : 3,
+        top: Math.max(r.y + 2, r.y + r.height - 21)
+      });
+    }
+    return out;
+  });
+
+  /** A: auto scale on (highlighted). Off by hand it locks the range on screen, the way the
+   *  value gutter's drag would; on again it refits. */
+  function toggleAuto(i) {
+    if (yRange(i) != null) {
+      clearY(i);
+      return;
+    }
+    const ext = paneExtent(i);
+    if (ext) setY(i, ext);
+  }
+  const toggleLog = () => onsettings?.({ scale: settings.scale === 'log' ? 'linear' : 'log' });
+
+  /** Scrolled back from the newest bar: the round "back to latest" button shows, bottom
+   *  right of the price pane, as on every charting tool. */
+  const latestBtn = $derived.by(() => {
+    void paintTick;
+    if (!chart || !view || !n || win.e >= n - 1) return null;
+    const r = rect(0);
+    if (!r || r.height < 60) return null;
+    return { left: r.x + r.width - 30, top: r.y + r.height - 30 };
+  });
+
+  /** Sub-pane headers. Volume and each oscillator pane are titled over the pane that draws
+   *  them, not in the price pane's header — that is where a charting tool puts them, and it
+   *  is the only way to tell two RSIs in two panes apart. */
+  const paneHeads = $derived.by(() => {
+    void paintTick;
+    if (!chart || !view || !legendOpen) return [];
+    const out = [];
+    const push = (gridIndex, rows) => {
+      if (!rows.length) return;
+      const r = rect(gridIndex);
+      if (!r) return;
+      // A few pixels of air under the pane's top edge: the title must not sit on the line
+      // that separates it from the pane above.
+      out.push({ key: `pane${gridIndex}`, left: r.x + 4, top: r.y + 8, rows });
+    };
+    oscPanes.forEach((pane, i) => push(1 + i, legend.slice(2).filter((r) => r.pane === pane)));
+    return out;
+  });
+
+  // ────────────────────────── Option builder ──────────────────────────
+
+  // A plain line series; `st` is an optional per-instance style override {color, width}.
+  // Note: fill is intentionally NOT handled here — only band/channel indicators fill, and
+  // they do so between their edges (see the band-fill block below), never down to the axis.
+  const lineSeries = (name, data, col, xi, width = 1.5, dashed = false, st = null, yi = xi) => ({
+    name,
+    type: 'line',
+    data,
+    showSymbol: false,
+    clip: true, // a panned pane must not paint over its neighbours
+    xAxisIndex: xi,
+    yAxisIndex: yi,
+    sampling: 'lttb', // decimate to one point per pixel — invisible, and much cheaper
+    lineStyle: {
+      width: st?.width ? Number(st.width) : width,
+      color: st?.color || col,
+      type: st?.lineType || (dashed ? 'dashed' : 'solid')
+    },
+    connectNulls: false
+  });
+
+  // ── Hover tooltip ──
+  // One header, the bar's OHLCV at the instrument's own precision, then one line per study.
+  // ECharts' default lists every internal series (stack bases, fills, the split volume) with
+  // raw floats, once per pane; this lists what a reader looks for, and cuts long names.
+  const HELPER_SERIES = /^(hlc-|day-separators$|prev-close$)|-(base|fill)-/;
+  const esc = (x) =>
+    String(x).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  function fmtStudy(x) {
+    const a = Math.abs(x);
+    if (a >= 1e6) return formatSize(x);
+    if (a >= 100) return x.toFixed(2);
+    return Number(x.toPrecision(5)).toString();
+  }
+  function tooltipHtml(params, p) {
+    const list = Array.isArray(params) ? params : [params];
+    const v = view;
+    const i = list[0]?.dataIndex;
+    if (!v || i == null || i >= n) return '';
+    const cell = 'display:flex;justify-content:space-between;gap:12px';
+    const name =
+      'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;color:' + p.muted;
+    const dot = (c) =>
+      `<span style="flex:none;width:7px;height:7px;border-radius:50%;background:${c}"></span>`;
+    const line = (c, label, val) =>
+      `<div style="display:flex;align-items:center;gap:6px">${dot(c)}<span style="${name};flex:1">${esc(
+        label
+      )}</span><span>${val}</span></div>`;
+    const out = [`<div style="color:${p.muted};margin-bottom:4px">${esc(fmtTs(v.ts[i]))}</div>`];
+    if (priceVisible) {
+      if (LINE_TYPES.has(type)) {
+        out.push(line(p.accent, $t('histviz.chart.close'), fmtPrice(v.c[i])));
+      } else {
+        const tint = v.c[i] >= v.o[i] ? p.up : p.down;
+        const ohlc = [
+          ['O', v.o[i]],
+          ['H', v.h[i]],
+          ['L', v.l[i]],
+          ['C', v.c[i]]
+        ]
+          .map(
+            ([k, x]) =>
+              `<div style="${cell}"><span style="color:${p.muted}">${k}</span><span style="color:${tint}">${fmtPrice(x)}</span></div>`
+          )
+          .join('');
+        out.push(`<div style="display:grid;grid-template-columns:1fr 1fr;column-gap:14px">${ohlc}</div>`);
+      }
+    }
+    if (volumeVisible && !priceDriven && Number.isFinite(v.v?.[i])) {
+      out.push(line(v.c[i] >= v.o[i] ? p.volUp : p.volDown, $t('histviz.chart.volume'), formatSize(v.v[i])));
+    }
+    const seen = new Set();
+    const builtin = new Set([
+      $t('histviz.chart.price'),
+      `${$t('histviz.chart.price')} ▾`,
+      $t('histviz.chart.close'),
+      $t('histviz.chart.volume'),
+      `${$t('histviz.chart.volume')} ▾`
+    ]);
+    for (const q of list) {
+      const nm = q.seriesName ?? '';
+      if (builtin.has(nm) || HELPER_SERIES.test(nm) || seen.has(nm)) continue;
+      const val = Array.isArray(q.value) ? q.value[q.value.length - 1] : q.value;
+      if (typeof val !== 'number' || !Number.isFinite(val)) continue;
+      seen.add(nm);
+      const onPrice = q.componentSubType === 'line' && q.axisIndex === 0;
+      out.push(line(q.color ?? p.accent, nm, onPrice ? fmtPrice(val) : fmtStudy(val)));
+    }
+    return out.join('');
+  }
+
+  // ── Price series per chart type ──
+  // Candle-shaped types go through ECharts' candlestick (fast `large` mode); the shapes it
+  // has no series for (OHLC ticks, volume-width candles, Kagi strokes, P&F boxes) are custom
+  // series, which `clip` cuts to the pane on their own.
+  let baselineLevel = null; // set by priceSeries for the baseline type, read by buildOption
+  let baselineSpan = { lo: 0, hi: 0 };
+
+  /** A script instance's series on axes (x, y), from its last run. */
+  function scriptDraw(ind, x, y, v) {
+    const r = scriptRuns.get(ind.id);
+    if (!r?.output) return [];
+    return scriptSeries(r.output, r.meta, {
+      x,
+      y,
+      n: v.c.length,
+      high: v.h,
+      low: v.l,
+      hidden: new Set(ind.script?.hidden ?? []),
+      id: ind.id,
+      xOfMs: idxFromMs
+    });
+  }
+
+  function priceSeries(v, p, range) {
+    const name = $t('histviz.chart.price');
+    const lw = Number(settings.lineWidth) || 1.5;
+    // A border that covers whole device pixels, so the snapped candles stay crisp.
+    const dpr = window.devicePixelRatio || 1;
+    const bw = deviceWidth(settings.borderWidth, dpr) / dpr;
+    const base = { clip: true, xAxisIndex: 0, yAxisIndex: 0 };
+    const close = () => lineSeries($t('histviz.chart.close'), v.c, p.accent, 0, lw);
+    // A script's `barcolor` recolors candles one by one, which `large` mode cannot do.
+    const tint = (data) =>
+      barColors
+        ? data.map((d, i) =>
+            barColors[i] && Array.isArray(d)
+              ? { value: d, itemStyle: { color: barColors[i], color0: barColors[i], borderColor: barColors[i], borderColor0: barColors[i] } }
+              : d
+          )
+        : data;
+    const lines = !barColors && candleLines();
+    linesHeld = lines;
+    const candles = (data, itemStyle) => ({
+      ...base,
+      name,
+      type: 'candlestick',
+      data: tint(data),
+      large: lines,
+      largeThreshold: 1,
+      barMaxWidth: CANDLE_MAX_PX,
+      progressive: 0,
+      itemStyle
+    });
+    const candleStyle = {
+      color: p.bodyUp,
+      color0: p.bodyDown,
+      borderColor: p.borderUp,
+      borderColor0: p.borderDown,
+      borderWidth: bw
+    };
+    // ECharts only truly clips candles in `large` mode (a clip path on the whole group).
+    // Under `largeThreshold` it renders each box itself and `clip` merely *drops* the ones
+    // fully outside the grid — a candle with one corner inside is drawn whole, over the
+    // pane below. So whenever the price axis carries a dragged range we clip the boxes
+    // ourselves. Auto-fit needs none: it contains every bar in view, and clipping to it at
+    // build time would drop the bars a pan then brings in.
+    const ohlcData = () => v.ts.map((_, i) => clipCandle(v.o[i], v.c[i], v.l[i], v.h[i], range));
+    const rows = () => v.ts.map((_, i) => [i, v.o[i], v.h[i], v.l[i], v.c[i]]);
+    const custom = (data, renderItem, dims) => ({
+      ...base,
+      name,
+      type: 'custom',
+      data,
+      renderItem,
+      encode: { x: 0, y: dims },
+      progressive: 0
+    });
+
+    switch (type) {
+      case 'line':
+        return [close()];
+      case 'linemarkers':
+        return [{ ...close(), showSymbol: true, symbol: 'circle', symbolSize: lw + 3, sampling: undefined }];
+      case 'step':
+        return [{ ...close(), step: 'end' }];
+      case 'area':
+        return [
+          {
+            ...close(),
+            areaStyle: {
+              origin: 'start',
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: withAlpha(p.accent, 35) },
+                { offset: 1, color: withAlpha(p.accent, 2) }
+              ])
+            }
+          }
+        ];
+      case 'baseline': {
+        // Base level: the middle of the loaded closes, fixed so panning does not move it.
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const x of v.c) {
+          if (x < lo) lo = x;
+          if (x > hi) hi = x;
+        }
+        const level = Number.isFinite(lo) ? (lo + hi) / 2 : 0;
+        baselineLevel = level;
+        const room = Math.max(Math.abs(hi - lo), Math.abs(level) || 1);
+        baselineSpan = { lo: (Number.isFinite(lo) ? lo : level) - room, hi: (Number.isFinite(hi) ? hi : level) + room };
+        return [
+          {
+            ...close(),
+            name,
+            lineStyle: { width: lw },
+            // Coloured by side of the base (see the visualMap in buildOption).
+            areaStyle: { origin: level, opacity: 0.18 },
+            markLine: {
+              silent: true,
+              symbol: 'none',
+              label: { show: false },
+              lineStyle: { color: p.muted, width: 1, type: 'dashed' },
+              data: [{ yAxis: level }]
+            }
+          }
+        ];
+      }
+      case 'hlcarea': {
+        // Two stacked fills on an invisible low: low→close in down, close→high in up.
+        const stack = 'hlc-area';
+        const fill = (data, color, nm) => ({
+          ...base,
+          name: nm,
+          type: 'line',
+          data,
+          stack,
+          symbol: 'none',
+          silent: true,
+          lineStyle: { width: 0, opacity: 0 },
+          ...(color ? { areaStyle: { color: withAlpha(color, 18) } } : {}),
+          tooltip: { show: false }
+        });
+        return [
+          fill(v.l, null, 'hlc-base'),
+          fill(v.c.map((c, i) => c - v.l[i]), p.down, 'hlc-low'),
+          fill(v.h.map((h, i) => h - v.c[i]), p.up, 'hlc-high'),
+          lineSeries('hlc-h', v.h, p.up, 0, 1),
+          lineSeries('hlc-l', v.l, p.down, 0, 1),
+          lineSeries($t('histviz.chart.close'), v.c, p.accent, 0, lw)
+        ];
+      }
+      case 'columns': {
+        // Coloured against the previous close, like the volume under it.
+        const isUp = (i) => i === 0 || v.c[i] >= v.c[i - 1];
+        const col = {
+          ...base,
+          type: 'bar',
+          large: true,
+          largeThreshold: 400,
+          barWidth: '60%',
+          barGap: '-100%'
+        };
+        return [
+          { ...col, name, data: v.c.map((c, i) => (isUp(i) ? c : null)), itemStyle: { color: p.bodyUp } },
+          { ...col, name: `${name} ▾`, data: v.c.map((c, i) => (isUp(i) ? null : c)), itemStyle: { color: p.bodyDown } }
+        ];
+      }
+      case 'highlow':
+        // A candle whose body is the whole range: open/close set to low/high in its direction.
+        return [
+          candles(
+            v.ts.map((_, i) => {
+              const upBar = v.c[i] >= v.o[i];
+              return clipCandle(upBar ? v.l[i] : v.h[i], upBar ? v.h[i] : v.l[i], v.l[i], v.h[i], range);
+            }),
+            candleStyle
+          )
+        ];
+      case 'hollow':
+        return [candles(ohlcData(), { ...candleStyle, color: 'transparent' })];
+      case 'ohlc':
+        return [
+          custom(
+            rows(),
+            (params, api) => {
+              const x = api.value(0);
+              const o = api.value(1);
+              const c = api.value(4);
+              const cx = api.coord([x, o])[0];
+              const y = (val) => api.coord([x, val])[1];
+              const w = Math.max(2, api.size([1, 0])[0] * 0.35);
+              const stroke = barColors?.[x] ?? (c >= o ? p.borderUp : p.borderDown);
+              const style = { stroke, lineWidth: bw };
+              return {
+                type: 'group',
+                children: [
+                  { type: 'line', shape: { x1: cx, y1: y(api.value(2)), x2: cx, y2: y(api.value(3)) }, style },
+                  { type: 'line', shape: { x1: cx - w, y1: y(o), x2: cx, y2: y(o) }, style },
+                  { type: 'line', shape: { x1: cx, y1: y(c), x2: cx + w, y2: y(c) }, style }
+                ]
+              };
+            },
+            [1, 2, 3, 4]
+          )
+        ];
+      case 'volcandles': {
+        // Body width follows volume, relative to the biggest bar loaded.
+        let maxV = 0;
+        for (const x of v.v) if (x > maxV) maxV = x;
+        return [
+          custom(
+            v.ts.map((_, i) => [i, v.o[i], v.h[i], v.l[i], v.c[i], v.v[i] ?? 0]),
+            (params, api) => {
+              const x = api.value(0);
+              const o = api.value(1);
+              const c = api.value(4);
+              const cx = api.coord([x, o])[0];
+              const y = (val) => api.coord([x, val])[1];
+              const band = api.size([1, 0])[0];
+              const share = maxV > 0 ? api.value(5) / maxV : 1;
+              const w = Math.max(1, band * 0.9 * share);
+              const upBar = c >= o;
+              const top = Math.min(y(o), y(c));
+              const h = Math.max(1, Math.abs(y(o) - y(c)));
+              return {
+                type: 'group',
+                children: [
+                  {
+                    type: 'line',
+                    shape: { x1: cx, y1: y(api.value(2)), x2: cx, y2: y(api.value(3)) },
+                    style: { stroke: upBar ? p.borderUp : p.borderDown, lineWidth: bw }
+                  },
+                  {
+                    type: 'rect',
+                    shape: { x: cx - w / 2, y: top, width: w, height: h },
+                    style: {
+                      fill: upBar ? p.bodyUp : p.bodyDown,
+                      stroke: upBar ? p.borderUp : p.borderDown,
+                      lineWidth: bw
+                    }
+                  }
+                ]
+              };
+            },
+            [1, 2, 3, 4]
+          )
+        ];
+      }
+      case 'kagi': {
+        // Yang strokes thick in the up colour, yin strokes thin in the down colour.
+        const k = v.kagi ?? { before: [], after: [], split: [] };
+        const look = (s) =>
+          s === 'yang' ? { stroke: p.borderUp, lineWidth: lw + 1.5 } : { stroke: p.borderDown, lineWidth: Math.max(1, lw - 0.5) };
+        return [
+          custom(
+            v.ts.map((_, i) => [i, v.o[i], v.c[i]]),
+            (params, api) => {
+              const i = api.value(0);
+              const o = api.value(1);
+              const c = api.value(2);
+              const [x, yo] = api.coord([i, o]);
+              const yc = api.coord([i, c])[1];
+              const before = look(k.before[i]);
+              const after = look(k.after[i]);
+              const split = k.split[i];
+              const children = [];
+              if (i > 0) {
+                const px = api.coord([i - 1, o])[0];
+                children.push({ type: 'line', shape: { x1: px, y1: yo, x2: x, y2: yo }, style: before });
+              }
+              if (split == null) {
+                children.push({ type: 'line', shape: { x1: x, y1: yo, x2: x, y2: yc }, style: before });
+              } else {
+                const ys = api.coord([i, split])[1];
+                children.push({ type: 'line', shape: { x1: x, y1: yo, x2: x, y2: ys }, style: before });
+                children.push({ type: 'line', shape: { x1: x, y1: ys, x2: x, y2: yc }, style: after });
+              }
+              return { type: 'group', children };
+            },
+            [1, 2]
+          )
+        ];
+      }
+      case 'pnf': {
+        // One column of X (rising) or O (falling) per bar, one mark per box.
+        const box = v.pnf?.box || 1;
+        return [
+          custom(
+            v.ts.map((_, i) => [i, v.l[i], v.h[i], v.c[i] >= v.o[i] ? 1 : 0]),
+            (params, api) => {
+              const i = api.value(0);
+              const lo = api.value(1);
+              const hi = api.value(2);
+              const upCol = api.value(3) === 1;
+              const cx = api.coord([i, lo])[0];
+              const band = api.size([1, 0])[0];
+              const boxPx = Math.abs(api.coord([i, lo])[1] - api.coord([i, lo + box])[1]);
+              const r = Math.max(1.5, Math.min(band * 0.4, boxPx * 0.45));
+              const style = { stroke: upCol ? p.borderUp : p.borderDown, lineWidth: bw, fill: null };
+              const children = [];
+              const count = Math.round((hi - lo) / box);
+              for (let b = 0; b < count && b < 500; b++) {
+                const cy = api.coord([i, lo + (b + 0.5) * box])[1];
+                if (upCol) {
+                  children.push({ type: 'line', shape: { x1: cx - r, y1: cy - r, x2: cx + r, y2: cy + r }, style });
+                  children.push({ type: 'line', shape: { x1: cx - r, y1: cy + r, x2: cx + r, y2: cy - r }, style });
+                } else {
+                  children.push({ type: 'circle', shape: { cx, cy, r }, style });
+                }
+              }
+              return { type: 'group', children };
+            },
+            [1, 2]
+          )
+        ];
+      }
+      default:
+        // candlestick, heikinashi, renko, linebreak, range
+        return [candles(ohlcData(), candleStyle)];
+    }
+  }
+
+  function buildOption(v, p) {
+    // Grid layout: the price pane (large), then one pane per oscillator. Volume has no pane
+    // of its own — it is drawn inside the price pane, over the bottom quarter.
+    // The header floats *over* the price pane (market-tool style), so the top margin is only
+    // the room a price label needs — reserving a header-sized band left a dead strip.
+    const grids = layoutGrids();
+
+    const showH = settings.grid !== false;
+    const showV = settings.gridV === true;
+    const showCrosshair = settings.crosshair !== false;
+    const showTooltip = settings.tooltip === true;
+    // Value tags need the crosshair (they ride its position event).
+    const showTags = showCrosshair && settings.crosshairTags !== false;
+    const gridStroke = {
+      color: p.gridLine,
+      width: Number(settings.gridWidth) || 0.5,
+      type: settings.gridStyle || 'solid'
+    };
+    const crossStroke = {
+      color: p.crosshair,
+      width: Number(settings.crosshairWidth) || 1,
+      type: settings.crosshairStyle || 'dashed'
+    };
+    const axisFont = Number(settings.axisFontSize) || 10;
+
+    const priceLog = priceLogNow();
+    // Manual drag wins; otherwise the price axis takes the auto fit (see priceFit).
+    const range = yRange(0) ?? priceFit(v);
+    if (priceLog && range) logRange = range;
+
+    const xAxes = grids.map((_, i) => ({
+      type: 'category',
+      gridIndex: i,
+      data: cats,
+      boundaryGap: true,
+      axisLine: { lineStyle: { color: p.border } },
+      // Labels (and the vertical grid lines, which follow them) on round calendar steps;
+      // a date change reads brighter than the clock ticks around it.
+      axisLabel: {
+        show: i === grids.length - 1,
+        color: p.axisText,
+        fontFamily: p.mono,
+        fontSize: axisFont,
+        hideOverlap: true,
+        showMinLabel: false,
+        showMaxLabel: false,
+        interval: (_, v) => axisTicks(axisFont).has(v),
+        formatter: (v) => {
+          const t = axisTicks(axisFont).get(v);
+          return !t ? '' : t.strong ? `{d|${t.text}}` : t.text;
+        },
+        rich: { d: { color: p.text, fontFamily: p.mono, fontSize: axisFont, fontWeight: 'bold' } }
+      },
+      axisTick: { show: false },
+      // Date label on the bottom axis only; the crosshair links all panes.
+      axisPointer: {
+        label: {
+          show: showTags && i === grids.length - 1,
+          backgroundColor: p.surface,
+          borderColor: p.border,
+          borderWidth: 1,
+          fontFamily: p.mono,
+          color: p.text,
+          formatter: (o) => fmtTs(o.value)
+        }
+      },
+      // Grid lines run through every pane, not just the price one — a volume or oscillator
+      // pane without them reads as a picture instead of a scale. `alignWithLabel` puts them
+      // on the bar's center, under its label and the crosshair, not on the band's edge.
+      splitLine: { show: showV, alignWithLabel: true, lineStyle: gridStroke }
+    }));
+
+    const yAxes = grids.map((_, i) => {
+      const isPrice = i === 0;
+      const isLog = isPrice && priceLog;
+      const fixed = isPrice ? range : yRange(i);
+      const axis = {
+        gridIndex: i,
+        type: isLog ? 'log' : 'value',
+        position: axisRight ? 'right' : 'left',
+        // A fixed range (manual drag, or the price auto fit) replaces `scale` auto-fitting.
+        scale: !isLog && !fixed,
+        axisLine: { show: false },
+        // The price axis is written with the instrument's own precision; the oscillator panes
+        // keep ECharts' generic labels.
+        //
+        // Two panes touch along one line, so the label at the bottom of one lands on the
+        // label at the top of the next and the two values print over each other. The margin
+        // belongs to the value, not to the pane: the edge label of a shared boundary is
+        // dropped rather than the panes pushed apart, which would cost chart height.
+        axisLabel: {
+          color: p.axisText,
+          fontFamily: p.mono,
+          fontSize: axisFont,
+          hideOverlap: true,
+          ...(i < grids.length - 1 ? { showMinLabel: false } : {}),
+          ...(i > 0 ? { showMaxLabel: false } : {}),
+          // A fixed range ends between two ticks, and ECharts labels both ends with their
+          // odd value: the scale shows round prices only.
+          ...(isPrice && fixed ? { showMinLabel: false, showMaxLabel: false } : {}),
+          ...(isPrice ? { formatter: (x) => fmtAxisPrice(x) } : {})
+        },
+        // Per-series values are drawn as our own tags on the axis side, so hide ECharts'.
+        axisPointer: { label: { show: false } },
+        splitLine: { show: showH, lineStyle: gridStroke }
+      };
+      if (fixed) {
+        axis.min = fixed.min;
+        axis.max = fixed.max;
+      }
+      if (isLog) {
+        // ECharts' own log-axis ticks are unreliable over a sub-decade range (often just
+        // min+max), so we hide them and draw evenly log-spaced labels/lines ourselves.
+        axis.minorTick = { show: false };
+        axis.minorSplitLine = { show: false };
+        axis.axisLabel = { ...axis.axisLabel, show: false };
+        axis.splitLine = { show: false };
+      }
+      return axis;
+    });
+
+    // Volume lives *inside* the price pane, as on every market terminal: its own hidden
+    // scale, fitted so the bars fill the bottom quarter and never reach the candles.
+    const volAxis = yAxes.length;
+    yAxes.push({
+      gridIndex: 0,
+      type: 'value',
+      min: 0,
+      max: visibleVolumeMax(v),
+      show: false,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: { show: false },
+      axisPointer: { label: { show: false } }
+    });
+
+    // A custom indicator dropped on the price pane keeps its own (hidden) scale: an RSI in the
+    // 0-100 range must not flatten the candles by dragging the price axis down to zero.
+    const customAxis = yAxes.length;
+    yAxes.push({
+      gridIndex: 0,
+      type: 'value',
+      scale: true,
+      show: false,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitLine: { show: false },
+      axisPointer: { label: { show: false } }
+    });
+
+    const series = [];
+
+    // ── Main price series (pane 0) ──
+    baselineLevel = null;
+    const priceAt = series.length;
+    if (priceVisible) series.push(...priceSeries(v, p, yRange(0)));
+
+    // ── Overlay indicators (pane 0) ──
+    for (const ind of overlays) {
+      if (isScript(ind)) {
+        series.push(...scriptDraw(ind, 0, onCustomAxis(ind) ? customAxis : 0, v));
+        continue;
+      }
+      const def = catalogDef(ind.type);
+      const outs = computed.get(ind.id) ?? [];
+
+      // Band/channel indicators fill the region *between* their upper and lower edges when a
+      // fill color is set. Implemented as two stacked series: an invisible lower baseline
+      // plus the (upper−lower) delta carrying the area — so the fill hugs the band exactly.
+      if (def?.fillable && ind.style?.fill) {
+        const upper = outs.find((o) => o.role === 'upper')?.data;
+        const lower = outs.find((o) => o.role === 'lower')?.data;
+        if (upper && lower) {
+          const delta = upper.map((u, i) => (u != null && lower[i] != null ? u - lower[i] : null));
+          const stackId = `band-${ind.id}`;
+          series.push({
+            name: `${def.type}-base-${ind.id}`,
+            type: 'line',
+            data: lower,
+            clip: true,
+            stack: stackId,
+            xAxisIndex: 0,
+            yAxisIndex: 0,
+            lineStyle: { width: 0, opacity: 0 },
+            symbol: 'none',
+            silent: true,
+            tooltip: { show: false }
+          });
+          series.push({
+            name: `${def.type}-fill-${ind.id}`,
+            type: 'line',
+            data: delta,
+            clip: true,
+            stack: stackId,
+            xAxisIndex: 0,
+            yAxisIndex: 0,
+            lineStyle: { width: 0, opacity: 0 },
+            areaStyle: { color: ind.style.fill, opacity: (Number(ind.style.fillOpacity ?? DEFAULT_STYLE.fillOpacity) || 0) / 100 },
+            symbol: 'none',
+            silent: true,
+            tooltip: { show: false }
+          });
+        }
+      }
+
+      for (const o of outs) {
+        if (o.kind === 'scatter') {
+          series.push({
+            name: o.name,
+            type: 'scatter',
+            data: o.data,
+            symbolSize: 3,
+            clip: true,
+            large: true,
+            xAxisIndex: 0,
+            yAxisIndex: 0,
+            itemStyle: { color: ind.style?.color || color(o.color, p) }
+          });
+        } else if (o.kind === 'line') {
+          series.push(
+            lineSeries(o.name, o.data, color(o.color, p), 0, 1.4, o.dashed, ind.style, isCustom(ind) ? customAxis : 0)
+          );
+        }
+      }
+    }
+
+    // ── Day separators ──
+    // Where the calendar day changes, on an intraday chart. Deliberately *not* session
+    // shading: sessions need an exchange calendar we do not have, and shading invented hours
+    // would be a claim about the market rather than about the data.
+    if (settings.daySeparators && stepMs < 86400000 && n > 1) {
+      const marks = [];
+      let prevDay = new Date(tsMs(0)).getUTCDate();
+      for (let i = 1; i < n; i++) {
+        const day = new Date(tsMs(i)).getUTCDate();
+        if (day !== prevDay) marks.push({ xAxis: i });
+        prevDay = day;
+      }
+      if (marks.length && marks.length < 400) {
+        series.push({
+          name: 'day-separators',
+          type: 'line',
+          data: [],
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          silent: true,
+          animation: false,
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
+            lineStyle: { color: p.border, width: 1, type: 'dashed', opacity: 0.7 },
+            data: marks
+          }
+        });
+      }
+    }
+
+    // ── Previous close ──
+    // The last close of the previous day, the level every intraday desk quotes against.
+    if (settings.prevClose && stepMs < 86400000 && n > 1) {
+      let cut = -1;
+      const lastDay = new Date(tsMs(n - 1)).getUTCDate();
+      for (let i = n - 1; i >= 0; i--) {
+        if (new Date(tsMs(i)).getUTCDate() !== lastDay) {
+          cut = i;
+          break;
+        }
+      }
+      if (cut >= 0) {
+        series.push({
+          name: 'prev-close',
+          type: 'line',
+          data: [],
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          silent: true,
+          animation: false,
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            label: {
+              show: true,
+              position: 'insideStartTop',
+              formatter: $t('histviz.chart.prevClose'),
+              color: p.muted,
+              fontSize: 10
+            },
+            lineStyle: { color: p.muted, width: 1, type: 'dotted' },
+            data: [{ yAxis: v.c[cut] }]
+          }
+        });
+      }
+    }
+
+    // ── Comparison series ──
+    // Other instruments, rebased and drawn on the price pane's hidden scale. Percentages and
+    // prices share no units, which is exactly why they never share an axis.
+    if (!priceDriven) {
+      for (const c of compare) {
+        if (c.hidden || !c.values?.length) continue;
+        series.push(lineSeries(c.label, c.values, c.color, 0, 1.4, false, { width: c.width, lineType: c.lineType }, customAxis));
+      }
+    }
+
+    // ── Volume (bottom of the price pane) ──
+    // Split into up/down series rather than one series with a per-item color callback: the
+    // callback ran per bar per frame and blocks `large`. Overlapped with barGap -100%.
+    if (volumeVisible) {
+      const volOpacity = Math.max(0, Math.min(100, Number(settings.volumeOpacity ?? 45))) / 100;
+      const upV = v.v.map((x, i) => (v.c[i] >= v.o[i] ? x : null));
+      const dnV = v.v.map((x, i) => (v.c[i] >= v.o[i] ? null : x));
+      const volBase = {
+        type: 'bar',
+        clip: true,
+        xAxisIndex: 0,
+        yAxisIndex: volAxis,
+        large: true,
+        largeThreshold: 400,
+        // Same footprint as the candle above it, gap included, and translucent so the price
+        // grid still reads through it.
+        barWidth: '60%',
+        barGap: '-100%',
+        silent: true,
+        z: 1
+      };
+      series.push({
+        ...volBase,
+        name: $t('histviz.chart.volume'),
+        data: upV,
+        itemStyle: { color: p.volUp, opacity: volOpacity }
+      });
+      series.push({
+        ...volBase,
+        name: `${$t('histviz.chart.volume')} ▾`,
+        data: dnV,
+        itemStyle: { color: p.volDown, opacity: volOpacity }
+      });
+    }
+
+    // ── Oscillator panes (one per type, shared by instances of that type) ──
+    oscPanes.forEach((pane, i) => {
+      const xi = 1 + i;
+      for (const ind of active.filter((a) => paneKey(a) === pane)) {
+        if (isScript(ind)) {
+          series.push(...scriptDraw(ind, xi, xi, v));
+          continue;
+        }
+        for (const o of computed.get(ind.id) ?? []) {
+          if (o.kind === 'bar') {
+            series.push({
+              name: o.name,
+              type: 'bar',
+              data: o.data,
+              clip: true,
+              xAxisIndex: xi,
+              yAxisIndex: xi,
+              itemStyle:
+                o.color === 'updown'
+                  ? { color: (pp) => ((o.data[pp.dataIndex] ?? 0) >= 0 ? p.up : p.down) }
+                  : { color: ind.style?.color || color(o.color, p) }
+            });
+          } else {
+            series.push(lineSeries(o.name, o.data, color(o.color, p), xi, 1.3, o.dashed, ind.style));
+          }
+        }
+      }
+    });
+
+    const allX = grids.map((_, i) => i);
+
+    return {
+      animation: false,
+      backgroundColor: settings.bgColor || 'transparent',
+      textStyle: { color: p.text },
+      legend: { show: false },
+      grid: grids,
+      // Baseline: the price line and its fill take the up colour above the base level and
+      // the down colour below it. Always present (empty otherwise) so replaceMerge drops it.
+      visualMap:
+        baselineLevel != null && priceVisible
+          ? [
+              {
+                type: 'piecewise',
+                show: false,
+                seriesIndex: priceAt,
+                dimension: 1,
+                // Bounded on both sides: an open-ended piece yields no gradient stop on a
+                // line series and throws mid-render, which leaves ECharts broken until reload.
+                pieces: [
+                  { gte: baselineLevel, lte: baselineSpan.hi, color: p.up },
+                  { gte: baselineSpan.lo, lt: baselineLevel, color: p.down }
+                ]
+              }
+            ]
+          : [],
+      xAxis: xAxes,
+      yAxis: yAxes,
+      // The tooltip component is what actually drives the crosshair on hover, so it must
+      // stay active even when the user hides the tooltip box — otherwise a standalone
+      // axisPointer never triggers on mousemove (that was the "no crosshair on load" bug).
+      // We keep the tooltip alive to move the pointer, and blank its box when not wanted.
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      tooltip: {
+        show: true,
+        trigger: 'axis',
+        triggerOn: 'mousemove',
+        // Crosshair lines belong to the tooltip's axisPointer.
+        axisPointer: {
+          type: showCrosshair ? 'cross' : 'none',
+          label: { show: false },
+          lineStyle: crossStroke,
+          crossStyle: crossStroke
+        },
+        // When the user's tooltip is off, render an empty, invisible box (pointer still moves).
+        showContent: showTooltip,
+        backgroundColor: showTooltip ? p.surface : 'transparent',
+        borderColor: showTooltip ? p.border : 'transparent',
+        padding: [6, 8],
+        textStyle: { color: p.text, fontFamily: p.mono, fontSize: 11 },
+        extraCssText: 'max-width: 260px;',
+        formatter: (params) => (showTooltip ? tooltipHtml(params, p) : '')
+      },
+      dataZoom: [
+        {
+          // Inert: every gesture is handled by our own pointer/wheel/key code above. Left in
+          // because it is what actually applies the window when we dispatch dataZoom.
+          type: 'inside',
+          xAxisIndex: allX,
+          startValue: win.s,
+          endValue: win.e,
+          moveOnMouseMove: false,
+          moveOnMouseWheel: false,
+          zoomOnMouseWheel: false,
+          preventDefaultMouseMove: false
+        }
+        // No range slider: the pane's range bar (1D, 1M, 1Y…) frames the window instead, and
+        // the height the slider took goes to the chart.
+      ],
+      series
+    };
+  }
+
+  // ────────────────────────── Lifecycle & effects ──────────────────────────
+
+  onMount(() => {
+    // Before init: an ECharts instance copies the registered stages when it is created.
+    registerCrispCandles();
+    chart = echarts.init(el, null, { renderer: 'canvas' });
+    let lastW = 0;
+    const ro = new ResizeObserver(() => {
+      const before = lastW;
+      chart?.resize();
+      // Keep the bar width, not the bar count: a wider pane shows more bars, right edge fixed.
+      lastW = plotWidth();
+      if (built && before > 0 && lastW > 0 && Math.abs(lastW - before) >= 1) {
+        const w2 = ((win.e - win.s) * lastW) / before;
+        setWin(win.e - w2, win.e);
+      }
+      updateLogGrid(); // pixel positions changed
+      updateLastTag();
+      updateDrawings();
+    });
+    ro.observe(el);
+    // Drive the custom value tags and the legend readout off the linked crosshair.
+    chart.on('updateAxisPointer', (e) => {
+      const xInfo = e.axesInfo?.find((a) => a.axisDim === 'x');
+      const idx = xInfo ? xInfo.value : null;
+      hoverIdx = idx;
+      requestTags(idx);
+      // Linked panes follow the *instant*, not the bar index: a 1m pane and a 1h one are
+      // pointing at the same moment even though the index means nothing to the other.
+      if (!linking && idx != null && idx >= 0 && idx < n) onhover?.(msFromIdx(idx));
+    });
+    chart.getZr().on('globalout', () => {
+      hoverIdx = null;
+      lastPointer = null;
+      cursorTag = null;
+      // The pointer leaving the canvas for the `+` itself is not leaving the chart: give it
+      // the moment it takes to land there before the button goes.
+      clearTimeout(plusTimer);
+      plusTimer = setTimeout(() => {
+        if (!plusHover) plus = null;
+        if (!tplusHover) tplus = null;
+      }, 80);
+      tags = [];
+      if (!linking) onhover?.(null);
+    });
+    chart.getZr().on('mousemove', (e) => {
+      lastPointer = { x: e.offsetX, y: e.offsetY };
+      requestCursorTag();
+    });
+
+    // Capture phase, not bubble: ECharts' roam controller enables its own mousewheel handler
+    // with hardcoded `true` (the per-model zoomOnMouseWheel:false is only read later), and it
+    // calls preventDefault + stopPropagation on the canvas — a bubble listener here never runs.
+    el.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerup', onPointerUp);
+    el.addEventListener('pointercancel', onPointerUp);
+    el.addEventListener('dblclick', onDblClick);
+
+    return () => {
+      ro.disconnect();
+      el.removeEventListener('wheel', onWheel, true);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerup', onPointerUp);
+      el.removeEventListener('pointercancel', onPointerUp);
+      el.removeEventListener('dblclick', onDblClick);
+      if (raf) cancelAnimationFrame(raf);
+      if (moveRaf) cancelAnimationFrame(moveRaf);
+      if (tagRaf) cancelAnimationFrame(tagRaf);
+      if (cursorRaf) cancelAnimationFrame(cursorRaf);
+    };
+  });
+
+  // Refit the geometry when the parent toggles fullscreen (the box changes size in one frame).
+  $effect(() => {
+    void fullscreen;
+    requestAnimationFrame(() => {
+      chart?.resize();
+      updateLogGrid();
+      updateLastTag();
+      updateDrawings();
+    });
+  });
+
+  // ── Dataset identity ──
+  // A new dataset resets the window; a chart-*type* change must not (candles → line should
+  // leave the viewport alone). Renko changes the bar count, so it resets through the same door.
+  let lastLen = -1;
+  let lastFirst = null;
+  let lastLast = null;
+  $effect(() => {
+    const v = view;
+    if (!v || !v.ts.length) return;
+    const len = v.ts.length;
+    const first = v.ts[0];
+    const last = v.ts[len - 1];
+    if (len === lastLen && first === lastFirst) return;
+
+    // Older history prepended: same newest bar, more bars in front. Shift the window by the
+    // number added so the view does not jump — the whole point of loading in the background.
+    const prepended = lastLen > 0 && last === lastLast && first !== lastFirst && len > lastLen;
+    // A live bar closed and a new one opened: same history, one more bar at the end. That is
+    // not a new dataset — the viewport and a hand-set price scale must both survive it.
+    const appended = lastLen > 0 && first === lastFirst && len > lastLen && last > lastLast;
+    const added = len - lastLen;
+    const wasAtEnd = untrack(() => win.e) >= lastLen - 1;
+    lastLen = len;
+    lastFirst = first;
+    lastLast = last;
+    if (prepended) {
+      untrack(() => setWin(win.s + added, win.e + added));
+      return;
+    }
+    if (appended) {
+      // Follow the market only if the window was already sitting on the last bar; someone
+      // reading older bars stays where they are.
+      if (wasAtEnd) untrack(() => setWin(win.s + added, win.e + added));
+      return;
+    }
+
+    // Another dataset: the axis drops the room a drag made on the last one.
+    room = 0;
+    const rr = untrack(() => restoreRange);
+    let next = null;
+    if (rr?.t0 && rr?.t1) {
+      const i0 = idxOfTs(v.ts, rr.t0);
+      const i1 = idxOfTs(v.ts, rr.t1);
+      // The same dates, but never fewer bars than a fit: three hours read at 1m are 36 bars
+      // at 5m, and the candles came out a few to the screen. A short span keeps its end
+      // date and widens to the left; one that ended on the last bar opens like a fit.
+      const bars = fitBars();
+      if (i1 - i0 >= bars) next = clampWin(i0, i1);
+      else if (i1 < v.ts.length - 1) next = clampWin(i1 - bars, i1);
+      onrestored?.();
+    }
+    yMan = {};
+    win = next ?? defaultWin();
+  });
+
+  // First index whose timestamp is >= ts (binary search; RFC3339 sorts lexicographically).
+  function idxOfTs(arr, ts) {
+    let lo = 0;
+    let hi = arr.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (arr[mid] < ts) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  // Apply the window whenever it moves, one dispatch per frame.
+  $effect(() => {
+    void [win.s, win.e];
+    if (chart) schedule();
+  });
+
+  // The left edge of the loaded history is in view: that is where the "load more" button
+  // appears. Nothing is fetched automatically — a scroll must never spend an API call.
+  const atLeftEdge = $derived(!!n && win.s <= 2);
+  /** Vertical centre of the price pane, where the history button sits. */
+  const histTop = $derived.by(() => {
+    void paintTick;
+    const r = rect(0);
+    return r ? r.y + r.height / 2 : null;
+  });
+
+  // Full option rebuild. `replaceMerge` swaps the drawn components wholesale (so removing an
+  // oscillator pane really removes it) while leaving dataZoom/tooltip merged — a notMerge
+  // here would rebuild the dataZoom mid-gesture and kill the drag.
+  $effect(() => {
+    if (!chart || !view) return;
+    // Explicitly touch settings + inputs so the effect re-runs on any of them (buildOption
+    // reads them internally, but we make the dependency unambiguous here).
+    for (const k of STYLE_KEYS) void settings[k];
+    void [
+      type,
+      brick,
+      instances,
+      priceVisible,
+      volumeVisible,
+      cats,
+      yMan,
+      paneHeights
+    ];
+    void palette;
+    void computed;
+    void tick;
+    void view.c.length;
+    scheduleRebuild();
+  });
+
+  // Every change is drawn on the next frame, from the state at that time. What it costs
+  // depends on what changed:
+  //
+  // - **Values only** (a live tick: the forming bar, and with it the last point of the
+  //   volume, the studies and the scripts): the option has the same shape, so only the
+  //   series whose data differ are sent, with the bounds of the fitted axes. ECharts redraws
+  //   those; everything else is left as it is.
+  // - **Anything else** (a new bar, a study, a setting, a pane): a full rebuild, which re-reads
+  //   every point of every series (about 40 ms with a few scripts). A new bar asks for two,
+  //   the bar then the scripts' answer a few ms later, so full rebuilds keep REBUILD_GAP
+  //   between them.
+  const REBUILD_GAP = 120;
+  let rebuildTimer = 0;
+  let rebuildRaf = 0;
+  let lastFull = 0;
+  /** What the chart holds since the last full rebuild: its shape, the generation its series
+   *  ids carry, and a copy of every series' data to diff the next values against. */
+  let held = null;
+  let gen = 0;
+  function scheduleRebuild() {
+    if (rebuildRaf) return;
+    rebuildRaf = requestAnimationFrame(() => {
+      rebuildRaf = 0;
+      rebuild();
+    });
+  }
+
+  /** Everything an option draws but its values. Closures (renderers, formatters) are not
+   *  in it, so the palette and the style settings they read are. */
+  function shapeOf(o) {
+    const series = o.series.map(({ data, ...rest }) => ({ ...rest, n: data?.length ?? 0 }));
+    const xAxis = o.xAxis.map(({ data, ...rest }) => ({ ...rest, n: data?.length ?? 0, a: data?.[0], z: data?.at?.(-1) }));
+    const yAxis = o.yAxis.map(({ min, max, ...rest }) => rest);
+    const style = STYLE_KEYS.map((k) => settings[k]);
+    return JSON.stringify([o.grid, o.visualMap, o.backgroundColor, xAxis, yAxis, series, palette, style]);
+  }
+  const copyData = (d) => (Array.isArray(d) ? d.slice() : d);
+  const sameItem = (x, y) =>
+    Object.is(x, y) ||
+    (Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => Object.is(v, y[k]))) ||
+    (x != null && y != null && typeof x === 'object' && typeof y === 'object' && !Array.isArray(x) && JSON.stringify(x) === JSON.stringify(y));
+  /** Same values, read from the end: a tick moves the last points, so a changed series
+   *  is told apart at once and only an unchanged one is read whole. */
+  function sameData(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return a === b;
+    if (a.length !== b.length) return false;
+    for (let i = a.length - 1; i >= 0; i--) if (!sameItem(a[i], b[i])) return false;
+    return true;
+  }
+  const priceExtent = () => chart?.getModel()?.getComponent('yAxis', 0)?.axis?.scale?.getExtent?.()?.join(',') ?? '';
+
+  /** Values only: send the series that changed, and the bounds of the axes that carry them
+   *  (volume, a log or dragged price scale); the others fit themselves. */
+  function patch(option) {
+    const series = [];
+    option.series.forEach((s, i) => {
+      if (sameData(s.data, held.data[i])) return;
+      // A custom series' renderer reads values of its own (the widest volume, bar colors).
+      series.push(s.type === 'custom' ? { id: `g${gen}s${i}`, data: s.data, renderItem: s.renderItem } : { id: `g${gen}s${i}`, data: s.data });
+      held.data[i] = copyData(s.data);
+    });
+    if (!series.length) return;
+    const before = priceExtent();
+    const yAxis = option.yAxis.map((a) => ('min' in a || 'max' in a ? { min: a.min, max: a.max } : {}));
+    chart.setOption({ series, yAxis });
+    if (priceLogNow()) updateLogGrid();
+    updateLastTag();
+    updateTags(lastPointer ? hoverIdx : null);
+    updateCursorTag();
+    // A new high or low stretches the price scale: what is pinned to a price moves with it.
+    if (priceExtent() !== before) requestAnimationFrame(updateDrawings);
+  }
+
+  function rebuild() {
+    if (!chart || !view) return;
+    if (!priceLogNow()) logRange = { min: 0, max: 0 };
+    const option = buildOption(view, palette);
+    const shape = shapeOf(option);
+    if (built && held?.shape === shape) {
+      patch(option);
+      return;
+    }
+    const wait = lastFull + REBUILD_GAP - performance.now();
+    if (wait > 0) {
+      clearTimeout(rebuildTimer);
+      rebuildTimer = setTimeout(scheduleRebuild, wait);
+      return;
+    }
+    lastFull = performance.now();
+    // Fresh ids: `replaceMerge` replaces every series instead of merging into a namesake.
+    gen += 1;
+    option.series.forEach((s, i) => (s.id = `g${gen}s${i}`));
+    chart.setOption(option, { replaceMerge: ['series', 'xAxis', 'yAxis', 'grid', 'visualMap'] });
+    held = { shape, data: option.series.map((s) => copyData(s.data)) };
+    built = true;
+    updateLogGrid(); // custom left-axis labels/gridlines for the log price scale
+    updateLastTag();
+    // setOption has already painted the canvas, without the axis pointer (the replaced axes
+    // drop it). Put it back and repaint now: left to zrender's next frame, that bare canvas
+    // can be the one on screen, a crosshair blink on every tick.
+    restoreCrosshair();
+    chart.getZr().flush();
+    updateTags(lastPointer ? hoverIdx : null);
+    updateCursorTag();
+    // The drawing layer derives from `paintTick`: bump it once ECharts has laid the panes out,
+    // on the next frame.
+    requestAnimationFrame(updateDrawings);
+  }
+
+  // The log price scale and the volume scale follow the window: applyWindow refits them in
+  // the same render as the window itself.
+
+  /** The studies on the chart and their output names, so the indicator modal can offer one
+   *  as another's source. `pane` is 'overlay' or the sub-pane key it draws in. */
+  export function studyOutputs() {
+    return instances.map((ind) => ({
+      id: ind.id,
+      label: indLabel(ind) || 'custom',
+      pane: paneOf(ind) === 'overlay' ? 'overlay' : paneKey(ind),
+      outputs: (computed.get(ind.id) ?? []).map((o) => o.name)
+    }));
+  }
+
+  // ── Public API (bind:this) — the parent uses this to keep the same dates across a
+  // timeframe switch. Returns the visible span clamped to real bars. ──
+  /** The chart as a PNG data URL, at the pixel ratio it is drawn with: what the export
+   *  button hands the browser to save. Includes every overlay ECharts drew, which is why it
+   *  comes from the instance rather than from a canvas we would have to redraw. */
+  /** The chart as a PNG data URL: ECharts' own render with the drawing layer on top.
+   *
+   *  `getDataURL` only knows about the canvas, so a chart exported from it came out without
+   *  a single trend line, which is exactly the part a shared chart is about. The overlay is
+   *  an inert SVG, so it is serialized, rasterized and composited at the same pixel ratio.
+   *  The few styles the component stylesheet gave it travel with it (a standalone SVG has no
+   *  access to that sheet), and the edit affordances do not: a handle is a way to move an
+   *  object, not part of the picture. */
+  export async function snapshot() {
+    if (!chart) return null;
+    const ratio = Math.max(2, window.devicePixelRatio || 1);
+    const base = chart.getDataURL({
+      type: 'png',
+      pixelRatio: ratio,
+      backgroundColor: settings.bgColor || palette.bg || '#111'
+    });
+    if (!svgEl || !el) return base;
+    try {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const clone = svgEl.cloneNode(true);
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      clone.setAttribute('width', String(w));
+      clone.setAttribute('height', String(h));
+      clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      const css = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      css.textContent =
+        '.lab{font-size:10px;font-family:ui-monospace,monospace}' +
+        '.lab.big{font-size:12px;font-weight:600}' +
+        '.note{font-size:12px}' +
+        '.handle,.guide{display:none}';
+      clone.prepend(css);
+      const svgUrl =
+        'data:image/svg+xml;charset=utf-8,' +
+        encodeURIComponent(new XMLSerializer().serializeToString(clone));
+      const load = (src) =>
+        new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      const [under, over] = await Promise.all([load(base), load(svgUrl)]);
+      const canvas = document.createElement('canvas');
+      canvas.width = under.width;
+      canvas.height = under.height;
+      const cx = canvas.getContext('2d');
+      cx.drawImage(under, 0, 0);
+      cx.drawImage(over, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/png');
+    } catch {
+      // A layer that will not rasterize must not cost the user their chart.
+      return base;
+    }
+  }
+
+  export function getTimeRange() {
+    if (!view || !n) return null;
+    const { from, to } = dataWin();
+    if (to <= from) return null;
+    return { t0: view.ts[from], t1: view.ts[to] };
+  }
+
+  /**
+   * Frame a span of time, centred, with air around it.
+   *
+   * The window is sized from the span itself (`pad` of its length on each side) so a two-bar
+   * trade and a two-hundred-bar one both land readable, and never goes tighter than `minBars`,
+   * which is what keeps a scalp from opening on three candles filling the screen.
+   *
+   * @param fromMs first instant to show, epoch ms
+   * @param toMs   last instant to show, epoch ms
+   */
+  /** Show exactly this span, as a linked pane asks for it: no padding, no minimum, because
+   *  the point is that both charts show the same window. */
+  export function setTimeRange(t0, t1) {
+    if (!view || !n) return;
+    const a = Date.parse(t0);
+    const b = Date.parse(t1);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return;
+    linking = true;
+    setWin(idxFromMs(a), idxFromMs(b));
+    linking = false;
+  }
+
+  /** Put the crosshair on an instant a neighbour is pointing at. `null` clears it. */
+  export function showCrosshairAt(ms) {
+    if (!chart || settings.crosshair === false) return;
+    if (ms == null) {
+      linking = true;
+      hoverIdx = null;
+      tags = [];
+      chart.dispatchAction({ type: 'hideTip' });
+      chart.dispatchAction({ type: 'updateAxisPointer', currTrigger: 'leave' });
+      linking = false;
+      return;
+    }
+    if (!view || !n) return;
+    const idx = Math.round(idxFromMs(ms));
+    if (idx < 0 || idx >= n) return;
+    linking = true;
+    chart.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: idx });
+    hoverIdx = idx;
+    requestTags(idx);
+    linking = false;
+  }
+
+  export function focusRange(fromMs, toMs, { minBars = 60, pad = 0.6 } = {}) {
+    if (!view || !n || !Number.isFinite(fromMs)) return;
+    const i0 = idxFromMs(fromMs);
+    const i1 = Number.isFinite(toMs) ? idxFromMs(toMs) : i0;
+    const len = Math.max(1, i1 - i0);
+    const span = Math.max(minBars, Math.round(len * (1 + 2 * pad)));
+    const mid = (i0 + i1) / 2;
+    yMan = {};
+    setWin(Math.round(mid - span / 2), Math.round(mid + span / 2));
+  }
+</script>
+
+<!-- role=application: this is a direct-manipulation surface with its own key bindings
+     (arrows pan, +/- zoom, Home/End jump), not a document region. The a11y rules below flag
+     a focusable div with key handlers, which is exactly what an application region is. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+<div
+  class="chart-host"
+  class:fs={fullscreen}
+  class:axis-right={axisRight}
+  style:--axis-w="{axisW}px"
+  bind:this={host}
+  tabindex="0"
+  role="application"
+  aria-label={$t('histviz.chart.ariaChart')}
+  onkeydown={onKeyDown}
+  onpointermove={onHostMove}
+  onpointerleave={() => {
+    axisHover = false;
+    markHover = null;
+  }}
+>
+  <div class="chart" class:divider={dividerHover} class:grabbing={panning || resizing} bind:this={el}></div>
+
+  <!-- Drawing layer. Inert by default so the chart keeps every gesture; the shapes opt into
+       the pointer themselves, and the whole layer takes it while a tool is armed. -->
+  {#if view}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <svg
+      class="draw"
+      class:armed
+      bind:this={svgEl}
+      onpointerdown={onDrawDown}
+      onpointermove={onDrawMove}
+      onpointerup={onDrawUp}
+      onpointercancel={onDrawUp}
+    >
+      {#if clip}
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={clip.x} y={clip.y} width={clip.width} height={clip.height} />
+          </clipPath>
+        </defs>
+      {/if}
+      <g clip-path={clip ? `url(#${clipId})` : undefined}>
+        <!-- Alignment guides: what the anchor being placed has lined up with. -->
+        {#if guideLines && clip}
+          {#if guideLines.y != null}
+            <line
+              class="guide"
+              x1={clip.x}
+              x2={clip.x + clip.width}
+              y1={guideLines.y}
+              y2={guideLines.y}
+            />
+          {/if}
+          {#if guideLines.x != null}
+            <line
+              class="guide"
+              x1={guideLines.x}
+              x2={guideLines.x}
+              y1={clip.y}
+              y2={clip.y + clip.height}
+            />
+          {/if}
+        {/if}
+        {#each shapes as s (s.id)}
+          <g class="shape" class:sel={s.sel} stroke={s.color} fill="none">
+            {#if s.tool === 'trend' && s.bx != null}
+              <line
+                x1={s.ax}
+                y1={s.ay}
+                x2={s.bx}
+                y2={s.by}
+                stroke-width={s.width}
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+            {:else if s.tool === 'hline'}
+              <line
+                x1={s.x1}
+                y1={s.ay}
+                x2={s.x2}
+                y2={s.ay}
+                stroke-width={s.width}
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <text class="lab" x={s.x2 - 4} y={s.ay - 4} text-anchor="end" fill={s.color} stroke="none"
+                >{s.label}</text
+              >
+            {:else if s.tool === 'hray'}
+              <line
+                x1={s.ax}
+                y1={s.ay}
+                x2={s.x2}
+                y2={s.ay}
+                stroke-width={s.width}
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <text class="lab" x={s.x2 - 4} y={s.ay - 4} text-anchor="end" fill={s.color} stroke="none"
+                >{s.label}</text
+              >
+            {:else if s.tool === 'channel' && s.bx != null}
+              <!-- Base line, its parallel through c, and the dashed median between them. -->
+              {#if s.cy != null}
+                <polygon
+                  points={s.poly}
+                  fill={s.color}
+                  fill-opacity="0.08"
+                  stroke="none"
+                  class="hit fill"
+                  onpointerdown={(e) => startDrag(e, s.id, 'move')}
+                />
+                <line
+                  x1={s.ax}
+                  y1={s.ay + s.off}
+                  x2={s.bx}
+                  y2={s.by + s.off}
+                  stroke-width={s.width}
+                  class="hit"
+                  onpointerdown={(e) => startDrag(e, s.id, 'move')}
+                />
+                <line
+                  x1={s.ax}
+                  y1={s.ay + s.off / 2}
+                  x2={s.bx}
+                  y2={s.by + s.off / 2}
+                  stroke-width="1"
+                  stroke-opacity="0.6"
+                  stroke-dasharray="4 3"
+                />
+              {/if}
+              <line
+                x1={s.ax}
+                y1={s.ay}
+                x2={s.bx}
+                y2={s.by}
+                stroke-width={s.width}
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+            {:else if s.tool === 'vline'}
+              <line
+                x1={s.ax}
+                y1={s.y1}
+                x2={s.ax}
+                y2={s.y2}
+                stroke-width={s.width}
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+            {:else if s.tool === 'rect' && s.rw != null}
+              <rect
+                x={s.rx}
+                y={s.ry}
+                width={s.rw}
+                height={s.rh}
+                stroke-width={s.width}
+                fill={s.color}
+                fill-opacity="0.08"
+                class="hit fill"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+            {:else if s.tool === 'fib' && s.levels}
+              {#each s.levels as lvl (lvl.lv)}
+                <line
+                  x1={s.x1}
+                  y1={lvl.y}
+                  x2={s.x2}
+                  y2={lvl.y}
+                  stroke-width={s.width}
+                  stroke-opacity={lvl.lv === 0 || lvl.lv === 1 ? 1 : 0.6}
+                  class="hit"
+                  onpointerdown={(e) => startDrag(e, s.id, 'move')}
+                />
+                <text class="lab" x={s.x1 + 4} y={lvl.y - 3} fill={s.color} stroke="none"
+                  >{lvl.lv.toFixed(3)} · {lvl.price}</text
+                >
+              {/each}
+            {:else if s.tool === 'fibext' && s.bx != null}
+              <!-- The a → b → c legs, dashed, then the projected rungs. -->
+              <polyline
+                points={s.cx != null
+                  ? `${s.ax},${s.ay} ${s.bx},${s.by} ${s.cx},${s.cy}`
+                  : `${s.ax},${s.ay} ${s.bx},${s.by}`}
+                stroke-width="1"
+                stroke-opacity="0.7"
+                stroke-dasharray="4 3"
+                class="hit"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              {#each s.levels ?? [] as lvl (lvl.lv)}
+                <line
+                  x1={s.x1}
+                  y1={lvl.y}
+                  x2={s.x2}
+                  y2={lvl.y}
+                  stroke-width={s.width}
+                  stroke-opacity={lvl.lv === 0 || lvl.lv === 1 ? 1 : 0.6}
+                  class="hit"
+                  onpointerdown={(e) => startDrag(e, s.id, 'move')}
+                />
+                <text class="lab" x={s.x1 + 4} y={lvl.y - 3} fill={s.color} stroke="none"
+                  >{lvl.lv.toFixed(3)} · {lvl.price}</text
+                >
+              {/each}
+            {:else if s.tool === 'callout'}
+              <!-- A note in a box, with a pointer line to the spot it talks about. -->
+              {#if s.bx != null}
+                <line x1={s.ax} y1={s.ay} x2={s.bx} y2={s.by} stroke-width={s.width} />
+              {/if}
+              <rect
+                x={s.bx ?? s.ax}
+                y={(s.by ?? s.ay) - 12}
+                width={s.tw}
+                height="20"
+                rx="3"
+                fill={s.color}
+                fill-opacity="0.15"
+                stroke-width={s.width}
+                class="hit fill"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <text
+                class="note"
+                x={(s.bx ?? s.ax) + 6}
+                y={(s.by ?? s.ay) + 3}
+                fill={s.color}
+                stroke="none"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}>{s.text}</text
+              >
+            {:else if s.tool === 'text'}
+              <text
+                class="note"
+                x={s.ax}
+                y={s.ay}
+                fill={s.color}
+                stroke="none"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}>{s.text}</text
+              >
+            {:else if (s.tool === 'long' || s.tool === 'short') && s.sy != null}
+              <!-- Target box (green), stop box (red), entry line between them. -->
+              <rect
+                x={s.x1}
+                y={s.target.y1}
+                width={s.x2 - s.x1}
+                height={Math.max(1, s.target.y2 - s.target.y1)}
+                fill={palette.up}
+                fill-opacity="0.12"
+                stroke="none"
+                class="hit fill"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <rect
+                x={s.x1}
+                y={s.stopBox.y1}
+                width={s.x2 - s.x1}
+                height={Math.max(1, s.stopBox.y2 - s.stopBox.y1)}
+                fill={palette.down}
+                fill-opacity="0.12"
+                stroke="none"
+                class="hit fill"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <line x1={s.x1} y1={s.ay} x2={s.x2} y2={s.ay} stroke-width={s.width} class="hit" />
+              <line
+                x1={s.x1}
+                y1={s.by}
+                x2={s.x2}
+                y2={s.by}
+                stroke={palette.up}
+                stroke-width="1"
+                stroke-dasharray="4 3"
+              />
+              <line
+                x1={s.x1}
+                y1={s.sy}
+                x2={s.x2}
+                y2={s.sy}
+                stroke={palette.down}
+                stroke-width="1"
+                stroke-dasharray="4 3"
+              />
+              <text class="lab" x={s.x1 + 4} y={s.by - 3} fill={palette.up} stroke="none"
+                >{s.target.label}</text
+              >
+              <text class="lab" x={s.x1 + 4} y={s.sy + 10} fill={palette.down} stroke="none"
+                >{s.stopBox.label}</text
+              >
+              <text class="lab" x={s.x1 + 4} y={s.ay - 3} fill={s.color} stroke="none"
+                >{s.entryLabel} · {s.rr}</text
+              >
+            {:else if s.tool === 'ruler' && s.rw != null}
+              <rect
+                x={s.rx}
+                y={s.ry}
+                width={s.rw}
+                height={Math.max(1, s.rh)}
+                fill={s.tint}
+                fill-opacity="0.12"
+                stroke={s.tint}
+                stroke-width="1"
+                class="hit fill"
+                onpointerdown={(e) => startDrag(e, s.id, 'move')}
+              />
+              <line
+                x1={s.ax}
+                y1={s.ay}
+                x2={s.ax}
+                y2={s.by}
+                stroke={s.tint}
+                stroke-width="1.5"
+                marker-end=""
+              />
+              <text class="lab big" x={s.rx + s.rw / 2} y={s.up ? s.ry - 14 : s.ry + s.rh + 14} text-anchor="middle" fill={s.tint} stroke="none"
+                >{s.label}</text
+              >
+              <text class="lab" x={s.rx + s.rw / 2} y={s.up ? s.ry - 4 : s.ry + s.rh + 24} text-anchor="middle" fill={s.tint} stroke="none"
+                >{s.sub}</text
+              >
+            {/if}
+
+            {#if s.sel && s.id !== '__draft' && s.sy != null}
+              <circle
+                class="handle"
+                cx={(s.x1 + s.x2) / 2}
+                cy={s.sy}
+                r="4"
+                fill={palette.down}
+                onpointerdown={(e) => startDrag(e, s.id, 'stop')}
+              />
+            {/if}
+            {#if s.sel && s.id !== '__draft'}
+              <circle
+                class="handle"
+                cx={s.ax}
+                cy={s.ay}
+                r="4"
+                fill={s.color}
+                onpointerdown={(e) => startDrag(e, s.id, 'a')}
+              />
+              {#if s.bx != null}
+                <circle
+                  class="handle"
+                  cx={s.bx}
+                  cy={s.by}
+                  r="4"
+                  fill={s.color}
+                  onpointerdown={(e) => startDrag(e, s.id, 'b')}
+                />
+              {/if}
+              {#if s.cx != null}
+                <circle
+                  class="handle"
+                  cx={s.cx}
+                  cy={s.cy}
+                  r="4"
+                  fill={s.color}
+                  onpointerdown={(e) => startDrag(e, s.id, 'c')}
+                />
+              {/if}
+            {/if}
+          </g>
+        {/each}
+
+        <!-- Quick backtest markers. Clickable only while the mode is on, so an arrow never
+             steals a pan from someone who is just reading the chart. -->
+        <g class="marks" class:live={quick}>
+          {#each markShapes as m (m.id)}
+            <polygon
+              class="mark"
+              points={m.points}
+              fill={m.entry ? m.color : 'none'}
+              stroke={m.color}
+              stroke-width="1.5"
+              onpointerdown={(e) => {
+                if (!quick) return;
+                e.stopPropagation();
+                e.preventDefault();
+                onquicktoggle?.(m.id);
+              }}
+            >
+            </polygon>
+            {#if m.label && m.label !== '1'}
+              <text class="qty" x={m.x} y={m.y} text-anchor="middle" fill={m.color} stroke="none"
+                >{m.label}</text
+              >
+            {/if}
+          {/each}
+        </g>
+
+        <!-- Missing bars nobody could read back: the two candles either side are not neighbours. -->
+        {#each holeShapes as h (h.key)}
+          <line class="hole" x1={h.x} y1={h.y1} x2={h.x} y2={h.y2}><title>{h.title}</title></line>
+        {/each}
+
+        <!-- Live bid and ask: two thin lines, inert to the pointer. -->
+        {#if quoteShapes}
+          <g class="quote">
+            {#each quoteShapes.lines as q (q.key)}
+              <line class="qline" x1={q.x1} y1={q.y} x2={q.x2} y2={q.y} stroke={q.color} />
+            {/each}
+          </g>
+        {/if}
+
+        <!-- Broker book: what the synced account holds and has working here. Read-only, and
+             inert to the pointer except for the label, which carries the detail on hover. -->
+        <g class="book" class:hidden={ordScale}>
+          {#each bookShapes as b (b.key)}
+            <line
+              class="bline"
+              x1={b.x1}
+              y1={b.y}
+              x2={b.x2}
+              y2={b.y}
+              stroke={b.color}
+              stroke-dasharray={b.dashed ? '5 4' : 'none'}
+            />
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <text
+              class="blab"
+              class:editable={b.kind === 'order'}
+              x={b.x2 - 4}
+              y={b.ly}
+              text-anchor="end"
+              fill={b.color}
+              ondblclick={() => b.kind === 'order' && onbookorderedit?.(b.id)}
+              onpointerenter={() => (linkGroup = groupOf(b, book, 'b:'))}
+              onpointerleave={() => (linkGroup = null)}
+            >
+              {b.label}
+              <title>{b.title}</title>
+            </text>
+          {/each}
+        </g>
+      </g>
+    </svg>
+  {/if}
+
+  <!-- Long press: side and size, where the finger was. -->
+  {#if quickMenu}
+    <div class="quick-menu" style:left="{quickMenu.left}px" style:top="{quickMenu.top}px">
+      <div class="qrow">
+        <button type="button" class="qbtn long" onclick={() => quickSubmit('long')}>
+          <Icon name="arrow-up" size={12} /> {$t('analysis.long')}
+        </button>
+        <button type="button" class="qbtn short" onclick={() => quickSubmit('short')}>
+          <Icon name="arrow-down" size={12} /> {$t('analysis.short')}
+        </button>
+      </div>
+      <label class="qqty">
+        {$t('histviz.quick.qty')}
+        <input
+          type="number"
+          min="0"
+          step="any"
+          bind:value={quickSize}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') quickSubmit('long');
+            e.stopPropagation();
+          }}
+        />
+        {#if quickUnitLabel}<span class="qunit">{quickUnitLabel}</span>{/if}
+      </label>
+      <p class="qhint">{$t('histviz.quick.priceAt', { price: fmtPrice(quickMenu.p.y) })}</p>
+    </div>
+  {/if}
+
+  <!-- The text tool types straight on the chart; an empty entry drops the object. -->
+  {#if editing && notePos}
+    <input
+      class="note-input"
+      style:left="{notePos.left}px"
+      style:top="{notePos.top - 10}px"
+      bind:this={noteInput}
+      bind:value={editing.value}
+      onblur={commitText}
+      onkeydown={(e) => {
+        if (e.key === 'Enter') commitText();
+        else if (e.key === 'Escape') {
+          editing.value = '';
+          commitText();
+        }
+        e.stopPropagation();
+      }}
+    />
+  {/if}
+
+  <!-- Selection style bar: the few controls a drawing needs, where the drawing is. -->
+  {#if styleBar}
+    {@const cur = drawings.find((d) => d.id === selectedDrawing)}
+    <div class="style-bar" style:left="{styleBar.left}px" style:top="{styleBar.top}px">
+      {#each STYLE_COLORS as c, ci (ci)}
+        <button
+          type="button"
+          class="swatch"
+          class:on={(cur?.style?.color || STYLE_COLORS[0]) === c}
+          style:background={c}
+          title={$t('histviz.draw.color')}
+          aria-label={$t('histviz.draw.color')}
+          onclick={() => styleSelected({ color: c })}
+        ></button>
+      {/each}
+      <label class="pick" title={$t('histviz.draw.color')}>
+        <Icon name="droplet" size={12} />
+        <input
+          type="color"
+          value={cur?.style?.color || palette.accent}
+          oninput={(e) => styleSelected({ color: e.currentTarget.value })}
+        />
+      </label>
+      <span class="bar-sep"></span>
+      {#each [1, 2, 3] as w (w)}
+        <button
+          type="button"
+          class="width"
+          class:on={Math.round(cur?.style?.width || 1.4) === w}
+          title={$t('histviz.draw.width')}
+          aria-label={`${$t('histviz.draw.width')} ${w}`}
+          onclick={() => styleSelected({ width: w })}
+        >
+          <span style:height="{w}px"></span>
+        </button>
+      {/each}
+      <span class="bar-sep"></span>
+      <button
+        type="button"
+        class="bar-act"
+        class:on={tplOpen}
+        title={$t('histviz.draw.templates')}
+        aria-label={$t('histviz.draw.templates')}
+        onclick={() => (tplOpen = !tplOpen)}
+      >
+        <Icon name="star" size={12} />
+      </button>
+      <button
+        type="button"
+        class="bar-act"
+        title={$t('histviz.draw.copy')}
+        aria-label={$t('histviz.draw.copy')}
+        onclick={copySelected}
+      >
+        <Icon name="copy" size={12} />
+      </button>
+      <button
+        type="button"
+        class="bar-del"
+        title={$t('histviz.draw.remove')}
+        aria-label={$t('histviz.draw.remove')}
+        onclick={removeSelected}
+      >
+        <Icon name="trash" size={12} />
+      </button>
+      {#if tplOpen}
+        <div class="tpl-pop">
+          {#each templates as tpl (tpl.id)}
+            <div class="tpl-row">
+              <button
+                type="button"
+                class="tpl-apply"
+                onclick={() => styleSelected({ ...tpl.style })}
+              >
+                <span class="swatch" style:background={tpl.style?.color || palette.accent}
+                ></span>
+                <span class="tpl-name">{tpl.name}</span>
+              </button>
+              <button
+                type="button"
+                class="tpl-del"
+                title={$t('common.remove')}
+                aria-label={$t('common.remove')}
+                onclick={() => removeTemplate(tpl.id)}
+              >
+                <Icon name="x" size={10} />
+              </button>
+            </div>
+          {:else}
+            <p class="tpl-empty">{$t('histviz.draw.templateEmpty')}</p>
+          {/each}
+          <div class="tpl-new">
+            <input
+              type="text"
+              bind:value={tplName}
+              placeholder={$t('histviz.draw.templateName')}
+              onkeydown={(e) => e.key === 'Enter' && saveTemplate()}
+            />
+            <button type="button" onclick={saveTemplate}>{$t('histviz.draw.templateSave')}</button>
+          </div>
+          <button type="button" class="tpl-def" onclick={templateAsDefault}>
+            {$t('histviz.draw.templateDefault')}
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if view && logGrid.length}
+    <div class="loggrid">
+      {#each logGrid as g, gi (gi)}
+        {#if settings.grid !== false}<span
+            class="lg-line"
+            style:top="{g.top}px"
+            style:border-top="{Number(settings.gridWidth) || 0.5}px {settings.gridStyle || 'solid'} {palette.gridLine}"
+          ></span>{/if}
+        <span
+          class="lg-label"
+          style:top="{g.top}px"
+          style:color={palette.axisText}
+          style:font-size="{Number(settings.axisFontSize) || 10}px">{g.text}</span
+        >
+      {/each}
+    </div>
+  {/if}
+
+  {#if view && tags.length}
+    <div class="tags">
+      {#each tags as t, ti (ti)}
+        <span class="tag" style:top="{t.top}px" style:background={t.color}>{t.value}</span>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- The crosshair's own scale label: the value the cursor is pointing at. -->
+  {#if view && cursorTag}
+    <span class="cursor-tag" style:top="{cursorTag.top}px">{cursorTag.text}</span>
+  {/if}
+
+  <!-- A fill marker's tooltip: above the marker, below it near the top edge. -->
+  {#if markHover}
+    <div
+      class="mark-tip"
+      class:below={markHover.y < 64}
+      style:left="{markHover.x}px"
+      style:top="{markHover.y < 64 ? markHover.bottom + 6 : markHover.y - 6}px"
+    >
+      <span class="mt-head">{markHover.side} {markHover.qty} @ {markHover.price}</span>
+      <span class="mt-time">{markHover.time}</span>
+    </div>
+  {/if}
+
+  <!-- Orders: a line across the plot, a label at its end that drags the level and carries the
+       cancel. Faded while the broker has not answered. -->
+  {#if view && orderShapes.length && ordScale}
+    <!-- Orders as tags on the price scale: dragged to move, double-clicked to change, the
+         cancel showing on hover. -->
+    {#each orderShapes as o (o.key)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="ptag otag"
+        class:dragging={o.dragging}
+        class:sending={o.status === 'sending'}
+        style:top="{o.y}px"
+        style:--c={o.color}
+        title={o.label}
+        onpointerenter={() => (linkGroup = groupOf(o, orderLines, ''))}
+        onpointerleave={() => (linkGroup = null)}
+      >
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="tgrab"
+          onpointerdown={(e) => orderDown(e, o)}
+          onpointermove={orderMove}
+          onpointerup={orderUp}
+          onpointercancel={orderUp}
+          ondblclick={() => onorderedit?.(o.id)}>{o.dragging ? fmtPrice(snapToTick(yPrice(o.y) ?? o.price, o.tick, snapPrice)) : o.tag}</span
+        >
+        <button
+          type="button"
+          class="px"
+          title={$t('histviz.trade.cancel')}
+          aria-label={$t('histviz.trade.cancel')}
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={() => onordercancel?.(o.id)}><Icon name="x" size={10} /></button
+        >
+      </div>
+    {/each}
+  {:else if view && orderShapes.length}
+    {#each orderShapes as o (o.key)}
+      <span class="oline" class:dragging={o.dragging} class:sending={o.status === 'sending'} style:top="{o.y}px" style:left="{o.x1}px" style:width="{o.width}px" style:--c={o.color}></span>
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="ochip"
+        class:dragging={o.dragging}
+        class:sending={o.status === 'sending'}
+        style:top="{o.y}px"
+        style:left="{o.right}px"
+        style:--c={o.color}
+        onpointerenter={() => (linkGroup = groupOf(o, orderLines, ''))}
+        onpointerleave={() => (linkGroup = null)}
+      >
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="ograb"
+          title={$t('histviz.trade.dragLevel')}
+          onpointerdown={(e) => orderDown(e, o)}
+          onpointermove={orderMove}
+          onpointerup={orderUp}
+          onpointercancel={orderUp}
+          ondblclick={() => onorderedit?.(o.id)}>{o.label}</span
+        >
+        <button
+          type="button"
+          class="ox"
+          title={$t('histviz.trade.cancel')}
+          aria-label={$t('histviz.trade.cancel')}
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={() => onordercancel?.(o.id)}><Icon name="x" size={10} /></button
+        >
+      </div>
+    {/each}
+  {/if}
+
+  <!-- Positions: a solid line and its label with a close, or only a tag on the price scale
+       whose close shows on hover. A position the broker gives no id for cannot be closed
+       from here and has no ✕. -->
+  {#if view && positionShapes.length}
+    {#each positionShapes as p (p.key)}
+      {#if onScale}
+        <div class="ptag" class:closable={p.nativeId && onpositionclose} style:top="{p.y}px" style:--c={p.color} title={p.title}>
+          <span class="pt">{p.tag}</span>
+          {#if p.nativeId && onpositionclose}
+            <button
+              type="button"
+              class="px"
+              aria-label={$t('histviz.trade.closePosition')}
+              onpointerdown={(e) => e.stopPropagation()}
+              onclick={() => onpositionclose(p)}><Icon name="x" size={10} /> {$t('histviz.trade.closePosition')}</button
+            >
+          {/if}
+        </div>
+      {:else}
+        <span class="oline pos" style:top="{p.y}px" style:left="{p.x1}px" style:width="{p.width}px" style:--c={p.color}></span>
+        <div class="ochip pos" style:top="{p.y}px" style:left="{p.right}px" style:--c={p.color} title={p.title}>
+          <span class="ograb">{p.label}</span>
+          {#if p.nativeId && onpositionclose}
+            <button
+              type="button"
+              class="ox"
+              title={$t('histviz.trade.closePosition')}
+              aria-label={$t('histviz.trade.closePosition')}
+              onpointerdown={(e) => e.stopPropagation()}
+              onclick={() => onpositionclose(p)}><Icon name="x" size={10} /></button
+            >
+          {/if}
+        </div>
+      {/if}
+    {/each}
+  {/if}
+
+  {#if view && ordScale}
+    {#each bookShapes as b (b.key)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="ptag otag book-tag"
+        style:top="{b.y}px"
+        style:--c={b.color}
+        title={b.title}
+        ondblclick={() => onbookorderedit?.(b.id)}
+        onpointerenter={() => (linkGroup = groupOf(b, book, 'b:'))}
+        onpointerleave={() => (linkGroup = null)}
+      >
+        <span>{b.tag}</span>
+      </div>
+    {/each}
+  {/if}
+
+  {#each orderLinks as l (l.key)}
+    <span class="olink" style:left="{l.x}px" style:top="{l.top}px" style:height="{l.height}px" style:--c={l.color}></span>
+  {/each}
+
+  <!-- The `+` on the price scale, TradingView style: a resting order or an alert at the
+       crosshair's price. -->
+  {#if view && (trading || onalertat) && plus && !plusMenu}
+    <button
+      type="button"
+      class="plus"
+      style:top="{plus.top}px"
+      style:left="{plus.left}px"
+      title={$t(trading ? 'histviz.trade.plusHint' : 'histviz.alerts.plusHint', { price: fmtPrice(plus.price) })}
+      aria-label={$t(trading ? 'histviz.trade.plusHint' : 'histviz.alerts.plusHint', { price: fmtPrice(plus.price) })}
+      onpointerenter={() => (plusHover = true)}
+      onpointermove={(e) => {
+        // The button covers the canvas, which stops seeing the pointer: feed it the move so
+        // the `+` and the crosshair keep following instead of hopping once the cursor exits.
+        const b = el.getBoundingClientRect();
+        lastPointer = { x: e.clientX - b.left, y: e.clientY - b.top };
+        restoreCrosshair();
+        requestCursorTag();
+      }}
+      onpointerleave={(e) => {
+        plusHover = false;
+        const b = el.getBoundingClientRect();
+        if (e.clientX < b.left || e.clientX >= b.right || e.clientY < b.top || e.clientY >= b.bottom) {
+          lastPointer = null;
+          cursorTag = null;
+          plus = null;
+        }
+      }}
+      onpointerdown={(e) => e.stopPropagation()}
+      onclick={openPlusMenu}><Icon name="plus" size={11} /></button
+    >
+  {/if}
+  {#if plusMenu}
+    <div class="plus-menu" class:flip={axisRight} style:top="{plusMenu.top}px" style:left="{plusMenu.left}px" role="menu">
+      {#each plusChoices as c (c.side)}
+        <button type="button" role="menuitem" class="pm {c.side}" onclick={() => plusPick(c)}>
+          {$t('histviz.trade.plusOrder', {
+            side: $t(`histviz.trade.${c.side}`),
+            type: $t(`histviz.trade.type.${c.type}`),
+            qty: formatSize(Number(tradeQty) > 0 ? Number(tradeQty) : 1),
+            price: fmtPrice(plusMenu.price)
+          })}
+        </button>
+      {/each}
+      {#if trading}
+        <button type="button" role="menuitem" class="pm ticket" onclick={() => plusPick(plusChoices[0], true)}>
+          <Icon name="receipt" size={11} />
+          {$t('histviz.trade.openTicket')}
+        </button>
+      {/if}
+      {#if onalertat}
+        <button type="button" role="menuitem" class="pm alert" class:sep={trading} onclick={plusAlert}>
+          <Icon name="bell" size={11} />
+          {$t('histviz.alerts.plusAlert', { price: fmtPrice(plusMenu.price) })}
+        </button>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- The same `+` on the time axis: a time alert at the crosshair's future bar. -->
+  {#if view && onalertat && tplus && !tplusMenu}
+    <button
+      type="button"
+      class="plus"
+      style:top="{tplus.top}px"
+      style:left="{tplus.left}px"
+      title={$t('histviz.alerts.timePlusHint', { time: fmtTs(new Date(tplus.at).toISOString()) })}
+      aria-label={$t('histviz.alerts.timePlusHint', { time: fmtTs(new Date(tplus.at).toISOString()) })}
+      onpointerenter={() => (tplusHover = true)}
+      onpointermove={(e) => {
+        const b = el.getBoundingClientRect();
+        lastPointer = { x: e.clientX - b.left, y: e.clientY - b.top };
+        restoreCrosshair();
+        requestCursorTag();
+      }}
+      onpointerleave={(e) => {
+        tplusHover = false;
+        const b = el.getBoundingClientRect();
+        if (e.clientX < b.left || e.clientX >= b.right || e.clientY < b.top || e.clientY >= b.bottom) {
+          lastPointer = null;
+          cursorTag = null;
+          tplus = null;
+        }
+      }}
+      onpointerdown={(e) => e.stopPropagation()}
+      onclick={openTimePlusMenu}><Icon name="plus" size={11} /></button
+    >
+  {/if}
+  {#if tplusMenu}
+    <div class="plus-menu time" style:top="{tplusMenu.top}px" style:left="{tplusMenu.left}px" role="menu">
+      <button type="button" role="menuitem" class="pm alert" onclick={timePlusAlert}>
+        <Icon name="clock" size={11} />
+        {$t('histviz.alerts.timePlusAlert', { time: fmtTs(new Date(tplusMenu.at).toISOString()) })}
+      </button>
+    </div>
+  {/if}
+
+  <!-- Latest close, on the price axis it belongs to (left gutter), tinted like the candle
+       that produced it. -->
+  {#if view && lastTag}
+    {#if settings.lastPriceLine}
+      <span
+        class="last-line"
+        style:top="{lastTag.top}px"
+        style:left="{lastTag.x}px"
+        style:width="{lastTag.width}px"
+        style:border-top-style={settings.lastLineStyle ?? 'dashed'}
+        style:border-top-width="{settings.lastLineWidth ?? 1}px"
+        style:border-top-color={settings.lastLineColor || lastTag.color}
+      ></span>
+    {/if}
+    <!-- One block, so the countdown under the price is exactly as wide as it: the time left
+         on the bar that is still running, in a darker shade of the same tint. -->
+    <div
+      class="last-box"
+      style:top="{lastTag.top}px"
+      style:--tag={lastTag.color}
+      style:--ink={inkOn(lastTag.color)}
+      style:--ink-count={inkOn(lastTag.color, 0.55)}
+    >
+      <span class="last-tag">{lastTag.text}</span>
+      {#if countdown}<span class="count-tag">{countdown}</span>{/if}
+    </div>
+  {/if}
+
+  <!-- Indicator lines' latest values, each on its pane's scale in the line's colour. -->
+  {#if view && indTags.length}
+    {#each indTags as q, qi (qi)}
+      <div class="last-box quote-box" style:top="{q.top}px" style:--tag={q.color} style:--ink={inkOn(q.color)}>
+        <span class="last-tag">{q.text}</span>
+      </div>
+    {/each}
+  {/if}
+
+  <!-- Live bid and ask on the price axis, tinted like their lines. -->
+  {#if view && quoteShapes}
+    {#each quoteShapes.tags as q (q.key)}
+      <div class="last-box quote-box" style:top="{q.top}px" style:--tag={q.color} style:--ink={inkOn(q.color)}>
+        <span class="last-tag">{q.text}</span>
+      </div>
+    {/each}
+  {/if}
+
+  {#if view}
+    <!-- Three icons, no words: the chart is the content and this is navigation furniture.
+         A workspace pane adds its maximize, then a separator and close last. -->
+    <div class="nav" role="toolbar" aria-label={$t('histviz.chart.ariaChart')}>
+      <button
+        onclick={goStart}
+        title={$t('histviz.chart.jumpToStart')}
+        aria-label={$t('histviz.chart.start')}
+      >
+        <Icon name="chevrons-left" size={13} />
+      </button>
+      <button class="nav-touch" onclick={() => moveBy(-1)} aria-label={$t('histviz.chart.panLeft')} title={$t('histviz.chart.panLeft')}>
+        <Icon name="arrow-left" size={13} />
+      </button>
+      <button class="nav-touch" onclick={() => zoomBy(1.25)} aria-label={$t('histviz.chart.zoomOut')} title={$t('histviz.chart.zoomOut')}>
+        <Icon name="minus" size={13} />
+      </button>
+      <button
+        onclick={zoomFit}
+        title={$t('histviz.chart.fitToDefault')}
+        aria-label={$t('histviz.chart.fit')}
+      >
+        <Icon name="move-horizontal" size={13} />
+      </button>
+      <button class="nav-touch" onclick={() => zoomBy(1 / 1.25)} aria-label={$t('histviz.chart.zoomIn')} title={$t('histviz.chart.zoomIn')}>
+        <Icon name="plus" size={13} />
+      </button>
+      <button class="nav-touch" onclick={() => moveBy(1)} aria-label={$t('histviz.chart.panRight')} title={$t('histviz.chart.panRight')}>
+        <Icon name="arrow-right" size={13} />
+      </button>
+      <button
+        onclick={goEnd}
+        title={$t('histviz.chart.jumpToLatest')}
+        aria-label={$t('histviz.chart.end')}
+      >
+        <Icon name="chevrons-right" size={13} />
+      </button>
+      {#if onmaximize}
+        <button
+          class="nav-pane"
+          onclick={onmaximize}
+          title={maximized ? $t('histviz.workspace.restorePane') : $t('histviz.workspace.maximizePane')}
+          aria-label={maximized ? $t('histviz.workspace.restorePane') : $t('histviz.workspace.maximizePane')}
+        >
+          <Icon name={maximized ? 'chevrons-down-up' : 'maximize'} size={12} />
+        </button>
+      {/if}
+      {#if onclose}
+        <span class="nav-sep" aria-hidden="true"></span>
+        <button
+          class="nav-pane close"
+          disabled={!closable}
+          onclick={onclose}
+          title={$t('histviz.workspace.closePane')}
+          aria-label={$t('histviz.workspace.closePane')}
+        >
+          <Icon name="x" size={12} />
+        </button>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Scale switches at the foot of each value axis: A (auto scale) everywhere, L (log)
+       on the price one. Lit when on. -->
+  {#each autoBtns as b (b.i)}
+    <div class="scale-btns" class:show={axisHover} style:left="{b.left}px" style:top="{b.top}px">
+      <button
+        class:on={!b.manual}
+        title={b.manual ? $t('histviz.chart.autoScaleHint') : $t('histviz.chart.autoScaleLock')}
+        aria-label={$t('histviz.chart.autoScale')}
+        aria-pressed={!b.manual}
+        onclick={() => toggleAuto(b.i)}>A</button
+      >
+      {#if b.log}
+        <button
+          class:on={settings.scale === 'log'}
+          title={$t('histviz.chart.logScale')}
+          aria-label={$t('histviz.chart.logScale')}
+          aria-pressed={settings.scale === 'log'}
+          onclick={toggleLog}>L</button
+        >
+      {/if}
+    </div>
+  {/each}
+
+  {#if latestBtn}
+    <button
+      class="to-latest"
+      style:left="{latestBtn.left}px"
+      style:top="{latestBtn.top}px"
+      title={$t('histviz.chart.jumpToLatest')}
+      aria-label={$t('histviz.chart.jumpToLatest')}
+      onclick={goEnd}
+    >
+      <Icon name="chevrons-right" size={13} />
+    </button>
+  {/if}
+
+  <!-- Too many fills in the window to read: say it, rather than paint a wall of triangles. -->
+  {#if markView.dense}
+    <span class="marks-dense">{$t('histviz.chart.marksDense')}</span>
+  {/if}
+
+  <!-- History control, pinned to the left edge where the loaded data ends. Clicking is the
+       only way older bars are fetched; when the provider refuses, its reason rides along as
+       the tooltip instead of the button vanishing. -->
+  {#if view && atLeftEdge}
+    {#if atHistoryStart}
+      <span class="hist-edge" style:top={histTop != null ? `${histTop}px` : undefined}>{$t('histviz.chart.historyStart')}</span>
+    {:else}
+      <button
+        class="hist-more"
+        style:top={histTop != null ? `${histTop}px` : undefined}
+        class:blocked={!!loadMoreNotice}
+        disabled={loadingMore}
+        title={loadMoreNotice || $t('histviz.chart.loadMoreHint')}
+        onclick={() => onloadmore?.()}
+      >
+        {#if loadingMore}
+          <Icon name="refresh-cw" size={12} /> {$t('histviz.chart.loadingMore')}
+        {:else}
+          <Icon name="chevron-left" size={12} /> {loadMoreLabel || $t('histviz.chart.loadMoreShort')}
+        {/if}
+      </button>
+    {/if}
+  {/if}
+
+  <!-- ── On-chart header ──
+       The instrument, its OHLC readout, then one line per series, the way a market tool
+       writes it over the candles. Each line only shows its controls on hover, so the chart
+       stays clean until you reach for them. -->
+  {#if view && legend.length}
+    {@const price = legend[0]}
+    <div class="head" class:collapsed={!legendOpen}>
+      <div class="line sym-line">
+        {#if title}
+          <!-- The symbol is a button, as on every market terminal: it opens the picker. -->
+          <button class="sym" title={$t('histviz.data.pick')} onclick={() => onsymbol?.()}>
+            {title.ticker}
+          </button>
+          <span class="dot-sep">·</span>
+          <span class="tf">{title.timeframe}</span>
+          <span class="dot-sep">·</span>
+          <span class="ex">{title.provider}</span>
+        {:else}
+          <span class="sym">{price.label}</span>
+        {/if}
+        {#if ohlc && !price.hidden}
+          <span class="ohlc" class:up={ohlc.up}>
+            <span>O<b>{ohlc.o}</b></span>
+            <span>H<b>{ohlc.h}</b></span>
+            <span>L<b>{ohlc.l}</b></span>
+            <span>C<b>{ohlc.c}</b></span>
+            <span class="chg">{ohlc.delta} ({ohlc.chg})</span>
+          </span>
+        {/if}
+        <span class="btns">
+          <button
+            class="hbtn"
+            title={price.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+            aria-label={price.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+            onclick={() => toggleRow(price)}
+          >
+            <Icon name={price.hidden ? 'eye-off' : 'eye'} size={12} />
+          </button>
+        </span>
+      </div>
+
+      {#if legendOpen}
+        <!-- Volume is drawn in this pane, so it is titled in this header. -->
+        {@const volume = legend[1]}
+        <div class="line" class:off={volume.hidden}>
+          <span class="ico bar" style:--c={volume.color} style:--c2={volume.color2}></span>
+          <span class="lbl">{volume.label}</span>
+          <span class="val">{volume.value}</span>
+          <span class="btns">
+            <button
+              class="hbtn"
+              title={volume.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+              aria-label={volume.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+              onclick={() => toggleRow(volume)}
+            >
+              <Icon name={volume.hidden ? 'eye-off' : 'eye'} size={12} />
+            </button>
+          </span>
+        </div>
+
+        {#each compareRows as row (row.id)}
+          <div class="line ind" class:off={row.hidden}>
+            <span class="ico line-ico" class:dashed={row.dashed} style:--c={row.color}></span>
+            <span class="lbl">{row.label}</span>
+            {#if row.value}<span class="val">{row.value}</span>{/if}
+            <span class="btns">
+              <button
+                class="hbtn"
+                title={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                aria-label={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                onclick={() => oncomparetoggle?.(row.id)}
+              >
+                <Icon name={row.hidden ? 'eye-off' : 'eye'} size={12} />
+              </button>
+              {#if oncompareedit}
+                <button
+                  class="hbtn"
+                  title={$t('histviz.panel.edit')}
+                  aria-label={$t('histviz.panel.edit')}
+                  onclick={() => oncompareedit(row.id)}
+                >
+                  <Icon name="settings" size={12} />
+                </button>
+              {/if}
+              <button
+                class="hbtn"
+                title={$t('histviz.panel.remove')}
+                aria-label={$t('histviz.panel.remove')}
+                onclick={() => oncompareremove?.(row.id)}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          </div>
+        {/each}
+
+        {#each headRows as row (row.id)}
+          <div class="line ind" class:off={row.hidden}>
+            {#if row.icon === 'dot'}
+              <span class="ico dot" style:background={row.color}></span>
+            {:else if row.icon === 'bar'}
+              <span class="ico bar" style:--c={row.color} style:--c2={row.color2 ?? row.color}></span>
+            {:else}
+              <span class="ico line-ico" class:dashed={row.dashed} style:--c={row.color}></span>
+            {/if}
+            <span class="lbl">{row.label}</span>
+            {#if row.script?.issues}
+              <button
+                class="sissue"
+                class:failed={row.script.failed}
+                title={$t('histviz.script.issues')}
+                aria-label={$t('histviz.script.issues')}
+                onclick={() => onscriptinfo?.(row.id)}
+              >
+                <Icon name="alert-triangle" size={11} />{row.script.issues}
+              </button>
+            {/if}
+            {#if row.script?.onBricks}<span class="snote">{$t('histviz.script.onBricks')}</span>{/if}
+            {#if row.value}<span class="val">{row.value}</span>{/if}
+            <span class="btns">
+              <button
+                class="hbtn"
+                title={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                aria-label={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                onclick={() => toggleRow(row)}
+              >
+                <Icon name={row.hidden ? 'eye-off' : 'eye'} size={12} />
+              </button>
+              <button
+                class="hbtn"
+                title={$t('histviz.panel.edit')}
+                aria-label={$t('histviz.panel.edit')}
+                onclick={() => onedit?.(row.id)}
+              >
+                <Icon name="settings" size={12} />
+              </button>
+              <button
+                class="hbtn"
+                title={$t('histviz.panel.remove')}
+                aria-label={$t('histviz.panel.remove')}
+                onclick={() => onremove?.(row.id)}
+              >
+                <Icon name="x" size={12} />
+              </button>
+            </span>
+          </div>
+        {/each}
+      {/if}
+
+      <button
+        class="head-toggle"
+        title={legendOpen ? $t('histviz.chart.toggleLegend') : $t('histviz.chart.series')}
+        aria-label={$t('histviz.chart.toggleLegend')}
+        aria-expanded={legendOpen}
+        onclick={() => (legendOpen = !legendOpen)}
+      >
+        <Icon name={legendOpen ? 'chevron-up' : 'chevron-down'} size={12} />
+        {#if !legendOpen && legend.length > 2}<span class="count">{legend.length - 2}</span>{/if}
+      </button>
+    </div>
+
+    <!-- One title per sub-pane, over the pane that draws it. -->
+    {#each paneHeads as ph (ph.key)}
+      <div class="head pane-head" style:left="{ph.left}px" style:top="{ph.top}px">
+        {#each ph.rows as row (row.builtin ?? row.id)}
+          <div class="line ind" class:off={row.hidden}>
+            {#if row.icon === 'dot'}
+              <span class="ico dot" style:background={row.color}></span>
+            {:else if row.icon === 'bar'}
+              <span class="ico bar" style:--c={row.color} style:--c2={row.color2 ?? row.color}></span>
+            {:else}
+              <span class="ico line-ico" class:dashed={row.dashed} style:--c={row.color}></span>
+            {/if}
+            <span class="lbl">{row.label}</span>
+            {#if row.script?.issues}
+              <button
+                class="sissue"
+                class:failed={row.script.failed}
+                title={$t('histviz.script.issues')}
+                aria-label={$t('histviz.script.issues')}
+                onclick={() => onscriptinfo?.(row.id)}
+              >
+                <Icon name="alert-triangle" size={11} />{row.script.issues}
+              </button>
+            {/if}
+            {#if row.script?.onBricks}<span class="snote">{$t('histviz.script.onBricks')}</span>{/if}
+            {#if row.value}<span class="val">{row.value}</span>{/if}
+            <span class="btns">
+              <button
+                class="hbtn"
+                title={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                aria-label={row.hidden ? $t('histviz.panel.show') : $t('histviz.panel.hide')}
+                onclick={() => toggleRow(row)}
+              >
+                <Icon name={row.hidden ? 'eye-off' : 'eye'} size={12} />
+              </button>
+              {#if row.id != null}
+                <button
+                  class="hbtn"
+                  title={$t('histviz.panel.edit')}
+                  aria-label={$t('histviz.panel.edit')}
+                  onclick={() => onedit?.(row.id)}
+                >
+                  <Icon name="settings" size={12} />
+                </button>
+                <button
+                  class="hbtn"
+                  title={$t('histviz.panel.remove')}
+                  aria-label={$t('histviz.panel.remove')}
+                  onclick={() => onremove?.(row.id)}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              {/if}
+            </span>
+          </div>
+        {/each}
+      </div>
+    {/each}
+  {/if}
+</div>
+
+<style>
+  /* `isolation: isolate` contains the overlay children below (crosshair, tags, nav).
+     Their z-indexes are a private 1..5 order *within* this chart, not rungs on the
+     global --z-* ladder; without a stacking context they'd leak into the page's root
+     order and silently compete with real layers. */
+  .draw .guide {
+    stroke: var(--muted);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    opacity: 0.75;
+    pointer-events: none;
+  }
+
+  /* ── Drawing layer ──
+     The svg spans the whole chart but stays out of the way: only an armed tool (or a shape
+     under the cursor) takes the pointer, so pan/zoom keep working through it. */
+  .draw {
+    position: absolute;
+    inset: 0;
+    /* An <svg> is a replaced element: its 300×150 intrinsic size wins over `inset` alone. */
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .draw.armed {
+    pointer-events: auto;
+    cursor: crosshair;
+  }
+  .shape .hit {
+    pointer-events: stroke;
+    /* A hairline is impossible to grab; a fat transparent stroke under it is the hit area. */
+    stroke-linecap: round;
+    paint-order: stroke;
+  }
+  .shape .hit.fill {
+    pointer-events: all;
+  }
+  .draw:not(.armed) .shape .hit {
+    cursor: move;
+  }
+  .shape.sel .hit {
+    stroke-dasharray: none;
+    filter: drop-shadow(0 0 2px currentColor);
+  }
+  .shape .lab,
+  .shape .note {
+    font-size: 10px;
+    font-family: var(--mono, ui-monospace, monospace);
+    pointer-events: none;
+  }
+  .shape .note {
+    font-size: 12px;
+    font-family: inherit;
+    pointer-events: all;
+  }
+  .shape .lab.big {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .shape .handle {
+    pointer-events: all;
+    cursor: grab;
+    stroke: var(--surface);
+    stroke-width: 1.5;
+  }
+  /* ── Quick backtest markers ── */
+  .marks {
+    pointer-events: none;
+  }
+  .marks.live .mark {
+    pointer-events: all;
+    cursor: pointer;
+  }
+  .marks.live .mark:hover {
+    stroke-width: 2.5;
+  }
+  .qty {
+    font-size: 9px;
+    font-family: var(--mono, ui-monospace, monospace);
+    pointer-events: none;
+  }
+  .hole {
+    stroke: var(--amber);
+    stroke-width: 2;
+    stroke-dasharray: 4 3;
+  }
+  /* ── Broker book ── */
+  .quote .qline {
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  /* Under the last-price tag when they meet: the trade is the headline, the book its frame. */
+  .quote-box {
+    z-index: 3;
+    opacity: 0.92;
+  }
+  .book .bline {
+    stroke-width: 1;
+    opacity: 0.9;
+    pointer-events: none;
+  }
+  .book .blab.editable {
+    cursor: pointer;
+  }
+  .book .blab {
+    font-size: 10px;
+    font-family: var(--mono, ui-monospace, monospace);
+    font-weight: 600;
+    pointer-events: all;
+    /* Haloed in the chart's own background so a level over a dense candle stays readable
+       without a pill behind it (whose width would have to be guessed in SVG). */
+    stroke: var(--surface);
+    stroke-width: 3px;
+    paint-order: stroke;
+  }
+  .quick-menu {
+    position: absolute;
+    z-index: 5;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    background: var(--surface);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg, 0 6px 18px rgb(0 0 0 / 0.3));
+  }
+  .quick-menu .qrow {
+    display: flex;
+    gap: var(--space-1);
+  }
+  .qbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 10px;
+    border-radius: var(--radius);
+    border: 1px solid currentColor;
+    background: transparent;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  /* Blue long / red short, the quick-backtest convention — fixed, so it never collides with
+     a user-recoloured candle palette. */
+  .qbtn.long {
+    color: var(--accent);
+  }
+  .qbtn.short {
+    color: var(--red);
+  }
+  .qbtn:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+  }
+  .qqty {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--muted);
+  }
+  .qqty input {
+    width: 68px;
+    padding: 1px var(--space-1);
+    font-size: var(--text-xs);
+  }
+  .qunit {
+    font-size: var(--text-xs);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .qhint {
+    font-size: var(--text-xs);
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  .style-bar {
+    position: absolute;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 5px;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg, 0 6px 18px rgb(0 0 0 / 0.3));
+    backdrop-filter: blur(2px);
+  }
+  .style-bar .swatch {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+  }
+  .style-bar .swatch.on {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px currentColor;
+  }
+  .style-bar .pick {
+    display: inline-flex;
+    align-items: center;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .style-bar .pick input {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  .style-bar .width {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 18px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .style-bar .width span {
+    display: block;
+    width: 12px;
+    background: var(--muted);
+  }
+  .style-bar .width.on {
+    border-color: var(--border-control);
+  }
+  .style-bar .width.on span {
+    background: var(--text);
+  }
+  .style-bar .bar-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    margin: 0 2px;
+  }
+  .style-bar .bar-del {
+    display: inline-flex;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px;
+  }
+  .style-bar .bar-del:hover {
+    color: var(--red);
+  }
+  .style-bar .bar-act {
+    display: inline-flex;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px;
+  }
+  .style-bar .bar-act:hover,
+  .style-bar .bar-act.on {
+    color: var(--text);
+  }
+
+  /* Template list, hanging under the style bar it belongs to. */
+  .tpl-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 5;
+    width: 190px;
+    padding: var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg, 0 6px 18px rgb(0 0 0 / 0.3));
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tpl-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .tpl-apply {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 2px var(--space-1);
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.74rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .tpl-apply:hover {
+    background: var(--surface-2);
+  }
+  .tpl-apply .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .tpl-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tpl-del {
+    display: inline-flex;
+    padding: 2px;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tpl-del:hover {
+    color: var(--red);
+  }
+  .tpl-empty {
+    margin: 0;
+    padding: 2px var(--space-1);
+    color: var(--muted);
+    font-size: 0.72rem;
+  }
+  .tpl-new {
+    display: flex;
+    gap: 2px;
+    margin-top: 2px;
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-1);
+  }
+  .tpl-new input {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 0 var(--space-1);
+    font-size: 0.74rem;
+  }
+  .tpl-new button,
+  .tpl-def {
+    padding: 2px var(--space-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border-control);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .tpl-def {
+    margin-top: 2px;
+    text-align: center;
+  }
+  .tpl-new button:hover,
+  .tpl-def:hover {
+    border-color: var(--accent);
+  }
+
+  .note-input {
+    position: absolute;
+    z-index: 4;
+    width: 160px;
+    height: 22px;
+    padding: 0 var(--space-1);
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    font-size: var(--text-sm);
+  }
+
+  .chart-host {
+    position: relative;
+    isolation: isolate;
+    container-type: inline-size;
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    outline: none;
+  }
+
+  /* The host is focusable so arrows/+/- reach the chart; show that only for keyboard users. */
+  .chart-host:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .chart-host.fs {
+    background: var(--surface);
+    padding: var(--space-3);
+  }
+  .chart {
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    cursor: crosshair;
+    touch-action: none; /* we own the pan/zoom gestures */
+  }
+  .chart.divider {
+    cursor: grab;
+  }
+  .chart.grabbing {
+    cursor: grabbing;
+  }
+  /* zrender writes an inline cursor on its own root div at every move: `grab` from the inert
+     inside dataZoom, `pointer` over a series, `default` elsewhere. Those defer to the chart's
+     cursor above. */
+  .chart > :global(div:is([style*="cursor: default"], [style*="cursor: pointer"], [style*="cursor: grab"])) {
+    cursor: inherit !important;
+  }
+  @media (max-width: 767px) {
+    .chart { touch-action: pan-y; }
+    .nav button { min-width: 40px; min-height: 40px; }
+  }
+  /* Custom log-scale left axis: gridlines from the y-axis edge, labels to its left. */
+  .loggrid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    overflow: hidden;
+  }
+  .lg-line {
+    position: absolute;
+    left: var(--axis-w, 50px);
+    right: 16px;
+  }
+  .axis-right .lg-line {
+    left: 16px;
+    right: var(--axis-w, 50px);
+    height: 0;
+    border-top: 0.5px solid var(--grid-line);
+  }
+  .lg-label {
+    position: absolute;
+    left: 0;
+    width: calc(var(--axis-w, 50px) - 4px);
+    transform: translateY(-50%);
+    text-align: right;
+  }
+  .axis-right .lg-label {
+    left: auto;
+    right: 0;
+    text-align: left;
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1;
+  }
+  .tags {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    overflow: hidden;
+  }
+  /* Crosshair price tag. Its background is set inline from the series color, which the
+     user can override to any hex in chart settings — so no theme token can be the right
+     ink here. White plus the dark 1px ring is the fixed pair, like a label on a marker. */
+  .tag {
+    position: absolute;
+    left: 2px;
+    transform: translateY(-50%);
+    padding: 0 4px;
+    border-radius: 0;
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    color: #fff;
+    white-space: nowrap;
+    outline: 1px solid var(--border);
+    outline-offset: 0;
+  }
+  .axis-right .tag {
+    left: auto;
+    right: 2px;
+  }
+  .mark-tip {
+    position: absolute;
+    z-index: 6;
+    transform: translate(-50%, -100%);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: var(--space-1) var(--space-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .mark-tip.below {
+    transform: translate(-50%, 0);
+  }
+  .mt-time {
+    color: var(--muted);
+  }
+  /* The crosshair's scale label. Neutral ink on purpose — it is the cursor speaking, not a
+     series, so it must not borrow a series colour. */
+  .cursor-tag {
+    position: absolute;
+    left: 0;
+    z-index: 5;
+    transform: translateY(-50%);
+    box-sizing: border-box;
+    min-width: var(--axis-w, 46px);
+    padding: 0 4px;
+    text-align: right;
+    background: var(--text);
+    color: var(--bg);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .axis-right .cursor-tag {
+    left: auto;
+    right: 0;
+    text-align: left;
+  }
+  /* ── Chart trading ── */
+  .plus {
+    position: absolute;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .plus:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .plus-menu {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    padding: var(--space-1);
+    transform: translate(22px, -50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.22);
+  }
+  /* The scale is on the right: open towards the plot, not over the axis. */
+  .plus-menu.flip {
+    transform: translate(calc(-100% - 4px), -50%);
+  }
+  /* The time `+` sits at the plot's foot, on future bars (the right edge): open upwards and
+     towards the left, over the plot. */
+  .plus-menu.time {
+    transform: translate(calc(-100% + 18px), calc(-100% - 11px));
+  }
+  .pm {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    background: none;
+    color: var(--text);
+    font-size: var(--text-xs);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .pm:hover {
+    background: var(--surface-2);
+  }
+  .pm.buy {
+    color: var(--accent);
+  }
+  .pm.sell {
+    color: var(--red);
+  }
+  .pm.ticket,
+  .pm.alert.sep {
+    margin-top: 2px;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--muted);
+  }
+  .oline {
+    position: absolute;
+    z-index: 3;
+    height: 0;
+    border-top: 1px dashed var(--c);
+    pointer-events: none;
+  }
+  .oline.dragging {
+    border-top-style: solid;
+  }
+  .olink {
+    position: absolute;
+    z-index: 5;
+    width: 0;
+    border-left: 1px dashed var(--c);
+    pointer-events: none;
+  }
+  .oline.pos {
+    border-top-style: solid;
+  }
+  .ochip.pos .ograb {
+    cursor: default;
+  }
+  /* A position as a tag on the price scale: the side's colour, its close revealed on hover. */
+  .ptag {
+    position: absolute;
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    transform: translateY(-50%);
+    min-width: var(--axis-w, 46px);
+    padding: 0 4px;
+    box-sizing: border-box;
+    background: var(--c);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .axis-right .ptag {
+    left: auto;
+    right: 0;
+  }
+  /* Hovered, a closable tag becomes its close: the whole tag reads "Close position". */
+  .ptag .px {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ptag.closable:hover .pt {
+    display: none;
+  }
+  .ptag.closable:hover .px {
+    display: inline-flex;
+    flex: 1;
+  }
+  /* An order's tag: outlined in its side's colour, dashed like its line, where a position's
+     is filled. Dragged up and down like the line. */
+  .otag {
+    background: var(--surface);
+    color: var(--c);
+    outline: 1px dashed var(--c);
+    outline-offset: -1px;
+  }
+  .otag .tgrab {
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+  }
+  .otag.book-tag {
+    cursor: pointer;
+  }
+  .otag.dragging {
+    z-index: 7;
+  }
+  .otag.sending {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .book.hidden {
+    display: none;
+  }
+  .ochip {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    align-items: stretch;
+    transform: translate(-100%, -50%);
+    border: 1px solid var(--c);
+    border-radius: 3px;
+    background: var(--surface);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .ograb {
+    padding: 0 var(--space-1);
+    color: var(--c);
+    font-family: var(--mono);
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+  }
+  .ochip.dragging .ograb {
+    background: color-mix(in srgb, var(--c) 14%, transparent);
+  }
+  .oline.sending,
+  .ochip.sending {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .ox {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 3px;
+    border: none;
+    border-left: 1px solid var(--c);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .ox:hover {
+    color: var(--red);
+  }
+  /* Pinned to the price gutter. The tint is the user's candle color (any hex, white
+     included), so the ink is black or white, whichever reads on it. */
+  .last-line {
+    position: absolute;
+    z-index: 3;
+    height: 0;
+    border-top: 1px dashed;
+    pointer-events: none;
+  }
+  .last-box {
+    position: absolute;
+    left: 0;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    box-sizing: border-box;
+    min-width: var(--axis-w, 46px);
+    /* Centre the price row (not the whole block) on the last close. */
+    transform: translateY(-0.7lh);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    /* Fixed row height: QUOTE_TAG_GAP spaces the tags by it. */
+    line-height: 18px;
+    pointer-events: none;
+    outline: 1px solid var(--border);
+  }
+  .axis-right .last-box {
+    left: auto;
+    right: 0;
+  }
+  .last-tag,
+  .count-tag {
+    padding: 0 4px;
+    border-radius: 0;
+    white-space: nowrap;
+    text-align: right;
+  }
+  .axis-right .last-tag,
+  .axis-right .count-tag {
+    text-align: left;
+  }
+  .last-tag {
+    background: var(--tag);
+    color: var(--ink, #fff);
+  }
+  .count-tag {
+    background: color-mix(in srgb, var(--tag) 55%, #000);
+    color: var(--ink-count, #fff);
+  }
+  /* Top-right: the header now owns the top-left corner and can run long, so a centred nav
+     collided with the OHLC readout. */
+  .nav {
+    position: absolute;
+    top: 6px;
+    right: 56px;
+    z-index: 5;
+    display: flex;
+    gap: 2px;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    border: var(--hairline) solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(2px);
+  }
+  .nav button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 20px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .nav button:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .nav button.close:hover:not(:disabled) {
+    color: var(--red);
+  }
+  .nav button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .nav-sep {
+    align-self: stretch;
+    width: var(--hairline);
+    margin: 3px 2px;
+    background: var(--border);
+  }
+  .nav-touch { display: none !important; }
+  @media (max-width: 767px) {
+    .nav { left: 48px; right: 8px; overflow-x: auto; }
+    .nav .nav-touch { display: inline-flex !important; }
+    .nav button { flex: none; width: 40px; height: 40px; }
+  }
+  /* Only shown once the price axis has been dragged off auto — the way back. */
+  /* One per manually scaled pane, on that pane's gutter. An icon, not a word: it sits in a
+     50px axis strip and an oscillator pane is barely 40px tall. */
+  /* One per pane, on that pane's gutter. An icon, not a word: it sits in a 50px axis strip
+     and an oscillator pane is barely 40px tall. Quiet while the pane auto-fits, lit and
+     clickable once the scale has been dragged. */
+  .scale-btns {
+    position: absolute;
+    z-index: 5;
+    display: flex;
+    gap: 2px;
+    /* Only while the pointer is on the value scale, as on TradingView. */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 90ms linear;
+  }
+  .scale-btns.show,
+  .scale-btns:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .scale-btns button {
+    width: 20px;
+    height: 18px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border: var(--hairline) solid var(--border-control);
+    border-radius: 3px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    backdrop-filter: blur(2px);
+  }
+  .scale-btns button:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .scale-btns button.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .to-latest {
+    position: absolute;
+    z-index: 5;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border: var(--hairline) solid var(--border-control);
+    border-radius: 50%;
+    color: var(--muted);
+    cursor: pointer;
+    backdrop-filter: blur(2px);
+  }
+  .to-latest:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  /* Sits under the top-right controls, out of the header's way. */
+  .marks-dense {
+    position: absolute;
+    right: 6px;
+    top: 34px;
+    z-index: 5;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2px 8px;
+    color: var(--muted);
+    font-size: var(--text-xs);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+  /* History control: vertically centred against the price pane, at the left gutter — it
+     marks where the loaded data ends, so it reads as the edge of history itself. */
+  .hist-more,
+  .hist-edge {
+    position: absolute;
+    left: 56px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px 8px;
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+  .hist-more {
+    cursor: pointer;
+  }
+  .hist-more:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border-control);
+  }
+  .hist-more:disabled {
+    cursor: default;
+  }
+  /* The provider said no (depth, quota, key): keep the button, flag the reason. */
+  .hist-more.blocked {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+  /* ── On-chart header (market-tool style) ──
+     No box, no border: lines of text over the candles, each with its own controls that only
+     appear on hover. */
+  .head {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    max-width: min(70%, 720px);
+    font-size: var(--text-xs);
+    pointer-events: none;
+  }
+  /* A sub-pane's title sits at that pane's own top-left corner (positions come from the
+     layout, in pixels), so a windowed indicator is labelled where it is drawn. */
+  .pane-head {
+    top: auto;
+    left: auto;
+    max-width: 60%;
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 17px;
+    padding: 0 4px 0 2px;
+    border-radius: var(--radius);
+    color: var(--text);
+    line-height: 1.35;
+    pointer-events: auto;
+  }
+  .line:hover {
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+  }
+  .line.off {
+    opacity: 0.45;
+  }
+  .sym-line {
+    font-size: var(--text-base);
+  }
+  .sym {
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font: inherit;
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+  }
+  .sym:hover {
+    color: var(--accent);
+  }
+  .dot-sep {
+    color: var(--muted);
+  }
+  .tf,
+  .ex {
+    color: var(--text);
+  }
+  .ohlc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    margin-left: var(--space-2);
+    font-family: var(--mono);
+    font-size: var(--text-xs);
+    color: var(--muted);
+  }
+  .ohlc b {
+    margin-left: 3px;
+    font-weight: var(--fw-medium);
+    color: var(--red);
+  }
+  .ohlc.up b {
+    color: var(--green);
+  }
+  .ohlc .chg {
+    color: var(--red);
+  }
+  .ohlc.up .chg {
+    color: var(--green);
+  }
+  .lbl {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .val {
+    font-family: var(--mono);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  /* Per-line controls: hidden until the line is hovered, like every charting tool. */
+  .btns {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    margin-left: 4px;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+  .line:hover .btns,
+  .btns:focus-within {
+    opacity: 1;
+  }
+  .sissue {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 var(--space-1);
+    border: 0;
+    background: transparent;
+    color: var(--amber);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .sissue.failed {
+    color: var(--red);
+  }
+  .snote {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .hbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 16px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .hbtn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .head-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 1px;
+    padding: 1px 5px;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .head-toggle:hover {
+    color: var(--text);
+    border-color: var(--border-control);
+  }
+  .count {
+    font-family: var(--mono);
+    color: var(--text);
+  }
+  /* Condensed icons (12×10) */
+  .ico {
+    flex: none;
+    width: 12px;
+    height: 10px;
+    display: inline-block;
+  }
+  .ico.line-ico {
+    height: 0;
+    border-top: 2px solid var(--c);
+    align-self: center;
+  }
+  .ico.line-ico.dashed {
+    border-top-style: dashed;
+  }
+  .ico.dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    align-self: center;
+  }
+  /* Two-tone up/down swatch: left half --c, right half --c2 — a hard split, no gradient. */
+  .ico.bar {
+    position: relative;
+    background: var(--c);
+    border-radius: 0;
+  }
+  .ico.bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 50%;
+    background: var(--c2);
+  }
+  /* A pane in a 3x4 grid is a quarter of the width one has on its own, and the furniture a
+     chart wears (the OHLC readout, the jump buttons) does not shrink with it: it wraps over
+     the candles instead. Below these widths the overlays that have another way in are
+     dropped, in the order the chart can most afford. The gestures they duplicate all stay:
+     the crosshair still reads values out, and Home/End/0 still jump. */
+  @container (max-width: 560px) {
+    .nav:not(:has(.nav-pane)) {
+      display: none;
+    }
+    .nav button:not(.nav-pane) {
+      display: none;
+    }
+  }
+  @container (max-width: 420px) {
+    .head .ohlc {
+      display: none;
+    }
+  }
+  @container (max-width: 300px) {
+    .head .dot-sep,
+    .head .ex {
+      display: none;
+    }
+  }
+  @media (max-width: 767px) {
+    /* Above the time axis rather than under the header: the header grows with the OHLC
+       readout, the bottom edge does not. */
+    .nav { display: flex; top: auto; bottom: 62px; left: auto; right: 8px; width: calc(100% - 56px); min-width: 0; max-width: calc(100% - 56px); z-index: 6; }
+    /* A phone has no hover: a tap moves the crosshair, and the OHLC of that bar is the
+       readout, so it stays even on a narrow chart. The per-line buttons are shown, since a
+       hidden button would still take the tap. */
+    .head { max-width: calc(100% - 16px); }
+    .sym-line { flex-wrap: wrap; }
+    .head .ohlc { display: flex; margin-left: 0; }
+    .btns { opacity: 1; }
+    /* An armed tool takes the touch (page scroll would cancel the stroke); so does a drawn
+       shape, so it can be dragged. Elsewhere the chart keeps vertical page scroll. */
+    .draw.armed, .shape { touch-action: none; }
+  }
+</style>

@@ -1,0 +1,8 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.atr example.
+indicator("ref atr")
+pine_atr(length) =>
+    trueRange = na(high[1]) ? high - low : math.max(math.max(high - low, math.abs(high - close[1])), math.abs(low - close[1]))
+    ta.rma(trueRange, length)
+plot(pine_atr(14))
+plot(ta.atr(14))

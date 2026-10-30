@@ -1,0 +1,52 @@
+# Contract families for the journal what-if lab (`fees` scenario).
+#
+# One family = a micro and a full-size contract on the same index or commodity. `ratio` is
+# the only number kept here: how many `small` contracts make one `large` one (the ratio of
+# their multipliers). Fees are never listed: the alternative fee is always one of the
+# user's own fee schedules.
+#
+# `small` and `large` are exchange roots. A journal ticker matches a root when it is the
+# root itself, the root followed by a month code and a year (MNQZ6, MNQZ26, MNQZ2026), or
+# the root followed by a continuous suffix (MNQ1!). Anything else is not matched.
+
+[[family]]
+id = "mnq_nq"
+small = "MNQ"
+large = "NQ"
+ratio = 10
+
+[[family]]
+id = "mes_es"
+small = "MES"
+large = "ES"
+ratio = 10
+
+[[family]]
+id = "mym_ym"
+small = "MYM"
+large = "YM"
+ratio = 10
+
+[[family]]
+id = "m2k_rty"
+small = "M2K"
+large = "RTY"
+ratio = 10
+
+[[family]]
+id = "mcl_cl"
+small = "MCL"
+large = "CL"
+ratio = 10
+
+[[family]]
+id = "mgc_gc"
+small = "MGC"
+large = "GC"
+ratio = 10
+
+[[family]]
+id = "mbt_btc"
+small = "MBT"
+large = "BTC"
+ratio = 50

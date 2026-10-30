@@ -1,0 +1,70 @@
+# Binance USDⓈ-M futures. Every claim below is sourced in PROVIDER.md.
+
+provider = "binance_futures"
+label = "Binance USDⓈ-M Futures"
+venue = "BINANCE_USDM"
+api_version = "fapi v1/v3"
+maturity = "M2"
+asset_classes = ["perp", "future"]
+instrument_discovery = "full"
+auth = "none"
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+# Socket: 10 incoming frames per second, 1024 streams per connection.
+max_subs_per_connection = 1024
+
+[live]
+candles = "push"
+# Best bid and ask on every change (`<symbol>@bookTicker`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 1500
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 2400
+refill_ms = 60000
+
+[account]
+balances = true
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+fills_need_symbols = true
+quote_preference = ["USDT", "USDC", "BUSD", "USD"]
+quote_self = true
+venue_label = "Binance USDⓈ-M futures"
+sandbox_env = "testnet"
+
+# Execution (v2). Testnet only until `level` is E4. Binance has no day order.
+# Conditional orders (stops, trailing, if touched as TAKE_PROFIT) go to the algo book; a limit
+# changes in place, a stop by cancel and replace under the same id. Hedge mode names the
+# position side. No attached exits nor OCO at the venue: the broker sends them as plain orders
+# and links them itself, so `brackets` and `oca` stay false here. Post-only is GTX; a trailing
+# stop's distance is a callback rate, from an activation price when given. Cancel on
+# disconnect is `countdownCancelAll`, armed by the broker; `OrderCaps` has no field for it yet.
+[orders]
+types = ["market", "limit", "stop", "stop_limit", "trailing_stop", "mit", "lit"]
+tif = ["gtc", "gtd", "ioc", "fok"]
+amend = true
+brackets = false
+oca = false
+reduce_only = true
+post_only = true
+trail = ["percent"]
+trail_start = true
+triggers = ["last", "mark"]
+close_position = true
+client_id = true
+level = "E4"
+cancel_on_disconnect = true
+
+[regions]
+blocked = ["US"]
+sandbox_url = "https://testnet.binancefuture.com"

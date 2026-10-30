@@ -1,0 +1,23 @@
+# Alpha Vantage. Every claim below is sourced in PROVIDER.md.
+
+provider = "alphavantage"
+label = "Alpha Vantage"
+venue = "ALPHAVANTAGE"
+api_version = "query"
+maturity = "M2"
+asset_classes = ["equity", "etf"]
+instrument_discovery = "search_only"
+auth = "api_key"
+native_timeframes = ["1m", "5m", "15m", "1h", "1d"]
+
+# One answer per call: the last 100 days (daily, free) or the recent intraday month.
+[history.candles]
+max_items_per_call = 5000
+paging = "time"
+final_flag = false
+
+# Free key: 5 calls a minute, 25 a day.
+[[rate_limits]]
+scope = "account"
+capacity = 5
+refill_ms = 60000

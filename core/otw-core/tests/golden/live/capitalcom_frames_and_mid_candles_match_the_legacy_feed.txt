@@ -1,0 +1,112 @@
+#### native_stream.grain(i).unwrap()
+Native
+#### native_stream.grain(i).unwrap()
+Native
+#### native_stream.grain(i).unwrap()
+Native
+#### native_stream.grain(i).unwrap()
+Native
+#### native.url()
+"wss://api-streaming-capital.backend-capital.com/connect"
+#### opening frames
+[
+    Object {
+        "cst": String("c"),
+        "destination": String("OHLCMarketData.subscribe"),
+        "payload": Object {
+            "epics": Array [
+                String("EURUSD"),
+            ],
+            "resolutions": Array [
+                String("DAY"),
+            ],
+            "type": String("classic"),
+        },
+        "securityToken": String("s"),
+    },
+    Object {
+        "cst": String("c"),
+        "destination": String("OHLCMarketData.subscribe"),
+        "payload": Object {
+            "epics": Array [
+                String("GOLD"),
+                String("US500"),
+            ],
+            "resolutions": Array [
+                String("MINUTE_5"),
+            ],
+            "type": String("classic"),
+        },
+        "securityToken": String("s"),
+    },
+    Object {
+        "cst": String("c"),
+        "destination": String("OHLCMarketData.subscribe"),
+        "payload": Object {
+            "epics": Array [
+                String("GOLD"),
+            ],
+            "resolutions": Array [
+                String("HOUR"),
+            ],
+            "type": String("classic"),
+        },
+        "securityToken": String("s"),
+    },
+]
+#### norm(&native.subscribe(&more))
+[
+    Object {
+        "cst": String("c"),
+        "destination": String("OHLCMarketData.subscribe"),
+        "payload": Object {
+            "epics": Array [
+                String("OIL_CRUDE"),
+            ],
+            "resolutions": Array [
+                String("MINUTE_15"),
+            ],
+            "type": String("classic"),
+        },
+        "securityToken": String("s"),
+    },
+]
+#### norm(&native.unsubscribe(&more))
+[
+    Object {
+        "cst": String("c"),
+        "destination": String("OHLCMarketData.unsubscribe"),
+        "payload": Object {
+            "epics": Array [
+                String("OIL_CRUDE"),
+            ],
+            "resolutions": Array [
+                String("MINUTE_15"),
+            ],
+            "type": String("classic"),
+        },
+        "securityToken": String("s"),
+    },
+]
+#### capitalcom mid candles
+233 lines, 39340 bytes, sha256 38e386fa2ab3887a575f4b0d848a806264769885cf4b55b61918f45de5363770
+[
+    "GOLD|fx|1h|2022-12-22 13:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4655632398677966848|4655638995747733504|4655629100143083520|4655633498189594624|0",
+    "GOLD|fx|1h|2022-12-22 13:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4655632948433780736|4655639545503547392|4655629649898897408|4655634047945408512|0",
+...
+    "gold|fx|5m|2022-12-22 13:45:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4655674180119822336|4655680777189588992|4655670881584939008|4655675279631450112|0",
+    "gold|fx|5m|2022-12-22 13:45:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4655675279631450112|4655681876701216768|4655671981096566784|4655676379143077888|0",
+]
+#### faults(native.on_message(ack).unwrap(), &native_map)
+[
+    (
+        [
+            "EURUSD|fx|1d",
+        ],
+        "Symbol",
+    ),
+]
+#### fault(&eb)
+Some(
+    "Auth",
+)

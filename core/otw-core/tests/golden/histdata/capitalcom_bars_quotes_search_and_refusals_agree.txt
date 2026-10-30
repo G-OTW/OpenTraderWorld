@@ -1,0 +1,255 @@
+#### ~capitalcom 1m from <time>
+(varies with the clock)
+#### ~capitalcom 1m bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1m quote bars from <time>
+(varies with the clock)
+#### capitalcom 5m from <time>
+578 lines, 85587 bytes, sha256 322749e36de92a1552dd8b0c510734f1159d4d6ed86fe22a98fe0fc01203969e
+[
+    "2023-11-14 22:15:00.0 +00:00:00|4607633904662661300|4607656422660798153|4607615890264151818|4607637057182400460|4645269501586178048|None|None",
+    "2023-11-14 22:20:00.0 +00:00:00|4607650567981282571|4607673085979419424|4607632553582773089|4607653720501021730|4645287093772222464|None|None",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|4607290730371055668|4607313248369192521|4607272715972546186|4607293882890794828|4651541115911012352|None|None",
+    "2023-11-16 22:10:00.0 +00:00:00|4607307393689676939|4607329911687813792|4607289379291167457|4607310546209416099|4651549912004034560|None|None",
+]
+#### capitalcom 5m bid/ask from <time>
+578 lines, 109846 bytes, sha256 427269449488b91a2c68e7019e4cd57ca412070363b3047ea77cde9c7a4ce15a
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.1001, bid_high: 1.1051, bid_low: 1.0961, bid_close: 1.1008, ask_open: 1.1004, ask_high: 1.1054, ask_low: 1.0964, ask_close: 1.1011 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.1038, bid_high: 1.1088, bid_low: 1.0998, bid_close: 1.1045, ask_open: 1.1041, ask_high: 1.1091, ask_low: 1.1001, ask_close: 1.1048 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.0239, bid_high: 1.0289, bid_low: 1.0199, bid_close: 1.0246, ask_open: 1.0242, ask_high: 1.0292, ask_low: 1.0202, ask_close: 1.0249 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.0276, bid_high: 1.0326, bid_low: 1.0236, bid_close: 1.0283, ask_open: 1.0279, ask_high: 1.0329, ask_low: 1.0239, ask_close: 1.0286 }",
+]
+#### capitalcom 5m quote bars from <time>
+578 lines, 109846 bytes, sha256 427269449488b91a2c68e7019e4cd57ca412070363b3047ea77cde9c7a4ce15a
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.1001, bid_high: 1.1051, bid_low: 1.0961, bid_close: 1.1008, ask_open: 1.1004, ask_high: 1.1054, ask_low: 1.0964, ask_close: 1.1011 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.1038, bid_high: 1.1088, bid_low: 1.0998, bid_close: 1.1045, ask_open: 1.1041, ask_high: 1.1091, ask_low: 1.1001, ask_close: 1.1048 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.0239, bid_high: 1.0289, bid_low: 1.0199, bid_close: 1.0246, ask_open: 1.0242, ask_high: 1.0292, ask_low: 1.0202, ask_close: 1.0249 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.0276, bid_high: 1.0326, bid_low: 1.0236, bid_close: 1.0283, ask_open: 1.0279, ask_high: 1.0329, ask_low: 1.0239, ask_close: 1.0286 }",
+]
+#### ~capitalcom 15m from <time>
+(varies with the clock)
+#### ~capitalcom 15m bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 15m quote bars from <time>
+(varies with the clock)
+#### ~capitalcom 1h from <time>
+(varies with the clock)
+#### ~capitalcom 1h bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1h quote bars from <time>
+(varies with the clock)
+#### capitalcom 4h from <time>
+602 lines, 89103 bytes, sha256 769b6b05e0f46d8b2610f0e1dfffb8ba18b7d15f2ed2fa310530db92dceab112
+[
+    "2020-09-13 16:00:00.0 +00:00:00|4607843322045334028|4607865840043470881|4607825307646824546|4607846474565073188|4647767592004485120|None|None",
+    "2020-09-13 20:00:00.0 +00:00:00|4607859985363955299|4607882503362092152|4607841970965445817|4607863137883694458|4647776388097507328|None|None",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|4607900067400638897|4607922585398775749|4607882053002129415|4607903219920378056|4641803840935428096|None|None",
+    "2020-12-22 12:00:00.0 +00:00:00|4607916730719260167|4607939248717397020|4607898716320750685|4607919883238999327|4641839025307516928|None|None",
+]
+#### capitalcom 4h bid/ask from <time>
+602 lines, 114371 bytes, sha256 19e47908135ca99325b1273b4e2c84280de414a382b94da4ab51beabed285cfd
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.1466, bid_high: 1.1516, bid_low: 1.1426, bid_close: 1.1473, ask_open: 1.1469, ask_high: 1.1519, ask_low: 1.1429, ask_close: 1.1476 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.1503, bid_high: 1.1553, bid_low: 1.1463, bid_close: 1.151, ask_open: 1.1506, ask_high: 1.1556, ask_low: 1.1466, ask_close: 1.1513 }",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|Quote { bid_open: 1.1592, bid_high: 1.1642, bid_low: 1.1552, bid_close: 1.1599, ask_open: 1.1595, ask_high: 1.1645, ask_low: 1.1555, ask_close: 1.1602 }",
+    "2020-12-22 12:00:00.0 +00:00:00|Quote { bid_open: 1.1629, bid_high: 1.1679, bid_low: 1.1589, bid_close: 1.1636, ask_open: 1.1632, ask_high: 1.1682, ask_low: 1.1592, ask_close: 1.1639 }",
+]
+#### capitalcom 4h quote bars from <time>
+602 lines, 114371 bytes, sha256 19e47908135ca99325b1273b4e2c84280de414a382b94da4ab51beabed285cfd
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.1466, bid_high: 1.1516, bid_low: 1.1426, bid_close: 1.1473, ask_open: 1.1469, ask_high: 1.1519, ask_low: 1.1429, ask_close: 1.1476 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.1503, bid_high: 1.1553, bid_low: 1.1463, bid_close: 1.151, ask_open: 1.1506, ask_high: 1.1556, ask_low: 1.1466, ask_close: 1.1513 }",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|Quote { bid_open: 1.1592, bid_high: 1.1642, bid_low: 1.1552, bid_close: 1.1599, ask_open: 1.1595, ask_high: 1.1645, ask_low: 1.1555, ask_close: 1.1602 }",
+    "2020-12-22 12:00:00.0 +00:00:00|Quote { bid_open: 1.1629, bid_high: 1.1679, bid_low: 1.1589, bid_close: 1.1636, ask_open: 1.1632, ask_high: 1.1682, ask_low: 1.1592, ask_close: 1.1639 }",
+]
+#### ~capitalcom 1d from <time>
+(varies with the clock)
+#### ~capitalcom 1d bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1d quote bars from <time>
+(varies with the clock)
+#### capitalcom 1w from <time>
+102 lines, 14903 bytes, sha256 59dc92bbdd97360da6992f7f4af6abc156539768cfb019887a4eb04057c8be15
+[
+    "2020-09-13 22:00:00.0 +00:00:00|4607267311652993342|4607289829651130194|4607249297254483860|4607270464172732501|4651576300283101184|None|None",
+    "2020-09-20 22:00:00.0 +00:00:00|4607283974971614613|4607306492969751465|4607265960573105131|4607287127491353772|4651585096376123392|None|None",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|4607999596952403784|4608022114950540637|4607981582553894303|4608002749472142944|4639446488005476352|None|None",
+    "2022-08-07 22:00:00.0 +00:00:00|4608016260271025055|4608038778269161908|4607998245872515573|4608019412790764215|4639481672377565184|None|None",
+]
+#### capitalcom 1w bid/ask from <time>
+102 lines, 19113 bytes, sha256 679d7f3fa9f13373740b9926b6376b619080302519724e43bc0eb092a3556994
+[
+    "2020-09-13 22:00:00.0 +00:00:00|Quote { bid_open: 1.0187, bid_high: 1.0237, bid_low: 1.0147, bid_close: 1.0194, ask_open: 1.019, ask_high: 1.024, ask_low: 1.015, ask_close: 1.0197 }",
+    "2020-09-20 22:00:00.0 +00:00:00|Quote { bid_open: 1.0224, bid_high: 1.0274, bid_low: 1.0184, bid_close: 1.0231, ask_open: 1.0227, ask_high: 1.0277, ask_low: 1.0187, ask_close: 1.0234 }",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|Quote { bid_open: 1.1813, bid_high: 1.1863, bid_low: 1.1773, bid_close: 1.182, ask_open: 1.1816, ask_high: 1.1866, ask_low: 1.1776, ask_close: 1.1823 }",
+    "2022-08-07 22:00:00.0 +00:00:00|Quote { bid_open: 1.185, bid_high: 1.19, bid_low: 1.181, bid_close: 1.1857, ask_open: 1.1853, ask_high: 1.1903, ask_low: 1.1813, ask_close: 1.186 }",
+]
+#### capitalcom 1w quote bars from <time>
+102 lines, 19113 bytes, sha256 679d7f3fa9f13373740b9926b6376b619080302519724e43bc0eb092a3556994
+[
+    "2020-09-13 22:00:00.0 +00:00:00|Quote { bid_open: 1.0187, bid_high: 1.0237, bid_low: 1.0147, bid_close: 1.0194, ask_open: 1.019, ask_high: 1.024, ask_low: 1.015, ask_close: 1.0197 }",
+    "2020-09-20 22:00:00.0 +00:00:00|Quote { bid_open: 1.0224, bid_high: 1.0274, bid_low: 1.0184, bid_close: 1.0231, ask_open: 1.0227, ask_high: 1.0277, ask_low: 1.0187, ask_close: 1.0234 }",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|Quote { bid_open: 1.1813, bid_high: 1.1863, bid_low: 1.1773, bid_close: 1.182, ask_open: 1.1816, ask_high: 1.1866, ask_low: 1.1776, ask_close: 1.1823 }",
+    "2022-08-07 22:00:00.0 +00:00:00|Quote { bid_open: 1.185, bid_high: 1.19, bid_low: 1.181, bid_close: 1.1857, ask_open: 1.1853, ask_high: 1.1903, ask_low: 1.1813, ask_close: 1.186 }",
+]
+#### ~capitalcom 1m from <time>
+(varies with the clock)
+#### ~capitalcom 1m bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1m quote bars from <time>
+(varies with the clock)
+#### capitalcom 5m from <time>
+578 lines, 85587 bytes, sha256 322749e36de92a1552dd8b0c510734f1159d4d6ed86fe22a98fe0fc01203969e
+[
+    "2023-11-14 22:15:00.0 +00:00:00|4607633904662661300|4607656422660798153|4607615890264151818|4607637057182400460|4645269501586178048|None|None",
+    "2023-11-14 22:20:00.0 +00:00:00|4607650567981282571|4607673085979419424|4607632553582773089|4607653720501021730|4645287093772222464|None|None",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|4607290730371055668|4607313248369192521|4607272715972546186|4607293882890794828|4651541115911012352|None|None",
+    "2023-11-16 22:10:00.0 +00:00:00|4607307393689676939|4607329911687813792|4607289379291167457|4607310546209416099|4651549912004034560|None|None",
+]
+#### capitalcom 5m bid/ask from <time>
+578 lines, 109846 bytes, sha256 427269449488b91a2c68e7019e4cd57ca412070363b3047ea77cde9c7a4ce15a
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.1001, bid_high: 1.1051, bid_low: 1.0961, bid_close: 1.1008, ask_open: 1.1004, ask_high: 1.1054, ask_low: 1.0964, ask_close: 1.1011 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.1038, bid_high: 1.1088, bid_low: 1.0998, bid_close: 1.1045, ask_open: 1.1041, ask_high: 1.1091, ask_low: 1.1001, ask_close: 1.1048 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.0239, bid_high: 1.0289, bid_low: 1.0199, bid_close: 1.0246, ask_open: 1.0242, ask_high: 1.0292, ask_low: 1.0202, ask_close: 1.0249 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.0276, bid_high: 1.0326, bid_low: 1.0236, bid_close: 1.0283, ask_open: 1.0279, ask_high: 1.0329, ask_low: 1.0239, ask_close: 1.0286 }",
+]
+#### capitalcom 5m quote bars from <time>
+578 lines, 109846 bytes, sha256 427269449488b91a2c68e7019e4cd57ca412070363b3047ea77cde9c7a4ce15a
+[
+    "2023-11-14 22:15:00.0 +00:00:00|Quote { bid_open: 1.1001, bid_high: 1.1051, bid_low: 1.0961, bid_close: 1.1008, ask_open: 1.1004, ask_high: 1.1054, ask_low: 1.0964, ask_close: 1.1011 }",
+    "2023-11-14 22:20:00.0 +00:00:00|Quote { bid_open: 1.1038, bid_high: 1.1088, bid_low: 1.0998, bid_close: 1.1045, ask_open: 1.1041, ask_high: 1.1091, ask_low: 1.1001, ask_close: 1.1048 }",
+...
+    "2023-11-16 22:05:00.0 +00:00:00|Quote { bid_open: 1.0239, bid_high: 1.0289, bid_low: 1.0199, bid_close: 1.0246, ask_open: 1.0242, ask_high: 1.0292, ask_low: 1.0202, ask_close: 1.0249 }",
+    "2023-11-16 22:10:00.0 +00:00:00|Quote { bid_open: 1.0276, bid_high: 1.0326, bid_low: 1.0236, bid_close: 1.0283, ask_open: 1.0279, ask_high: 1.0329, ask_low: 1.0239, ask_close: 1.0286 }",
+]
+#### ~capitalcom 15m from <time>
+(varies with the clock)
+#### ~capitalcom 15m bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 15m quote bars from <time>
+(varies with the clock)
+#### ~capitalcom 1h from <time>
+(varies with the clock)
+#### ~capitalcom 1h bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1h quote bars from <time>
+(varies with the clock)
+#### capitalcom 4h from <time>
+602 lines, 89103 bytes, sha256 769b6b05e0f46d8b2610f0e1dfffb8ba18b7d15f2ed2fa310530db92dceab112
+[
+    "2020-09-13 16:00:00.0 +00:00:00|4607843322045334028|4607865840043470881|4607825307646824546|4607846474565073188|4647767592004485120|None|None",
+    "2020-09-13 20:00:00.0 +00:00:00|4607859985363955299|4607882503362092152|4607841970965445817|4607863137883694458|4647776388097507328|None|None",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|4607900067400638897|4607922585398775749|4607882053002129415|4607903219920378056|4641803840935428096|None|None",
+    "2020-12-22 12:00:00.0 +00:00:00|4607916730719260167|4607939248717397020|4607898716320750685|4607919883238999327|4641839025307516928|None|None",
+]
+#### capitalcom 4h bid/ask from <time>
+602 lines, 114371 bytes, sha256 19e47908135ca99325b1273b4e2c84280de414a382b94da4ab51beabed285cfd
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.1466, bid_high: 1.1516, bid_low: 1.1426, bid_close: 1.1473, ask_open: 1.1469, ask_high: 1.1519, ask_low: 1.1429, ask_close: 1.1476 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.1503, bid_high: 1.1553, bid_low: 1.1463, bid_close: 1.151, ask_open: 1.1506, ask_high: 1.1556, ask_low: 1.1466, ask_close: 1.1513 }",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|Quote { bid_open: 1.1592, bid_high: 1.1642, bid_low: 1.1552, bid_close: 1.1599, ask_open: 1.1595, ask_high: 1.1645, ask_low: 1.1555, ask_close: 1.1602 }",
+    "2020-12-22 12:00:00.0 +00:00:00|Quote { bid_open: 1.1629, bid_high: 1.1679, bid_low: 1.1589, bid_close: 1.1636, ask_open: 1.1632, ask_high: 1.1682, ask_low: 1.1592, ask_close: 1.1639 }",
+]
+#### capitalcom 4h quote bars from <time>
+602 lines, 114371 bytes, sha256 19e47908135ca99325b1273b4e2c84280de414a382b94da4ab51beabed285cfd
+[
+    "2020-09-13 16:00:00.0 +00:00:00|Quote { bid_open: 1.1466, bid_high: 1.1516, bid_low: 1.1426, bid_close: 1.1473, ask_open: 1.1469, ask_high: 1.1519, ask_low: 1.1429, ask_close: 1.1476 }",
+    "2020-09-13 20:00:00.0 +00:00:00|Quote { bid_open: 1.1503, bid_high: 1.1553, bid_low: 1.1463, bid_close: 1.151, ask_open: 1.1506, ask_high: 1.1556, ask_low: 1.1466, ask_close: 1.1513 }",
+...
+    "2020-12-22 8:00:00.0 +00:00:00|Quote { bid_open: 1.1592, bid_high: 1.1642, bid_low: 1.1552, bid_close: 1.1599, ask_open: 1.1595, ask_high: 1.1645, ask_low: 1.1555, ask_close: 1.1602 }",
+    "2020-12-22 12:00:00.0 +00:00:00|Quote { bid_open: 1.1629, bid_high: 1.1679, bid_low: 1.1589, bid_close: 1.1636, ask_open: 1.1632, ask_high: 1.1682, ask_low: 1.1592, ask_close: 1.1639 }",
+]
+#### ~capitalcom 1d from <time>
+(varies with the clock)
+#### ~capitalcom 1d bid/ask from <time>
+(varies with the clock)
+#### ~capitalcom 1d quote bars from <time>
+(varies with the clock)
+#### capitalcom 1w from <time>
+102 lines, 14903 bytes, sha256 59dc92bbdd97360da6992f7f4af6abc156539768cfb019887a4eb04057c8be15
+[
+    "2020-09-13 22:00:00.0 +00:00:00|4607267311652993342|4607289829651130194|4607249297254483860|4607270464172732501|4651576300283101184|None|None",
+    "2020-09-20 22:00:00.0 +00:00:00|4607283974971614613|4607306492969751465|4607265960573105131|4607287127491353772|4651585096376123392|None|None",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|4607999596952403784|4608022114950540637|4607981582553894303|4608002749472142944|4639446488005476352|None|None",
+    "2022-08-07 22:00:00.0 +00:00:00|4608016260271025055|4608038778269161908|4607998245872515573|4608019412790764215|4639481672377565184|None|None",
+]
+#### capitalcom 1w bid/ask from <time>
+102 lines, 19113 bytes, sha256 679d7f3fa9f13373740b9926b6376b619080302519724e43bc0eb092a3556994
+[
+    "2020-09-13 22:00:00.0 +00:00:00|Quote { bid_open: 1.0187, bid_high: 1.0237, bid_low: 1.0147, bid_close: 1.0194, ask_open: 1.019, ask_high: 1.024, ask_low: 1.015, ask_close: 1.0197 }",
+    "2020-09-20 22:00:00.0 +00:00:00|Quote { bid_open: 1.0224, bid_high: 1.0274, bid_low: 1.0184, bid_close: 1.0231, ask_open: 1.0227, ask_high: 1.0277, ask_low: 1.0187, ask_close: 1.0234 }",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|Quote { bid_open: 1.1813, bid_high: 1.1863, bid_low: 1.1773, bid_close: 1.182, ask_open: 1.1816, ask_high: 1.1866, ask_low: 1.1776, ask_close: 1.1823 }",
+    "2022-08-07 22:00:00.0 +00:00:00|Quote { bid_open: 1.185, bid_high: 1.19, bid_low: 1.181, bid_close: 1.1857, ask_open: 1.1853, ask_high: 1.1903, ask_low: 1.1813, ask_close: 1.186 }",
+]
+#### capitalcom 1w quote bars from <time>
+102 lines, 19113 bytes, sha256 679d7f3fa9f13373740b9926b6376b619080302519724e43bc0eb092a3556994
+[
+    "2020-09-13 22:00:00.0 +00:00:00|Quote { bid_open: 1.0187, bid_high: 1.0237, bid_low: 1.0147, bid_close: 1.0194, ask_open: 1.019, ask_high: 1.024, ask_low: 1.015, ask_close: 1.0197 }",
+    "2020-09-20 22:00:00.0 +00:00:00|Quote { bid_open: 1.0224, bid_high: 1.0274, bid_low: 1.0184, bid_close: 1.0231, ask_open: 1.0227, ask_high: 1.0277, ask_low: 1.0187, ask_close: 1.0234 }",
+...
+    "2022-07-31 22:00:00.0 +00:00:00|Quote { bid_open: 1.1813, bid_high: 1.1863, bid_low: 1.1773, bid_close: 1.182, ask_open: 1.1816, ask_high: 1.1866, ask_low: 1.1776, ask_close: 1.1823 }",
+    "2022-08-07 22:00:00.0 +00:00:00|Quote { bid_open: 1.185, bid_high: 1.19, bid_low: 1.181, bid_close: 1.1857, ask_open: 1.1853, ask_high: 1.1903, ask_low: 1.1813, ask_close: 1.186 }",
+]
+#### native.quote_history('fx') as u8
+1
+#### (b.0.to_bits(), b.1.to_bits())
+(
+    4607605982344971603,
+    4607607153280874719,
+)
+#### capitalcom search `eur`
+[
+    "EURUSD|EUR/USD|fx|Capital.com CURRENCIES",
+    "EURGBP|EUR/GBP|fx|Capital.com CURRENCIES",
+]
+#### capitalcom search `u`
+[
+    "EURUSD|EUR/USD|fx|Capital.com CURRENCIES",
+    "EURGBP|EUR/GBP|fx|Capital.com CURRENCIES",
+    "US500|US 500|index|Capital.com INDICES",
+    "BTCUSD|Bitcoin/USD|crypto|Capital.com CRYPTOCURRENCIES",
+]
+#### capitalcom search `gold`
+[
+    "GOLD|Gold|equity|Capital.com COMMODITIES",
+]
+#### capitalcom search `btc`
+[
+    "BTCUSD|Bitcoin/USD|crypto|Capital.com CRYPTOCURRENCIES",
+]
+#### capitalcom search `nothing`
+[]
+#### capitalcom search ``
+[]
+#### NOPE
+false
+#### LIMIT
+true
+#### env ``
+true
+#### env `live`
+true
+#### env `demo`
+true
+#### env `Demo`
+true
+#### env `paper`
+false

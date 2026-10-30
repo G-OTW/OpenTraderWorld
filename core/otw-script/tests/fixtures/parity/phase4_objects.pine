@@ -1,0 +1,29 @@
+//@version=6
+// Phase 4 parity: arrays, user-defined types and methods, str formatting.
+indicator("phase4 objects")
+type Swing
+    float price
+    int bar
+    array<float> path
+method span(Swing this, Swing other) =>
+    math.abs(this.price - other.price)
+var swings = array.new<Swing>()
+var closes = array.new_float()
+closes.push(close)
+if closes.size() > 50
+    closes.shift()
+ph = ta.pivothigh(high, 3, 3)
+if not na(ph)
+    swings.push(Swing.new(ph, bar_index - 3, array.from(close, open)))
+    if swings.size() > 10
+        swings.shift()
+float last = swings.size() > 1 ? swings.get(-1).span(swings.get(-2)) : na
+sorted = array.copy(closes)
+sorted.sort(order.descending)
+label = str.format("{0} {1,number,#.##}", str.tostring(closes.size()), closes.avg())
+plot(last)
+plot(closes.median())
+plot(sorted.get(0) - closes.max())
+plot(closes.stdev(false))
+plot(str.length(label))
+plot(closes.percentile_linear_interpolation(25))

@@ -1,0 +1,23 @@
+#### ~alphavantage 1m from <time>
+(varies with the clock)
+#### ~alphavantage 5m from <time>
+(varies with the clock)
+#### ~alphavantage 15m from <time>
+(varies with the clock)
+#### ~alphavantage 1h from <time>
+(varies with the clock)
+#### ~alphavantage 1d from <time>
+(varies with the clock)
+#### alphavantage search limit 1
+[
+    "TSCO.LON|Tesco PLC|equity|United Kingdom",
+]
+#### alphavantage search limit 25
+[
+    "TSCO.LON|Tesco PLC|equity|United Kingdom",
+    "TSCDF|Tesco plc|etf|United States",
+]
+#### LIMIT
+true
+#### NOPE
+false

@@ -1,0 +1,50 @@
+# Bitfinex perpetual derivatives (`<BASE>F0:<QUOTE>F0`, settled in USDt or BTC). The
+# account of both books is read by the spot adapter. Every claim below is sourced in
+# PROVIDER.md.
+
+provider = "bitfinex"
+label = "Bitfinex derivatives"
+venue = "BITFINEX_PERP"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["perp"]
+instrument_discovery = "full"
+auth = "none"
+# Bars open at midnight UTC (and on the hour for 3h, 4h, 6h, 12h), weekly ones (`1W`) on
+# Monday, monthly ones (`1M`) on the first of the calendar month.
+native_timeframes = ["1m", "5m", "15m", "30m", "1h", "3h", "4h", "6h", "12h", "1d", "1w", "1M"]
+# The socket docs say 30 subscriptions per socket (the limits page says 25).
+max_subs_per_connection = 30
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (a one-level `book`, P0).
+quote = "push"
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 10000
+paging = "time"
+
+# Requests per minute and IP, per endpoint (docs). An IP over a limit is blocked for 60 s.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "candles"
+capacity = 30
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "ticker"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "conf"
+capacity = 90
+refill_ms = 60000

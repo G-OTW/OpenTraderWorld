@@ -1,0 +1,17 @@
+[[case]]
+name = "Crypto at 33 % from 2026"
+source = "L. 207/2024"
+inputs = { crypto_gains = 1000.0 }
+expect = { total_tax = 330.0 }
+
+[[case]]
+name = "A capital loss does not offset dividends"
+source = "TUIR 67/68 vs 44: redditi diversi apart from redditi di capitale"
+inputs = { realized_capital_gains = -500.0, dividends = 1000.0 }
+expect = { total_tax = 260.0 }
+
+[[case]]
+name = "A crypto loss does not offset a share gain"
+source = "TUIR 68 c.9-bis: crypto losses only against crypto gains"
+inputs = { realized_capital_gains = 1000.0, crypto_gains = -1000.0 }
+expect = { total_tax = 260.0, pools = { cripto = { loss_created = 1000.0 } } }
