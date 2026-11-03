@@ -76,7 +76,7 @@ webpki-roots = "1"
 # features 3.x adds, none of which this connector uses.
 ibapi = { version = "2.12", default-features = false, features = ["async"] }
 # MIME parsing + HTML sanitising of stored mail bodies.
-mail-parser = "0.11"
+mail-parser = "1.0"
 ammonia = "4"
 # Parquet import/export for OHLCV. Arrow is deliberately left out: the row API reads a file
 # into the same string grid every other import uses, and the low-level column writer emits
