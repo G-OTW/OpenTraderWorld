@@ -1,0 +1,1539 @@
+//! The connectors driven end to end against a local server that answers like the venue.
+//!
+//! A unit test covers one payload and the network tests cover the half of a request that
+//! travels; what neither can reach is the **loop**: the cursor a second page is asked with,
+//! the week a venue's history is sliced into, the page it stops on, the refusal folded into
+//! a 200, the session token it is supposed to reuse instead of minting again. Those need a
+//! server that answers, and a funded account would not exercise them any better: it would
+//! have to happen to hold a history long enough to page.
+//!
+//! [`super::serve_from`] is what makes it possible: a thread pointed at a `wiremock` server
+//! has every venue's driver routed there (`histdata::native::routed`), and nothing else
+//! changes.
+//!
+//! These run offline, in the ordinary `cargo test`.
+
+use std::collections::HashMap;
+
+use serde_json::{json, Value};
+use time::{Duration, OffsetDateTime};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+
+use super::{broker_for, client, serve_from, ExecQuery};
+
+fn creds(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+}
+
+fn q(days: i64, symbols: &[&str]) -> ExecQuery {
+    let to = OffsetDateTime::now_utc();
+    ExecQuery {
+        from: to - Duration::days(days),
+        to,
+        symbols: symbols.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+/// A query parameter of a request the mock server recorded.
+fn param(req: &Request, key: &str) -> Option<String> {
+    req.url.query_pairs().find(|(k, _)| k == key).map(|(_, v)| v.to_string())
+}
+
+// ── OKX: a cursor, a short page, and a ceiling ───────────────────────────────
+
+/// Pages until the venue answers a short one, carrying the previous page's last `billId`
+/// forward as `after`. A cursor taken from the wrong row, or a loop that stops on the first
+/// page, both show up here as a fill count.
+#[tokio::test]
+async fn okx_pages_on_the_cursor_it_was_handed() {
+    let server = MockServer::start().await;
+    struct Fills;
+    impl Respond for Fills {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            // Only spot answers anything; the other instrument types come back empty, which
+            // is also what closes their loop.
+            if param(req, "instType").as_deref() != Some("SPOT") {
+                return ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":[]}));
+            }
+            let after: i64 = param(req, "after").and_then(|s| s.parse().ok()).unwrap_or(0);
+            // 100 rows is a full page, so a second one is asked for; the second answers 20.
+            let (start, count) = if after == 0 { (1_i64, 100) } else { (101, 20) };
+            let data: Vec<Value> = (start..start + count)
+                .map(|i| {
+                    json!({
+                        "instId": "BTC-USDT",
+                        "tradeId": i.to_string(),
+                        "billId": i.to_string(),
+                        "ordId": "o1",
+                        "side": "buy",
+                        "fillSz": "0.5",
+                        "fillPx": "30000",
+                        "fee": "-0.1",
+                        "feeCcy": "USDT",
+                        "ts": (1_700_000_000_000_i64 + i).to_string(),
+                    })
+                })
+                .collect();
+            ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":data}))
+        }
+    }
+    Mock::given(method("GET"))
+        .and(path("/api/v5/trade/fills-history"))
+        .respond_with(Fills)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v5/public/instruments"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":[]})))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let out = broker_for("okx")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_key", "k"), ("api_secret", "s"), ("api_passphrase", "p")]),
+            &q(3, &[]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 120, "both pages should be read");
+    // The second page was asked for with the first page's last bill id, not its first.
+    let asked: Vec<Option<String>> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/api/v5/trade/fills-history")
+        .filter(|r| param(r, "instType").as_deref() == Some("SPOT"))
+        .map(|r| param(r, "after"))
+        .collect();
+    assert_eq!(asked, vec![None, Some("100".into())], "the cursor is the last row's bill id");
+    // A charge is filed as a positive cost and the fills come back in time order.
+    assert!(out.windows(2).all(|w| w[0].at <= w[1].at), "fills are sorted by time");
+    assert_eq!(out[0].fee, 0.1);
+}
+
+/// A venue that keeps answering full pages is stopped by the connector's own ceiling, with
+/// a sentence the user can act on, rather than paging until the request times out.
+#[tokio::test]
+async fn okx_stops_on_a_history_it_cannot_page_to_the_end_of() {
+    let server = MockServer::start().await;
+    struct Endless;
+    impl Respond for Endless {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            if param(req, "instType").as_deref() != Some("SPOT") {
+                return ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":[]}));
+            }
+            let base: i64 = param(req, "after").and_then(|s| s.parse().ok()).unwrap_or(0);
+            let data: Vec<Value> = (1..=100)
+                .map(|i| {
+                    json!({
+                        "instId": "BTC-USDT",
+                        "billId": (base + i).to_string(),
+                        "tradeId": (base + i).to_string(),
+                        "side": "buy",
+                        "fillSz": "1",
+                        "fillPx": "1",
+                        "fee": "0",
+                        "ts": "1700000000000",
+                    })
+                })
+                .collect();
+            ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":data}))
+        }
+    }
+    Mock::given(method("GET"))
+        .and(path("/api/v5/trade/fills-history"))
+        .respond_with(Endless)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v5/public/instruments"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"code":"0","data":[]})))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let err = broker_for("okx")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_key", "k"), ("api_secret", "s"), ("api_passphrase", "p")]),
+            &q(3, &[]),
+        )
+        .await
+        .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("shorter period"), "{msg}");
+}
+
+// ── Binance USDⓈ-M: a week at a time, and a millisecond past the last fill ────
+
+/// Binance signs against *its* clock, so every pull starts by asking for it.
+async fn mock_binance_clock(server: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path("/fapi/v1/time"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "serverTime": (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
+        })))
+        .mount(server)
+        .await;
+}
+
+/// Binance answers seven days at most, so a longer period has to be walked. The windows
+/// have to tile it: a gap is a hole in the book nobody would notice.
+#[tokio::test]
+async fn binance_futures_walks_the_period_a_week_at_a_time() {
+    let server = MockServer::start().await;
+    mock_binance_clock(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/fapi/v1/userTrades"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let query = q(20, &["BTCUSDT"]);
+    broker_for("binance_futures")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_key", "k"), ("api_secret", "s")]),
+            &query,
+        )
+        .await
+        .unwrap();
+
+    let windows: Vec<(i64, i64)> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/fapi/v1/userTrades")
+        .map(|r| {
+            (
+                param(r, "startTime").unwrap().parse().unwrap(),
+                param(r, "endTime").unwrap().parse().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(windows.len(), 3, "20 days is three windows of at most seven: {windows:?}");
+    let week = 7 * 86_400_000_i64;
+    for (a, b) in &windows {
+        assert!(b - a <= week, "a window wider than a week: {a}..{b}");
+    }
+    // They start where the period does, end where it does, and leave no gap between them.
+    assert_eq!(windows[0].0, (query.from.unix_timestamp_nanos() / 1_000_000) as i64);
+    assert_eq!(windows[2].1, (query.to.unix_timestamp_nanos() / 1_000_000) as i64);
+    for pair in windows.windows(2) {
+        assert_eq!(pair[0].1, pair[1].0, "a gap between two windows: {pair:?}");
+    }
+}
+
+/// Inside a window the walk moves on the clock, and it has to move *past* the last fill:
+/// starting again on its millisecond replays it, and starting a second later drops whatever
+/// traded in between.
+#[tokio::test]
+async fn binance_futures_opens_the_next_page_one_millisecond_past_the_last_fill() {
+    let server = MockServer::start().await;
+    // One full page of a thousand fills, then nothing: enough to prove where the walk
+    // resumed. The stamps are relative to the window the connector actually asked for.
+    struct Trades(std::sync::atomic::AtomicUsize);
+    impl Respond for Trades {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let start: i64 = param(req, "startTime").unwrap().parse().unwrap();
+            if self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) > 0 {
+                return ResponseTemplate::new(200).set_body_json(json!([]));
+            }
+            let data: Vec<Value> = (0..1000)
+                .map(|i| {
+                    json!({
+                        "id": i,
+                        "orderId": 1,
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "qty": "1",
+                        "price": "30000",
+                        "commission": "0.5",
+                        "commissionAsset": "USDT",
+                        "time": start + i,
+                        "marginAsset": "USDT",
+                    })
+                })
+                .collect();
+            ResponseTemplate::new(200).set_body_json(json!(data))
+        }
+    }
+    mock_binance_clock(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/fapi/v1/userTrades"))
+        .respond_with(Trades(std::sync::atomic::AtomicUsize::new(0)))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let out = broker_for("binance_futures")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_key", "k"), ("api_secret", "s")]),
+            &q(3, &["BTCUSDT"]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 1000);
+    let starts: Vec<i64> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/fapi/v1/userTrades")
+        .map(|r| param(r, "startTime").unwrap().parse().unwrap())
+        .collect();
+    // The page's last fill is at start+999, so the next page opens at start+1000: one
+    // millisecond past it, never on it (a replay) and never a second later (a hole).
+    assert!(starts.len() >= 2, "the walk stopped on the first page: {starts:?}");
+    assert_eq!(starts[1], starts[0] + 1000, "{starts:?}");
+}
+
+/// The venue answers one instrument at a time, and a pull that names none would silently
+/// read nothing at all. It is refused instead, naming what to type.
+#[tokio::test]
+async fn binance_futures_refuses_a_pull_that_names_no_instrument() {
+    let err = broker_for("binance_futures")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_key", "k"), ("api_secret", "s")]),
+            &q(3, &[]),
+        )
+        .await
+        .unwrap_err();
+    assert!(format!("{err:#}").contains("one instrument at a time"));
+}
+
+// ── Bitget: two books, two window widths, one cursor ─────────────────────────
+
+/// Spot is served ninety days at a time and futures seven, each on its own endpoint, and
+/// the two are asked for separately. Both must cover the whole period.
+#[tokio::test]
+async fn bitget_slices_each_book_into_the_window_it_serves() {
+    let server = MockServer::start().await;
+    for p in ["/api/v2/spot/trade/fills", "/api/v2/mix/order/fill-history"] {
+        Mock::given(method("GET"))
+            .and(path(p))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"code":"00000","data":[]})),
+            )
+            .mount(&server)
+            .await;
+    }
+    serve_from(&server.uri());
+    broker_for("bitget")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[
+                ("api_key", "k"),
+                ("api_secret", "s"),
+                ("api_passphrase", "p"),
+                ("books", "spot,usdt-futures"),
+            ]),
+            &q(100, &[]),
+        )
+        .await
+        .unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let widths = |p: &str| -> Vec<i64> {
+        reqs.iter()
+            .filter(|r| r.url.path() == p)
+            .map(|r| {
+                let a: i64 = param(r, "startTime").unwrap().parse().unwrap();
+                let b: i64 = param(r, "endTime").unwrap().parse().unwrap();
+                b - a
+            })
+            .collect()
+    };
+    let spot = widths("/api/v2/spot/trade/fills");
+    let futures = widths("/api/v2/mix/order/fill-history");
+    assert!(!spot.is_empty() && !futures.is_empty(), "both books are asked");
+    assert!(spot.iter().all(|w| *w <= 90 * 86_400_000), "a spot slice wider than 90 days");
+    assert!(futures.iter().all(|w| *w <= 7 * 86_400_000), "a futures slice wider than a week");
+    // A hundred days of futures at a week each: the period is covered, not sampled.
+    assert!(futures.len() >= 14, "only {} futures windows for 100 days", futures.len());
+}
+
+// ── Bybit: two categories, weekly slices, a page cursor inside each ──────────
+
+/// Both categories ride one endpoint, told apart by `category`, a week at a time, and a
+/// slice whose answer names a next page is asked again on that cursor before moving on.
+#[tokio::test]
+async fn bybit_walks_each_category_by_week_and_page() {
+    let server = MockServer::start().await;
+    struct Fills;
+    impl Respond for Fills {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            // Every spot slice has a second page; linear slices are one short page.
+            let first_spot = param(req, "category").as_deref() == Some("spot") && param(req, "cursor").is_none();
+            let row = |id: &str| json!({"symbol":"BTCUSDT","orderId":"o","execId":id,"side":"Buy","execPrice":"81000","execQty":"0.01","execFee":"0.1","feeCurrency":"USDT","execType":"Trade","execTime":param(req, "endTime").unwrap()});
+            let (list, next) = if first_spot { (vec![row("s1")], "p2") } else if param(req, "cursor").as_deref() == Some("p2") { (vec![row("s2")], "") } else { (vec![], "") };
+            ResponseTemplate::new(200).set_body_json(json!({"retCode":0,"retMsg":"OK","result":{"list":list,"nextPageCursor":next}}))
+        }
+    }
+    Mock::given(method("GET")).and(path("/v5/execution/list")).respond_with(Fills).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/v5/market/instruments-info"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"retCode":0,"retMsg":"OK","result":{"list":[]}})))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let out = broker_for("bybit")
+        .unwrap()
+        .executions(&client().unwrap(), &creds(&[("api_key", "k"), ("api_secret", "s"), ("books", "spot,linear")]), &q(30, &[]))
+        .await
+        .unwrap();
+    assert_eq!(out.iter().map(|e| e.id.as_str()).collect::<std::collections::BTreeSet<_>>(), ["s1", "s2"].into());
+
+    let reqs = server.received_requests().await.unwrap();
+    let fills: Vec<_> = reqs.iter().filter(|r| r.url.path() == "/v5/execution/list").collect();
+    assert!(fills.iter().all(|r| r.headers.contains_key("x-bapi-sign")), "every fill page is signed");
+    let widths = |cat: &str| -> Vec<i64> {
+        fills
+            .iter()
+            .filter(|r| param(r, "category").as_deref() == Some(cat))
+            .map(|r| param(r, "endTime").unwrap().parse::<i64>().unwrap() - param(r, "startTime").unwrap().parse::<i64>().unwrap())
+            .collect()
+    };
+    let (spot, linear) = (widths("spot"), widths("linear"));
+    assert!(spot.iter().chain(&linear).all(|w| *w <= 7 * 86_400_000), "a slice wider than a week");
+    // Thirty days at a week each is five slices, each spot one read on two pages.
+    assert_eq!((spot.len(), linear.len()), (10, 5));
+}
+
+/// Every book by default: spot, linear and options pull their fills (options per base coin,
+/// read from the option list first), inverse is left out by its declaration.
+#[tokio::test]
+async fn bybit_reads_every_book_but_inverse_for_fills() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v5/execution/list"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"retCode":0,"retMsg":"OK","result":{"list":[],"nextPageCursor":""}})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v5/market/instruments-info"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"retCode":0,"retMsg":"OK","result":{"list":[{"baseCoin":"BTC"},{"baseCoin":"ETH"}],"nextPageCursor":""}})))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    broker_for("bybit").unwrap().executions(&client().unwrap(), &creds(&[("api_key", "k"), ("api_secret", "s")]), &q(5, &[])).await.unwrap();
+    let reqs = server.received_requests().await.unwrap();
+    let cats: std::collections::BTreeMap<String, usize> = reqs
+        .iter()
+        .filter(|r| r.url.path() == "/v5/execution/list")
+        .fold(Default::default(), |mut m, r| {
+            *m.entry(format!("{}{}", param(r, "category").unwrap(), param(r, "baseCoin").map(|c| format!(":{c}")).unwrap_or_default())).or_default() += 1;
+            m
+        });
+    assert_eq!(cats, [("linear".to_string(), 1), ("option:BTC".to_string(), 1), ("option:ETH".to_string(), 1), ("spot".to_string(), 1)].into());
+}
+
+#[test]
+fn a_bybit_key_is_checked_against_its_platform() {
+    let bybit = broker_for("bybit").unwrap();
+    let eu = broker_for("bybit_eu").unwrap();
+    assert!(bybit.validate_config(&creds(&[("site", "tr"), ("books", "spot,inverse")])).is_ok());
+    let e = bybit.validate_config(&creds(&[("site", "eu")])).unwrap_err().to_string();
+    assert!(e.contains("Bybit EU"), "{e}");
+    assert!(bybit.validate_config(&creds(&[("site", "mars")])).is_err());
+    assert!(eu.validate_config(&creds(&[("site", "eu-testnet")])).is_ok());
+    assert!(eu.validate_config(&creds(&[("site", "global")])).is_err());
+}
+
+// ── Gate.io: two books, weekly slices, each signed ───────────────────────────
+
+/// Both books pull their fills a week at a time, each page signed; a quiet slice is one
+/// page, and the futures rows come back in contracts with the side in the sign.
+#[tokio::test]
+async fn gateio_walks_both_books_by_week() {
+    let server = MockServer::start().await;
+    struct Spot;
+    impl Respond for Spot {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let at: i64 = param(req, "to").unwrap().parse().unwrap();
+            let row = json!({"id":format!("s{at}"),"create_time_ms":format!("{}000.5", at),"currency_pair":"BTC_USDT","side":"buy","amount":"0.01","price":"81000","order_id":"o","fee":"0.81","fee_currency":"USDT","point_fee":"0","gt_fee":"0"});
+            ResponseTemplate::new(200).set_body_json(json!([row]))
+        }
+    }
+    struct Futures;
+    impl Respond for Futures {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let at: i64 = param(req, "to").unwrap().parse().unwrap();
+            let row = json!({"trade_id":format!("f{at}"),"create_time":at,"contract":"BTC_USDT","order_id":"9","size":-3,"price":"82000","fee":"0.05"});
+            ResponseTemplate::new(200).set_body_json(json!([row]))
+        }
+    }
+    Mock::given(method("GET")).and(path("/api/v4/spot/my_trades")).respond_with(Spot).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v4/futures/usdt/my_trades_timerange")).respond_with(Futures).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v4/futures/usdt/contracts"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"name":"BTC_USDT","type":"direct","quanto_multiplier":"0.0001","status":"trading"}])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/api/v4/spot/currency_pairs")).respond_with(ResponseTemplate::new(200).set_body_json(json!([]))).mount(&server).await;
+    serve_from(&server.uri());
+    let out = broker_for("gateio").unwrap().executions(&client().unwrap(), &creds(&[("api_key", "k"), ("api_secret", "s")]), &q(10, &[])).await.unwrap();
+    assert_eq!(out.len(), 4, "two weeks for each book");
+    let fut = out.iter().find(|e| e.id.starts_with('f')).unwrap();
+    assert_eq!((fut.qty, fut.multiplier), (3.0, 0.0001), "contracts, valued by the list's contract size");
+    let reqs = server.received_requests().await.unwrap();
+    let fills: Vec<_> = reqs.iter().filter(|r| r.url.path().contains("my_trades")).collect();
+    assert!(fills.iter().all(|r| r.headers.contains_key("sign") && r.headers.contains_key("timestamp")), "every page is signed");
+    assert!(fills.iter().all(|r| {
+        let span = param(r, "to").unwrap().parse::<i64>().unwrap() - param(r, "from").unwrap().parse::<i64>().unwrap();
+        span < 7 * 86_400
+    }));
+    let e = broker_for("gateio").unwrap().validate_config(&creds(&[("books", "options")])).unwrap_err().to_string();
+    assert!(e.contains("spot"), "{e}");
+}
+
+// ── MEXC: two books, each reading the names spelled its way ─────────────────
+
+/// Spot pairs and contracts named in one list: the spot book asks `BTCUSDT` a week at a
+/// time with the signature in the query, the futures book asks `BTC_USDT` a month at a time
+/// with signed headers; neither asks the other's name. Futures rows count contracts.
+#[tokio::test]
+async fn mexc_splits_the_named_list_between_its_books() {
+    let server = MockServer::start().await;
+    struct Spot;
+    impl Respond for Spot {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let at: i64 = param(req, "endTime").unwrap().parse().unwrap();
+            let row = json!({"symbol":"BTCUSDT","id":format!("s{at}"),"orderId":"o","price":"81000","qty":"0.01","quoteQty":"810","commission":"0.81","commissionAsset":"USDT","time":at - 1000,"isBuyer":true,"isMaker":false});
+            ResponseTemplate::new(200).set_body_json(json!([row]))
+        }
+    }
+    struct Futures;
+    impl Respond for Futures {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let at: i64 = param(req, "end_time").unwrap().parse().unwrap();
+            let row = json!({"id":format!("f{at}"),"symbol":"BTC_USDT","side":3,"vol":3,"price":82000,"feeCurrency":"USDT","fee":0.05,"timestamp":at - 1000,"orderId":"9"});
+            ResponseTemplate::new(200).set_body_json(json!({"success":true,"code":0,"data":[row]}))
+        }
+    }
+    let now_ms = OffsetDateTime::now_utc().unix_timestamp() * 1000;
+    Mock::given(method("GET")).and(path("/api/v3/myTrades")).respond_with(Spot).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v1/private/order/list/order_deals")).respond_with(Futures).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v3/time")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"serverTime": now_ms}))).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v1/contract/ping")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"code":0,"data": now_ms}))).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/contract/detail"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"success":true,"code":0,"data":[{"symbol":"BTC_USDT","baseCoin":"BTC","quoteCoin":"USDT","settleCoin":"USDT","futureType":1,"contractSize":0.0001,"priceUnit":0.1,"volUnit":1,"minVol":1,"state":0}]})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET")).and(path("/api/v3/exchangeInfo")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"symbols":[]}))).mount(&server).await;
+    serve_from(&server.uri());
+    let creds = creds(&[("api_key", "k"), ("api_secret", "s")]);
+    let out = broker_for("mexc").unwrap().executions(&client().unwrap(), &creds, &q(10, &["BTCUSDT", "BTC_USDT"])).await.unwrap();
+    assert_eq!(out.iter().filter(|e| e.id.starts_with('s')).count(), 2, "a week, then the three days left");
+    let fut: Vec<_> = out.iter().filter(|e| e.id.starts_with('f')).collect();
+    assert_eq!(fut.len(), 1, "a month covers the ten days");
+    assert_eq!((fut[0].qty, fut[0].multiplier, fut[0].symbol.as_str()), (3.0, 0.0001, "BTC_USDT"), "contracts, valued by the list's contract size");
+    let reqs = server.received_requests().await.unwrap();
+    let spot: Vec<_> = reqs.iter().filter(|r| r.url.path() == "/api/v3/myTrades").collect();
+    assert!(spot.iter().all(|r| param(r, "symbol").as_deref() == Some("BTCUSDT") && param(r, "signature").is_some() && r.headers.contains_key("x-mexc-apikey")));
+    let futures: Vec<_> = reqs.iter().filter(|r| r.url.path().ends_with("order_deals")).collect();
+    assert!(futures.iter().all(|r| param(r, "symbol").as_deref() == Some("BTC_USDT") && r.headers.contains_key("signature") && r.headers.contains_key("request-time")));
+    let e = broker_for("mexc").unwrap().validate_config(&[("books".to_string(), "options".to_string())].into_iter().collect()).unwrap_err().to_string();
+    assert!(e.contains("spot"), "{e}");
+}
+
+// ── Bitfinex: every instrument in one list, paged back from its oldest millisecond ──
+
+/// A full page asks again with `end` at its oldest millisecond, and the row of that
+/// millisecond already read is not handed out twice. Calls are signed POSTs; the fee is a
+/// cost when Bitfinex writes it negative.
+#[tokio::test]
+async fn bitfinex_pages_back_from_the_oldest_millisecond() {
+    let server = MockServer::start().await;
+    struct Fills(std::sync::atomic::AtomicUsize);
+    impl Respond for Fills {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let body: Value = serde_json::from_slice(&req.body).unwrap();
+            let end = body["end"].as_i64().unwrap();
+            let row = |i: i64, ms: i64| json!([i, "tBTCUSD", ms, 7, 0.01, 81000.0, "EXCHANGE LIMIT", 81000.0, 1, -0.0162, "USD", null]);
+            assert_eq!(body["sort"], json!(-1));
+            // A full first page, one row a millisecond; the second repeats its oldest row.
+            let rows: Vec<Value> = if self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                (0..1000).map(|i| row(i, end - i)).collect()
+            } else {
+                (999..1004).map(|i| row(i, end - (i - 999))).collect()
+            };
+            ResponseTemplate::new(200).set_body_json(Value::Array(rows))
+        }
+    }
+    Mock::given(method("POST")).and(path("/v2/auth/r/trades/hist")).respond_with(Fills(Default::default())).mount(&server).await;
+    Mock::given(method("GET")).respond_with(ResponseTemplate::new(200).set_body_json(json!([[]]))).mount(&server).await;
+    serve_from(&server.uri());
+    let creds = creds(&[("api_key", "k"), ("api_secret", "s")]);
+    let out = broker_for("bitfinex").unwrap().executions(&client().unwrap(), &creds, &q(10, &["BTCUSD"])).await.unwrap();
+    assert_eq!(out.len(), 1004, "a full page, then four older rows");
+    assert!(out.iter().all(|e| e.symbol == "tBTCUSD" && e.fee > 0.0));
+    let reqs = server.received_requests().await.unwrap();
+    let pages: Vec<_> = reqs.iter().filter(|r| r.url.path() == "/v2/auth/r/trades/hist").collect();
+    assert_eq!(pages.len(), 2);
+    assert!(pages.iter().all(|r| r.headers.contains_key("bfx-nonce") && r.headers.contains_key("bfx-apikey")));
+}
+
+// ── Deribit: fills by currency and kind, inverse contracts never asked ───────
+
+/// With nothing named, the walk reads its eight (currency, kind) groups in the historical
+/// store, then in the recent one since the period reaches the last day. The inverse
+/// futures (BTC and ETH `future`) are never asked. Every call carries the per-call signature.
+#[tokio::test]
+async fn deribit_reads_each_group_and_skips_the_inverse_futures() {
+    let server = MockServer::start().await;
+    struct Fills;
+    impl Respond for Fills {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let hit = param(req, "currency").as_deref() == Some("BTC") && param(req, "kind").as_deref() == Some("option") && param(req, "historical").as_deref() == Some("true");
+            let ts = OffsetDateTime::now_utc().unix_timestamp() * 1000 - 3_600_000 * 48;
+            let trades = if hit {
+                json!([{"timestamp":ts,"state":"filled","price":0.0105,"direction":"buy","index_price":82706.41,"instrument_name":"BTC-25DEC26-100000-C","trade_seq":1,"amount":0.5,"mark_price":0.0106,"order_id":"BTC-77","fee":0.00015,"contracts":5,"trade_id":"BTC-1","fee_currency":"BTC","order_type":"limit","liquidity":"M"}])
+            } else {
+                json!([])
+            };
+            ResponseTemplate::new(200).set_body_json(json!({"jsonrpc":"2.0","result":{"trades":trades,"has_more":false}}))
+        }
+    }
+    let now_ms = OffsetDateTime::now_utc().unix_timestamp() * 1000;
+    Mock::given(method("GET")).and(path("/api/v2/private/get_user_trades_by_currency_and_time")).respond_with(Fills).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v2/public/get_time")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"jsonrpc":"2.0","result":now_ms}))).mount(&server).await;
+    Mock::given(method("GET")).and(path("/api/v2/public/get_instruments")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"jsonrpc":"2.0","result":[]}))).mount(&server).await;
+    serve_from(&server.uri());
+    let creds = creds(&[("api_key", "id"), ("api_secret", "secret")]);
+    let out = broker_for("deribit").unwrap().executions(&client().unwrap(), &creds, &q(10, &[])).await.unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!((out[0].symbol.as_str(), out[0].qty), ("BTC-25DEC26-100000-C", 0.5));
+    let reqs = server.received_requests().await.unwrap();
+    let fills: Vec<_> = reqs.iter().filter(|r| r.url.path().ends_with("get_user_trades_by_currency_and_time")).collect();
+    assert_eq!(fills.len(), 16, "eight groups, in both stores");
+    assert!(!fills.iter().any(|r| param(r, "kind").as_deref() == Some("future") && param(r, "currency").as_deref() != Some("USDC")));
+    assert!(fills.iter().all(|r| r.headers.get("authorization").and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("deri-hmac-sha256 id=id,"))));
+}
+
+// ── KuCoin: spot one pair at a time, futures by page ─────────────────────────
+
+/// Spot fills are asked pair by pair, a week at a time, signed with the passphrase; a pair
+/// the venue does not list is refused before any signed call.
+#[tokio::test]
+async fn kucoin_walks_each_named_pair_by_week() {
+    let server = MockServer::start().await;
+    struct Fills;
+    impl Respond for Fills {
+        fn respond(&self, req: &Request) -> ResponseTemplate {
+            let symbol = param(req, "symbol").unwrap();
+            let at: i64 = param(req, "endAt").unwrap().parse().unwrap();
+            let row = json!({"id":1,"orderId":"o","tradeId":at,"symbol":symbol,"side":"buy","price":"81000","size":"0.01","fee":"0.81","feeCurrency":"USDT","createdAt":at});
+            ResponseTemplate::new(200).set_body_json(json!({"code":"200000","data":{"items":[row],"lastId":1}}))
+        }
+    }
+    Mock::given(method("GET")).and(path("/api/v1/hf/fills")).respond_with(Fills).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v2/symbols"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"code":"200000","data":[
+            {"symbol":"BTC-USDT","baseCurrency":"BTC","quoteCurrency":"USDT","enableTrading":true},
+            {"symbol":"ETH-USDT","baseCurrency":"ETH","quoteCurrency":"USDT","enableTrading":true}]})))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let secrets = creds(&[("api_key", "k"), ("api_secret", "s"), ("api_passphrase", "p")]);
+    let b = broker_for("kucoin").unwrap();
+    let out = b.executions(&client().unwrap(), &secrets, &q(10, &["BTC-USDT", "ETH-USDT"])).await.unwrap();
+    assert_eq!(out.len(), 4, "two weeks for each pair");
+    let reqs = server.received_requests().await.unwrap();
+    let fills: Vec<_> = reqs.iter().filter(|r| r.url.path() == "/api/v1/hf/fills").collect();
+    assert!(fills.iter().all(|r| r.headers.contains_key("kc-api-sign") && r.headers.contains_key("kc-api-passphrase")), "every page is signed");
+    assert!(fills.iter().all(|r| {
+        let span = param(r, "endAt").unwrap().parse::<i64>().unwrap() - param(r, "startAt").unwrap().parse::<i64>().unwrap();
+        span < 7 * 86_400_000
+    }));
+    let e = b.executions(&client().unwrap(), &secrets, &q(10, &["ZZZ-NOPE"])).await.unwrap_err().to_string();
+    assert!(e.contains("ZZZ-NOPE"), "{e}");
+    assert_eq!(server.received_requests().await.unwrap().iter().filter(|r| r.url.path() == "/api/v1/hf/fills").count(), fills.len(), "nothing signed was sent for it");
+}
+
+// ── OANDA: the pages the venue itself hands back ─────────────────────────────
+
+/// OANDA answers an index of page URLs rather than a cursor, and each one is fetched. Only
+/// the id pair is taken from those URLs (a unit test covers that); what is checked here is
+/// that every page in the index is actually read.
+#[tokio::test]
+async fn oanda_reads_every_page_of_the_index() {
+    let server = MockServer::start().await;
+    let uri = server.uri();
+    Mock::given(method("GET"))
+        .and(path("/v3/accounts/001-004-1234567-001/transactions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "pages": [
+                format!("{uri}/v3/accounts/X/transactions/idrange?from=1&to=2"),
+                format!("{uri}/v3/accounts/X/transactions/idrange?from=3&to=4"),
+            ]
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v3/accounts/001-004-1234567-001/transactions/idrange"))
+        .respond_with(|req: &Request| {
+            let from = param(req, "from").unwrap();
+            ResponseTemplate::new(200).set_body_json(json!({
+                "transactions": [{
+                    "id": from,
+                    "type": "ORDER_FILL",
+                    "instrument": "EUR_USD",
+                    "units": "1000",
+                    "price": "1.1",
+                    "commission": "0.1",
+                    "financing": "0",
+                    "time": "2026-01-02T03:04:05.000000000Z",
+                    "accountID": "001-004-1234567-001",
+                }]
+            }))
+        })
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v3/accounts/001-004-1234567-001/instruments"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"instruments":[]})))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let out = broker_for("oanda")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[("api_token", "t"), ("account_id", "001-004-1234567-001")]),
+            &q(3, &[]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 2, "one fill per page in the index");
+    let ranges: Vec<String> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path().ends_with("/idrange"))
+        .map(|r| param(r, "from").unwrap())
+        .collect();
+    assert_eq!(ranges, vec!["1", "3"], "both pages were fetched");
+}
+
+// ── Capital.com: one session, reused ─────────────────────────────────────────
+
+/// The sign-in endpoint allows one request a second and the tokens come back in headers, so
+/// a session is minted once and carried on every later call. A connector that signed in per
+/// request would be rate-limited off the venue within a pull.
+#[tokio::test]
+async fn capitalcom_signs_in_once_and_carries_the_session() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/session"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("CST", "cst-token")
+                .insert_header("X-SECURITY-TOKEN", "sec-token")
+                .set_body_json(json!({})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/accounts"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "accounts": [{"accountId": "1", "accountName": "Main", "balance": {"balance": 10.0}}]
+        })))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let http = client().unwrap();
+    // A credential of this test's own, so the process-wide session cache is not one another
+    // test already filled.
+    let secrets = creds(&[
+        ("api_key", "capital-one-session"),
+        ("identifier", "nobody@example.invalid"),
+        ("api_password", "p"),
+    ]);
+    let b = broker_for("capitalcom").unwrap();
+    b.test(&http, &secrets).await.unwrap();
+    b.test(&http, &secrets).await.unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let logins = reqs.iter().filter(|r| r.method == wiremock::http::Method::POST).count();
+    assert_eq!(logins, 1, "the session was minted twice");
+    let carried: Vec<_> = reqs
+        .iter()
+        .filter(|r| r.url.path() == "/api/v1/accounts")
+        .map(|r| {
+            (
+                r.headers.get("CST").map(|v| v.to_str().unwrap().to_string()),
+                r.headers.get("X-SECURITY-TOKEN").map(|v| v.to_str().unwrap().to_string()),
+            )
+        })
+        .collect();
+    assert_eq!(carried.len(), 2);
+    for (cst, sec) in carried {
+        assert_eq!(cst.as_deref(), Some("cst-token"), "the session token is not carried");
+        assert_eq!(sec.as_deref(), Some("sec-token"));
+    }
+}
+
+// ── TradeStation: a refusal wrapped in a 200 ─────────────────────────────────
+
+/// TradeStation answers 200 with a per-account `Errors` array when it will not serve one of
+/// them. Reading that as an empty history would file "you traded nothing" into the journal,
+/// so it has to fail instead, and the token call must not be repeated for each page.
+#[tokio::test]
+async fn tradestation_refuses_a_per_account_error_inside_a_200() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/oauth/token"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"access_token": "tok", "expires_in": 1200})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "Orders": [],
+            "Errors": [{"AccountID": "SIM123", "Error": "Forbidden", "Message": "no access"}]
+        })))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let err = broker_for("tradestation")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[
+                ("client_id", "ts-inside-200"),
+                ("client_secret", "s"),
+                ("refresh_token", "r"),
+                ("account_id", "SIM123"),
+            ]),
+            &q(3, &[]),
+        )
+        .await
+        .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(msg.contains("SIM123"), "the refusal names the account: {msg}");
+    assert!(msg.to_lowercase().contains("no access"), "it repeats what the venue said: {msg}");
+}
+
+// ── FOREX.com: no cursor, so the walk must not repeat or stall ───────────────
+
+/// StoneX has no page cursor: the walk asks for everything changed since the newest row it
+/// has read, so a row lands on two pages by design and the order id is what tells them
+/// apart. A page that does not move the clock ends the walk rather than repeating forever.
+#[tokio::test]
+async fn forexcom_does_not_file_a_row_twice_or_walk_forever() {
+    let server = MockServer::start().await;
+    let at = OffsetDateTime::now_utc() - Duration::hours(1);
+    let at_ms = (at.unix_timestamp_nanos() / 1_000_000) as i64;
+    Mock::given(method("POST"))
+        .and(path("/session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"Session": "sess"})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/useraccount/ClientAndTradingAccount"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "ClientAccountId": 1,
+            "TradingAccounts": [{"TradingAccountId": 7, "TradingAccountCode": "ACC"}]
+        })))
+        .mount(&server)
+        .await;
+    // Two hundred rows is a full page, so a second is asked for; it repeats the last row of
+    // the first (same OrderId) and adds one more, then the third page is short.
+    struct History {
+        at_ms: i64,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+    impl Respond for History {
+        fn respond(&self, _req: &Request) -> ResponseTemplate {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let row = |id: i64, ms: i64| {
+                json!({
+                    "OrderId": id,
+                    "MarketName": "EUR/USD",
+                    "Direction": "buy",
+                    "Quantity": 1000.0,
+                    "Price": 1.1,
+                    "ExecutedDateTimeUtc": format!("/Date({ms})/"),
+                })
+            };
+            let rows: Vec<Value> = match n {
+                0 => (1..=200).map(|i| row(i, self.at_ms + i)).collect(),
+                1 => vec![row(200, self.at_ms + 200), row(201, self.at_ms + 201)],
+                _ => vec![],
+            };
+            ResponseTemplate::new(200).set_body_json(json!({ "TradeHistory": rows }))
+        }
+    }
+    Mock::given(method("GET"))
+        .and(path("/order/tradehistory"))
+        .respond_with(History { at_ms, calls: std::sync::atomic::AtomicUsize::new(0) })
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let out = broker_for("forexcom")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[
+                ("username", "fx-walk"),
+                ("password", "p"),
+                ("app_key", "a"),
+                ("trading_account_id", "7"),
+            ]),
+            &q(1, &[]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 201, "the repeated row was filed twice or a page was skipped");
+    let mut ids: Vec<&str> = out.iter().map(|e| e.id.as_str()).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), out.len(), "two fills share an id");
+    // The second page was asked for from the newest row of the first, not from the start.
+    let froms: Vec<i64> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/order/tradehistory")
+        .map(|r| param(r, "from").unwrap().parse().unwrap())
+        .collect();
+    assert!(froms[1] > froms[0], "the walk did not advance: {froms:?}");
+}
+
+// ── NinjaTrader: every fee line, and one lookup per contract ─────────────────
+
+/// A NinjaTrader fill carries no cost of its own: the platform books clearing, exchange,
+/// NFA, brokerage, IP, routing and commission separately, and a trade showing only the
+/// commission understates what it cost. The contract behind it takes three hops, which are
+/// asked once and remembered rather than repeated per fill.
+#[tokio::test]
+async fn ninjatrader_adds_up_every_fee_line_and_looks_a_contract_up_once() {
+    let server = MockServer::start().await;
+    let at = OffsetDateTime::now_utc() - Duration::hours(2);
+    let stamp = at.format(&time::format_description::well_known::Rfc3339).unwrap();
+    Mock::given(method("POST"))
+        .and(path("/auth/accesstokenrequest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"accessToken": "tok"})))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/account/list"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!([{"id": 42, "name": "DEMO1"}])),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/order/list"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            {"id": 9, "accountId": 42},
+            {"id": 10, "accountId": 42}
+        ])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/fillFee/list"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+            "id": 1,
+            "clearingFee": 0.1,
+            "exchangeFee": 0.2,
+            "nfaFee": 0.02,
+            "brokerageFee": 0.5,
+            "ipFee": 0.05,
+            "commission": 1.0,
+            "orderRoutingFee": 0.03,
+        }])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/fill/list"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            {"id": 1, "orderId": 9, "contractId": 77, "timestamp": stamp, "action": "Buy",
+             "qty": 2, "price": 5000.0},
+            {"id": 2, "orderId": 10, "contractId": 77, "timestamp": stamp, "action": "Sell",
+             "qty": 2, "price": 5010.0}
+        ])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/contract/item"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": 77, "name": "ESZ5", "contractMaturityId": 88
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/contractMaturity/item"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"id": 88, "productId": 99})),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/product/item"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": 99, "productType": "Futures", "valuePerPoint": 50.0, "currencyId": 1,
+            "name": "ES"
+        })))
+        .mount(&server)
+        .await;
+
+    serve_from(&server.uri());
+    let out = broker_for("ninjatrader")
+        .unwrap()
+        .executions(
+            &client().unwrap(),
+            &creds(&[
+                ("username", "nt-fees"),
+                ("password", "p"),
+                ("cid", "1"),
+                ("sec", "s"),
+                ("account_id", "42"),
+            ]),
+            &q(1, &[]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(out.len(), 2);
+    // Seven lines, added up as one positive cost, on the fill they belong to.
+    let first = out.iter().find(|e| e.id == "1").unwrap();
+    assert!((first.fee - 1.90).abs() < 1e-9, "fee lines were not all counted: {}", first.fee);
+    // A fill with no fee row is a zero, never an invented one.
+    assert_eq!(out.iter().find(|e| e.id == "2").unwrap().fee, 0.0);
+    // The point value is the venue's, not an assumption.
+    assert_eq!(first.multiplier, 50.0);
+    assert_eq!(first.symbol, "ESZ5");
+    // Two fills on one contract: the three hops are walked once, not twice.
+    let lookups = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path() == "/contract/item")
+        .count();
+    assert_eq!(lookups, 1, "the contract was looked up per fill");
+}
+
+// ── Binance spot orders: a lost answer (spec 6.3, T19 to T21) ─────────────────
+
+/// What a spot order needs before it leaves: the clock, the instrument and its filters. The
+/// order call itself is left to each test.
+pub(crate) async fn mock_binance_spot(server: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path("/api/v3/time"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "serverTime": (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/exchangeInfo"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "timezone": "UTC",
+            "symbols": [{
+                "symbol": "BTCUSDT", "status": "TRADING", "baseAsset": "BTC", "quoteAsset": "USDT",
+                "filters": [
+                    { "filterType": "PRICE_FILTER", "minPrice": "0.01", "maxPrice": "1000000", "tickSize": "0.01" },
+                    { "filterType": "LOT_SIZE", "minQty": "0.00001", "maxQty": "9000", "stepSize": "0.00001" }
+                ]
+            }]
+        })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/rateLimit/order"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(server)
+        .await;
+    // The order call gets no answer a client can read: the gateway in front of the venue fell over.
+    Mock::given(method("POST"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("upstream timed out"))
+        .mount(server)
+        .await;
+}
+
+/// A testnet spot account with a key of its own, so one test's clock, buckets and sent ids
+/// never reach another's.
+fn spot_account(tag: &str) -> HashMap<String, String> {
+    creds(&[("api_key", &format!("mock-key-{tag}")), ("api_secret", "mock-secret"), ("env", "testnet")])
+}
+
+fn spot_limit(key: &str) -> super::OrderTicket {
+    use otw_connector_model::{Decimal, OrderType, Side, TifKind};
+    let mut leg = super::OrderLeg::new(key, Side::Buy, OrderType::Limit, Decimal::new(2, 4));
+    leg.limit = Some(Decimal::new(7_000_000, 2));
+    leg.tif = Some(TifKind::Gtc);
+    super::OrderTicket { ticker: "BTCUSDT".into(), asset_type: "crypto".into(), legs: vec![leg], provider: None, connector: None, reference: None, reference_at: None, confirm_duplicate: false }
+}
+
+pub(crate) fn venue_order(client_id: &str, status: &str) -> Value {
+    json!({
+        "symbol": "BTCUSDT", "orderId": 4242, "clientOrderId": client_id, "price": "70000.00",
+        "origQty": "0.00020", "executedQty": "0", "status": status, "timeInForce": "GTC",
+        "type": "LIMIT", "side": "BUY", "time": 1, "updateTime": 1
+    })
+}
+
+/// T19: the order reached the venue though its answer was lost; looked up by client id, it is
+/// placed, and nothing is sent twice.
+#[tokio::test]
+async fn binance_spot_adopts_an_order_whose_answer_was_lost() {
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(venue_order("t19-k", "NEW")))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let placed = broker_for("binance").unwrap().place(&spot_account("t19"), &spot_limit("t19-k")).await.unwrap();
+    assert_eq!(placed[0].key, "t19-k");
+    assert_eq!(placed[0].id, "BTCUSDT:t19-k");
+    let posts = server.received_requests().await.unwrap().iter().filter(|r| r.method.as_str() == "POST" && r.url.path() == "/api/v3/order").count();
+    assert_eq!(posts, 1, "a lost answer is looked up, never sent again");
+}
+
+/// T20: the venue answers that it never saw the client id: the order was not received, a
+/// refusal, never an unknown.
+#[tokio::test]
+async fn binance_spot_refuses_an_order_the_venue_never_saw() {
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({ "code": -2013, "msg": "Order does not exist." })))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let e = broker_for("binance").unwrap().place(&spot_account("t20"), &spot_limit("t20-k")).await.unwrap_err();
+    assert!(e.downcast_ref::<super::OrderUnknown>().is_none(), "never seen is not unknown: {e:#}");
+}
+
+/// T21: no answer, and the lookup gets none either: the leg is unknown, named by its client
+/// id, for the reconciliation cycle to settle.
+#[tokio::test]
+async fn binance_spot_leaves_unknown_an_order_it_cannot_look_up() {
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("upstream timed out"))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let e = broker_for("binance").unwrap().place(&spot_account("t21"), &spot_limit("t21-k")).await.unwrap_err();
+    let u = e.downcast_ref::<super::OrderUnknown>().unwrap_or_else(|| panic!("an unreachable venue leaves the order unknown: {e:#}"));
+    assert_eq!(u.keys, vec!["t21-k".to_string()]);
+    assert!(!u.alert);
+    assert!(u.message.contains("do not send it again"), "{}", u.message);
+}
+
+/// T30: a 429 on an order is refused with the venue's wait, and the next order is held on this
+/// side until then: no second call reaches the venue.
+#[tokio::test]
+async fn binance_spot_holds_new_orders_after_a_429() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "30").set_body_json(json!({ "code": -1015, "msg": "Too many new orders." })))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    mock_binance_spot(&server).await;
+    serve_from(&server.uri());
+    let b = broker_for("binance").unwrap();
+    let s = spot_account("t30");
+    let e = format!("{:#}", b.place(&s, &spot_limit("t30-a")).await.unwrap_err());
+    assert!(e.contains("holds new orders for 30 s"), "the refusal says when to try again: {e}");
+    let again = format!("{:#}", b.place(&s, &spot_limit("t30-b")).await.unwrap_err());
+    let posts = server.received_requests().await.unwrap().iter().filter(|r| r.method.as_str() == "POST" && r.url.path() == "/api/v3/order").count();
+    super::binance::clear_holds();
+    assert_eq!(posts, 1, "the second order is held before it leaves: {again}");
+}
+
+/// A spot account holds the pair's base asset, not a position: free and locked, its assets
+/// read for this one symbol, never the whole instrument list.
+#[tokio::test]
+async fn binance_spot_holds_the_pairs_base_asset() {
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/account"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "balances": [
+                { "asset": "BTC", "free": "0.25", "locked": "0.05" },
+                { "asset": "USDT", "free": "900", "locked": "0" }
+            ]
+        })))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let held = broker_for("binance").unwrap().held_asset(&spot_account("held"), "BTCUSDT").await.unwrap();
+    assert_eq!(held, Some(otw_connector_model::Decimal::new(30, 2)));
+    let infos: Vec<_> = server.received_requests().await.unwrap().into_iter().filter(|r| r.url.path() == "/api/v3/exchangeInfo").collect();
+    assert!(infos.iter().all(|r| r.url.query_pairs().any(|(k, v)| k == "symbol" && v == "BTCUSDT")), "one symbol asked, never the list");
+}
+
+/// An order looked up by its client id: Binance's state when it has it, not found on `-2013`.
+#[tokio::test]
+async fn binance_spot_looks_an_order_up_by_its_client_id() {
+    use wiremock::matchers::query_param;
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .and(query_param("origClientOrderId", "seen-k"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(venue_order("seen-k", "PARTIALLY_FILLED")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .and(query_param("origClientOrderId", "never-k"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({ "code": -2013, "msg": "Order does not exist." })))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let b = broker_for("binance").unwrap();
+    let s = spot_account("lookup");
+    match b.lookup(&s, "BTCUSDT", "crypto", "seen-k").await.unwrap() {
+        super::Lookup::Found { id, status, .. } => {
+            assert_eq!(id, "BTCUSDT:seen-k");
+            assert_eq!(status, otw_connector_model::OrderStatus::PartiallyFilled);
+        }
+        super::Lookup::NotFound => panic!("Binance has it"),
+    }
+    assert!(matches!(b.lookup(&s, "BTCUSDT", "crypto", "never-k").await.unwrap(), super::Lookup::NotFound));
+}
+
+/// Moving the entry of a spot OTO places the whole list again with the change: Binance
+/// cancels a list with any of its orders, so a cancel-replace would drop the take profit.
+#[tokio::test]
+async fn binance_spot_moves_an_oto_entry_with_its_exit() {
+    use wiremock::matchers::query_param;
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    let leg = |id: &str, side: &str, kind: &str, price: &str, status: &str| {
+        json!({
+            "symbol": "BTCUSDT", "orderId": 1, "orderListId": 7, "clientOrderId": id, "price": price,
+            "origQty": "0.0005", "executedQty": "0", "status": status, "timeInForce": "GTC",
+            "type": kind, "side": side, "time": 1, "updateTime": 1
+        })
+    };
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .and(query_param("origClientOrderId", "oto-e"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(leg("oto-e", "BUY", "LIMIT", "80650.00", "NEW")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .and(query_param("origClientOrderId", "oto-t"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(leg("oto-t", "SELL", "LIMIT_MAKER", "81000.00", "PENDING_NEW")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/orderList"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "orderListId": 7, "orders": [{ "clientOrderId": "oto-e" }, { "clientOrderId": "oto-t" }] })))
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE")).and(path("/api/v3/orderList")).respond_with(ResponseTemplate::new(200).set_body_json(json!({}))).mount(&server).await;
+    Mock::given(method("POST")).and(path("/api/v3/orderList/oto")).respond_with(ResponseTemplate::new(200).set_body_json(json!({ "orderListId": 8 }))).mount(&server).await;
+    serve_from(&server.uri());
+    let change = otw_connector_model::OrderAmend { limit: Some(otw_connector_model::Price::new(otw_connector_model::Decimal::new(8_061_117, 2))), ..Default::default() };
+    let moved = broker_for("binance").unwrap().modify(&spot_account("oto"), "BTCUSDT:oto-e", &change).await.unwrap();
+    assert!(moved.is_none(), "the order keeps its id");
+    let reqs = server.received_requests().await.unwrap();
+    assert!(!reqs.iter().any(|r| r.url.path() == "/api/v3/order/cancelReplace"), "a cancel-replace would drop the exit");
+    let placed = reqs.iter().find(|r| r.url.path() == "/api/v3/orderList/oto").expect("the list placed again");
+    let q: HashMap<String, String> = placed.url.query_pairs().into_owned().collect();
+    assert_eq!(q.get("workingClientOrderId").map(String::as_str), Some("oto-e"));
+    assert_eq!(q.get("workingPrice").map(String::as_str), Some("80611.17"));
+    assert_eq!(q.get("pendingClientOrderId").map(String::as_str), Some("oto-t"));
+    assert_eq!(q.get("pendingPrice").map(String::as_str), Some("81000"));
+    let cancel = reqs.iter().position(|r| r.method.as_str() == "DELETE" && r.url.path() == "/api/v3/orderList").expect("the old list cancelled");
+    let place = reqs.iter().position(|r| r.url.path() == "/api/v3/orderList/oto").unwrap();
+    assert!(cancel < place);
+
+    // Two changes at once on the list (the entry and its exit dragged together) take turns:
+    // the second reads the list only once the first placed it again.
+    server.reset().await;
+    mock_binance_spot(&server).await;
+    for (id, side, kind, price, status) in [("oto-e", "BUY", "LIMIT", "80650.00", "NEW"), ("oto-t", "SELL", "LIMIT_MAKER", "81000.00", "PENDING_NEW")] {
+        Mock::given(method("GET"))
+            .and(path("/api/v3/order"))
+            .and(query_param("origClientOrderId", id))
+            .respond_with(ResponseTemplate::new(200).set_body_json(leg(id, side, kind, price, status)))
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path("/api/v3/orderList"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "orderListId": 7, "orders": [{ "clientOrderId": "oto-e" }, { "clientOrderId": "oto-t" }] })))
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE")).and(path("/api/v3/orderList")).respond_with(ResponseTemplate::new(200).set_body_json(json!({}))).mount(&server).await;
+    Mock::given(method("POST"))
+        .and(path("/api/v3/orderList/oto"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "orderListId": 8 })).set_delay(std::time::Duration::from_millis(200)))
+        .mount(&server)
+        .await;
+    let b = broker_for("binance").unwrap();
+    let s = spot_account("oto");
+    let tp = otw_connector_model::OrderAmend { limit: Some(otw_connector_model::Price::new(otw_connector_model::Decimal::new(8_090_000, 2))), ..Default::default() };
+    let (a, z) = tokio::join!(b.modify(&s, "BTCUSDT:oto-t", &tp), b.modify(&s, "BTCUSDT:oto-e", &change));
+    a.unwrap();
+    z.unwrap();
+    let reqs = server.received_requests().await.unwrap();
+    let at = |p: &str, m: &str| reqs.iter().enumerate().filter(|(_, r)| r.url.path() == p && r.method.as_str() == m).map(|(i, _)| i).collect::<Vec<_>>();
+    let (reads, places) = (at("/api/v3/orderList", "GET"), at("/api/v3/orderList/oto", "POST"));
+    assert_eq!((reads.len(), places.len()), (2, 2));
+    assert!(places[0] < reads[1], "the second change waited for the first to place the list again");
+}
+
+// ── The internal order sender on the mock venue (section T19 to T21 again, sent unattended) ─
+
+/// An `AppState` over a scratch database, or `None` when `OTW_TEST_DATABASE_URL` is not set:
+/// these tests then return at once, like the live hub's. The database is migrated here, and
+/// every account a test makes carries a fresh name and key, so runs never meet.
+pub(crate) async fn scratch_state() -> Option<crate::AppState> {
+    let url = std::env::var("OTW_TEST_DATABASE_URL").ok()?;
+    let pool = otw_store::connect_and_migrate(&url).await.unwrap();
+    let cipher = otw_store::crypto::SecretCipher::from_master("mock-tests").unwrap();
+    let http = reqwest::Client::new();
+    let live = crate::live::hub::LiveHub::new(pool.clone(), http.clone(), cipher.clone());
+    Some(crate::AppState {
+        pool: pool.clone(),
+        upload_dir: std::env::temp_dir(),
+        cipher: cipher.clone(),
+        scheduler: otw_scheduler::Scheduler::new(pool.clone(), cipher.clone()),
+        findb_importing: Default::default(),
+        mportfolios_refresh: crate::mportfolios_job::new_lock(),
+        watchlists_refresh: crate::watchlists::new_lock(),
+        http: http.clone(),
+        live: live.clone(),
+        live_alerts: crate::histviz_live_alerts::spawn(pool.clone(), live, crate::histviz_alerts::AlertCx { cipher: cipher.clone(), http }),
+        exchanges: crate::exchanges::load(&pool).await,
+        submit_limiter: crate::community_docs_api::SubmitLimiter::new(),
+        optimizer: std::sync::Arc::new(crate::backtest::optimize::Jobs::new()),
+    })
+}
+
+/// A Binance testnet account with trading on, its key unique to this run.
+pub(crate) async fn testnet_trading_account(state: &crate::AppState, tag: &str) -> otw_store::brokers::BrokerRow {
+    binance_trading_account(state, tag, "testnet").await
+}
+
+/// A Binance account with trading on, on `env` (`testnet` or `live`).
+async fn binance_trading_account(state: &crate::AppState, tag: &str, env: &str) -> otw_store::brokers::BrokerRow {
+    let run = uuid::Uuid::new_v4();
+    let modules = vec!["*".to_string(), "trading".to_string()];
+    let row = otw_store::brokers::create(&state.pool, "binance", &format!("mock {tag} {run}"), &modules, &json!({ "env": env })).await.unwrap();
+    otw_store::brokers::set_cred(&state.pool, &state.cipher, row.id, "binance", "api_key", &format!("mock-key-{tag}-{run}")).await.unwrap();
+    otw_store::brokers::set_cred(&state.pool, &state.cipher, row.id, "binance", "api_secret", "mock-secret").await.unwrap();
+    row
+}
+
+pub(crate) async fn sign_background(state: &crate::AppState, account: &otw_store::brokers::BrokerRow) -> i64 {
+    let statements = json!([{ "key": "free", "text": "x", "accepted": true }]);
+    let ack = otw_store::trading_ack::sign(
+        &state.pool,
+        &otw_store::trading_ack::NewAck {
+            user_id: uuid::Uuid::nil(),
+            account_id: account.id,
+            account_name: &account.name,
+            broker: &account.broker,
+            environment: "sandbox",
+            terms_version: "Last updated: 28 October 2026",
+            terms: &json!([]),
+            statements: &statements,
+            locale: "en",
+            typed: &account.name,
+            second_factor: false,
+        },
+    )
+    .await
+    .unwrap();
+    ack.id
+}
+
+/// A spot limit priced from the bar that fired: what a trade on alert hands the sender.
+fn fired_limit(key: &str) -> super::OrderTicket {
+    let mut t = spot_limit(key);
+    t.reference = Some(otw_connector_model::Decimal::new(7_000_000, 2));
+    t.reference_at = Some((OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64);
+    t
+}
+
+/// A trade on alert, sent with nobody watching: refused until background trading is signed,
+/// placed once it is (through the lost answer looked up, T19), the audit row naming the alert,
+/// and refused again the moment the permission is taken back.
+#[tokio::test]
+async fn an_alert_order_goes_out_only_under_background_trading() {
+    use super::dispatch::{send_internal, SendRefusal, Source, BACKGROUND_REQUIRED};
+    let Some(state) = scratch_state().await else { return };
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    serve_from(&server.uri());
+    let account = testnet_trading_account(&state, "bg").await;
+    let alert = uuid::Uuid::new_v4();
+    let key = format!("bg{}", &alert.simple().to_string()[..16]);
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(venue_order(&key, "NEW")))
+        .mount(&server)
+        .await;
+
+    let off = send_internal(&state, account.id, "histviz", Source::Alert(alert), fired_limit(&key)).await.unwrap_err();
+    assert_eq!(off.code(), BACKGROUND_REQUIRED, "{off}");
+    let posts = |reqs: &[Request]| reqs.iter().filter(|r| r.method.as_str() == "POST" && r.url.path() == "/api/v3/order").count();
+    assert_eq!(posts(&server.received_requests().await.unwrap()), 0, "a refused send reaches no venue");
+
+    sign_background(&state, &account).await;
+    let placed = send_internal(&state, account.id, "histviz", Source::Alert(alert), fired_limit(&key)).await.unwrap();
+    assert_eq!(placed[0].key, key);
+    assert_eq!(posts(&server.received_requests().await.unwrap()), 1, "sent once, the lost answer looked up");
+    let log = otw_store::order_log::list(&state.pool, Some(account.id), 10).await.unwrap();
+    let row = log.iter().find(|e| e.action == "place" && e.ok).expect("the place is audited");
+    assert_eq!(row.source.as_deref(), Some(format!("alert:{alert}").as_str()));
+
+    // Taken back between arming and firing: the next send stops at the gate.
+    assert!(otw_store::trading_ack::revoke(&state.pool, account.id).await.unwrap());
+    let again = send_internal(&state, account.id, "histviz", Source::Alert(alert), fired_limit(&format!("{key}b"))).await.unwrap_err();
+    assert!(matches!(again, SendRefusal::Refused { code: BACKGROUND_REQUIRED, .. }), "{again:?}");
+    // A module the account is not granted to is refused before anything else.
+    otw_store::brokers::set_modules(&state.pool, account.id, &["journal".into(), "trading".into()]).await.unwrap();
+    sign_background(&state, &account).await;
+    let ungranted = send_internal(&state, account.id, "histviz", Source::Alert(alert), fired_limit(&format!("{key}c"))).await.unwrap_err();
+    assert!(ungranted.message().contains("not granted to histviz"), "{ungranted}");
+}
+
+/// No answer and no lookup either (T21): the sender says `Unknown`, never a refusal, the leg
+/// stays unknown and the instrument takes no new order until it is settled.
+#[tokio::test]
+async fn an_unattended_order_whose_answer_was_lost_comes_back_unknown() {
+    use super::dispatch::{send_internal, SendRefusal, Source};
+    let Some(state) = scratch_state().await else { return };
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/api/v3/order"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("upstream timed out"))
+        .mount(&server)
+        .await;
+    serve_from(&server.uri());
+    let account = testnet_trading_account(&state, "unk").await;
+    sign_background(&state, &account).await;
+    let strategy = uuid::Uuid::new_v4();
+    let key = format!("unk{}", &strategy.simple().to_string()[..16]);
+
+    let out = send_internal(&state, account.id, "backtest", Source::Strategy(strategy), fired_limit(&key)).await.unwrap_err();
+    let SendRefusal::Unknown { keys, message } = &out else { panic!("a lost answer is unknown, not refused: {out:?}") };
+    assert_eq!(keys, &vec![key.clone()]);
+    assert!(message.contains("do not send it again"), "{message}");
+    assert_eq!(otw_store::broker_orders::unknown_on(&state.pool, account.id, "BTCUSDT").await.unwrap(), vec![key.clone()]);
+    let log = otw_store::order_log::list(&state.pool, Some(account.id), 10).await.unwrap();
+    assert_eq!(log.iter().find(|e| e.action == "place").and_then(|e| e.source.clone()), Some(format!("strategy:{strategy}")));
+
+    let blocked = send_internal(&state, account.id, "backtest", Source::Strategy(strategy), fired_limit(&format!("{key}b"))).await.unwrap_err();
+    assert!(matches!(&blocked, SendRefusal::Refused { .. }) && blocked.message().contains("is being looked up"), "{blocked:?}");
+    let posts = server.received_requests().await.unwrap().iter().filter(|r| r.method.as_str() == "POST" && r.url.path() == "/api/v3/order").count();
+    assert_eq!(posts, 1, "nothing is sent next to an unknown order");
+}
+
+/// The signature record: append-only, a row kept when the permission goes, detached (not
+/// deleted) with its account, and cleared when trading is turned off for the account.
+#[tokio::test]
+async fn a_background_trading_signature_is_never_rewritten() {
+    let Some(state) = scratch_state().await else { return };
+    let account = testnet_trading_account(&state, "ack").await;
+    let id = sign_background(&state, &account).await;
+    let row = otw_store::brokers::get(&state.pool, account.id).await.unwrap().unwrap();
+    assert_eq!(row.background_trading_ack, Some(id));
+    assert!(row.background_trading_since.is_some());
+
+    for sql in ["UPDATE trading_acknowledgments SET typed = 'x' WHERE id = $1", "DELETE FROM trading_acknowledgments WHERE id = $1"] {
+        let e = sqlx::query(sql).bind(id).execute(&state.pool).await.unwrap_err();
+        assert!(format!("{e}").contains("append-only"), "{sql}: {e}");
+    }
+    let e = sqlx::query("UPDATE trading_acknowledgments SET account_id = NULL, typed = 'x' WHERE id = $1").bind(id).execute(&state.pool).await.unwrap_err();
+    assert!(format!("{e}").contains("append-only"), "detaching is the only change, alone: {e}");
+
+    // Trading off takes background trading with it; the signature stays in the history.
+    otw_store::brokers::set_modules(&state.pool, account.id, &["*".into()]).await.unwrap();
+    assert_eq!(otw_store::brokers::get(&state.pool, account.id).await.unwrap().unwrap().background_trading_ack, None);
+    assert_eq!(otw_store::trading_ack::history(&state.pool, account.id).await.unwrap().len(), 1);
+    assert!(otw_store::trading_ack::current(&state.pool, account.id).await.unwrap().is_none());
+
+    // Deleting the account detaches the record and keeps it whole.
+    assert!(otw_store::brokers::delete(&state.pool, account.id).await.unwrap());
+    let (account_id, name): (Option<uuid::Uuid>, String) =
+        sqlx::query_as("SELECT account_id, account_name FROM trading_acknowledgments WHERE id = $1").bind(id).fetch_one(&state.pool).await.unwrap();
+    assert_eq!((account_id, name), (None, account.name.clone()));
+}
+
+/// The route's gates hold for a send nobody watches, each refusal one sentence with its code
+/// and nothing sent: a halted account, a live account with live trading off then without
+/// limits, and a price too old for the collar.
+#[tokio::test]
+async fn an_unattended_send_meets_every_gate_the_chart_does() {
+    use super::dispatch::{send_internal, Source};
+    let Some(state) = scratch_state().await else { return };
+    let server = MockServer::start().await;
+    mock_binance_spot(&server).await;
+    serve_from(&server.uri());
+    let alert = Source::Alert(uuid::Uuid::new_v4());
+    let key = |tag: &str| format!("{tag}{}", &uuid::Uuid::new_v4().simple().to_string()[..12]);
+
+    let halted = testnet_trading_account(&state, "halt").await;
+    sign_background(&state, &halted).await;
+    otw_store::broker_risk::add_halt(&state.pool, Some(halted.id), "kill_switch", "", None).await.unwrap();
+    let e = send_internal(&state, halted.id, "histviz", alert, fired_limit(&key("h"))).await.unwrap_err();
+    assert_eq!(e.code(), "trading_halted", "{e}");
+
+    let live = binance_trading_account(&state, "live", "live").await;
+    sign_background(&state, &live).await;
+    let e = send_internal(&state, live.id, "histviz", alert, fired_limit(&key("l"))).await.unwrap_err();
+    assert_eq!(e.code(), "live_off", "{e}");
+    otw_store::brokers::set_live(&state.pool, live.id, true).await.unwrap();
+    let e = send_internal(&state, live.id, "histviz", alert, fired_limit(&key("l"))).await.unwrap_err();
+    assert_eq!(e.code(), "live_limits_missing", "{e}");
+
+    let collared = testnet_trading_account(&state, "stale").await;
+    sign_background(&state, &collared).await;
+    let limits = otw_store::broker_risk::Limits { collar_pct: Some("5".parse().unwrap()), ..Default::default() };
+    otw_store::broker_risk::set_limits(&state.pool, collared.id, &limits).await.unwrap();
+    let mut stale = fired_limit(&key("s"));
+    stale.reference_at = stale.reference_at.map(|ms| ms - 120_000);
+    let e = send_internal(&state, collared.id, "histviz", alert, stale).await.unwrap_err();
+    assert_eq!(e.code(), "risk_limit", "{e}");
+    assert!(e.message().contains("too old"), "{e}");
+
+    let posts = server.received_requests().await.unwrap().iter().filter(|r| r.method.as_str() == "POST" && r.url.path() == "/api/v3/order").count();
+    assert_eq!(posts, 0, "no refused send reaches the venue");
+}

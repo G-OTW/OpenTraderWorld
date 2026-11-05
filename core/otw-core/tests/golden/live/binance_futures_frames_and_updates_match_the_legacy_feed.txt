@@ -1,0 +1,43 @@
+#### native.url()
+"wss://fstream.binance.com/market/ws/btcusdt@kline_1m"
+#### opening frames
+[
+    Object {
+        "id": Number(2),
+        "method": String("SUBSCRIBE"),
+        "params": Array [
+            String("btcusdt@kline_1m"),
+            String("ethusdt@kline_1h"),
+            String("btcusdt@kline_1h"),
+        ],
+    },
+]
+#### json(&native.subscribe(&sol))
+[
+    Object {
+        "id": Number(3),
+        "method": String("SUBSCRIBE"),
+        "params": Array [
+            String("solusdt@kline_5m"),
+        ],
+    },
+]
+#### json(&native.unsubscribe(&sol))
+[
+    Object {
+        "id": Number(4),
+        "method": String("UNSUBSCRIBE"),
+        "params": Array [
+            String("solusdt@kline_5m"),
+        ],
+    },
+]
+#### binance futures klines
+62 lines, 11714 bytes, sha256 59885a48151d96c142ca8e764b2cca148832d78789e97aa75812f530991f460d
+[
+    "BTCUSDT|crypto|1m|2023-11-14 22:14:00.0 +00:00:00|2023-11-14 22:14:00.999 +00:00:00|false|4673975578651944550|4673976073432177050|4673975276286249661|4673975619883630592|0",
+    "BTCUSDT|crypto|1m|2023-11-14 22:14:00.0 +00:00:00|2023-11-14 22:14:01.016 +00:00:00|false|4673975853529851494|4673976348310083994|4673975551164156605|4673975894761537536|4607182775440071899",
+...
+    "ETHUSDT|crypto|1h|2023-11-14 22:00:00.0 +00:00:00|2023-11-14 22:13:48.0 +00:00:00|false|4673983275233338982|4673983770013571482|4673982972867644093|4673983316465025024|4611691011388150785",
+    "ETHUSDT|crypto|1h|2023-11-14 22:00:00.0 +00:00:00|2023-11-14 22:13:49.0 +00:00:00|false|4673983550111245926|4673984044891478426|4673983247745551037|4673983591342931968|4613942989521863278",
+]

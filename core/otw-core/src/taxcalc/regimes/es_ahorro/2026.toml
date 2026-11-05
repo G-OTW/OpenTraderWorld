@@ -1,0 +1,38 @@
+id = "es_ahorro"
+year = 2026
+country = "ES"
+label = "Spain, individual (savings base)"
+currency = "EUR"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "LIRPF art. 66 and 76 (savings base: state and regional halves 9.5 / 10.5 / 11.5 / 13.5 / 15 %, AEAT Manual práctico IRPF 2025; unchanged for 2026)",
+  "LIRPF art. 37.2 (FIFO)",
+  "LIRPF art. 33.5 f) (repurchase within 2 months defers the loss)",
+  "LIRPF art. 49 (losses carried 4 years)",
+]
+notes = "State + regional scale combined. Not modeled: the 25 % cross-offset between gains and capital income, the 1-year repurchase window for unlisted securities, Modelo 720/721, wealth tax."
+inputs = []
+
+[matching]
+method = "fifo"
+wash = { before_months = 2, after_months = 2, classes = ["stock", "etf"] }
+
+[[pools]]
+key = "gains"
+buckets = ["capital", "derivative", "crypto"]
+carry_years = 4
+
+[[schedules]]
+key = "ahorro"
+label = "Savings base"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+kind = "brackets"
+brackets = [
+  { up_to = 6000, rate = 19 },
+  { up_to = 50000, rate = 21 },
+  { up_to = 200000, rate = 23 },
+  { up_to = 300000, rate = 27 },
+  { rate = 30 },
+]

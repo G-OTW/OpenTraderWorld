@@ -1,0 +1,29 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.supertrend.
+indicator("ref supertrend")
+pine_supertrend(factor, atrPeriod) =>
+    src = hl2
+    atr = ta.atr(atrPeriod)
+    upperBand = src + factor * atr
+    lowerBand = src - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+    lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
+    int _direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        _direction := 1
+    else if prevSuperTrend == prevUpperBand
+        _direction := close > upperBand ? -1 : 1
+    else
+        _direction := close < lowerBand ? 1 : -1
+    superTrend := _direction == -1 ? lowerBand : upperBand
+    [superTrend, _direction]
+[st, dir] = pine_supertrend(3, 10)
+[st2, dir2] = ta.supertrend(3, 10)
+plot(st)
+plot(st2)
+plot(dir)
+plot(dir2)

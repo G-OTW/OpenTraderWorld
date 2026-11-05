@@ -1,0 +1,11 @@
+//@version=6
+// Reference: bars since the condition last held, na before it ever has.
+indicator("ref barssince")
+pine_barssince(cond) =>
+    var int last = na
+    if cond
+        last := bar_index
+    na(last) ? na : bar_index - last
+c = close > close[1]
+plot(pine_barssince(c))
+plot(ta.barssince(c))

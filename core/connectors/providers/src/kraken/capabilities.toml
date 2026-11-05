@@ -1,0 +1,45 @@
+# Kraken spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "kraken"
+label = "Kraken"
+venue = "KRAKEN"
+api_version = "0 (REST), v2 (socket)"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# The resolutions OTW serves today (same set as the legacy connector). Kraken also serves
+# 30m and 15d.
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# No closed flag on the socket: the engine closes a candle when the next one starts.
+candles_final_flag = false
+# Best bid and ask (`ticker` on its `bbo` trigger, a socket of its own).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+# One page only: the venue answers its last 720 bars whatever the window.
+[history.candles]
+max_items_per_call = 720
+paging = "time"
+
+# The private-call counter decays slowly: one fill page per 1.2 s.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "tradesHistory"
+capacity = 1
+refill_ms = 1200
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+spot_only = true
+quote_preference = ["USD", "USDT", "USDC", "EUR"]
+display_symbols = true

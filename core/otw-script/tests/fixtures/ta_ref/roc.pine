@@ -1,0 +1,7 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.roc; ta.mom = source - source[length].
+indicator("ref roc")
+plot(100 * (close - close[9]) / close[9])
+plot(ta.roc(close, 9))
+plot(close - close[5])
+plot(ta.mom(close, 5))

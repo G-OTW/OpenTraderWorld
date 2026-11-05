@@ -1,0 +1,55 @@
+# Capital.com Open API. Every claim below is sourced in PROVIDER.md.
+
+provider = "capitalcom"
+label = "Capital.com"
+venue = "CAPITALCOM"
+api_version = "Open API v1, streaming"
+maturity = "M2"
+asset_classes = ["forex", "cfd"]
+instrument_discovery = "search_only"
+# API key, login and the key's custom password open a session; its two tokens ride headers.
+auth = "session"
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+# One candle channel per resolution, bid and ask streamed apart, no closed flag.
+[live]
+candles = "push"
+candles_final_flag = false
+# A streamed candle is sent with both sides attached: its closes are the live bid and ask.
+candle_sides = true
+
+[history]
+quote = true
+
+# Mid candles with their bid and ask; the forming one is the last, unflagged.
+[history.candles]
+max_items_per_call = 1000
+paging = "time"
+final_flag = false
+sides = true
+
+# 10 requests a second per user; one sign-in a second.
+[[rate_limits]]
+scope = "account"
+capacity = 10
+refill_ms = 1000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "token"
+capacity = 1
+refill_ms = 1000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+resolve_by_id = true
+holdings_from_positions = true
+quotes_from_snapshots = true
+sandbox_env = "demo"
+venue_label = "Capital.com"
+
+[regions]
+sandbox_url = "https://demo-api-capital.backend-capital.com"

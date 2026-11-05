@@ -1,0 +1,41 @@
+# OKX v5. Every claim below is sourced in PROVIDER.md.
+
+provider = "okx"
+label = "OKX"
+venue = "OKX"
+api_version = "v5"
+maturity = "M2"
+asset_classes = ["spot", "perp", "future"]
+instrument_discovery = "full"
+auth = "none"
+# Daily and weekly are the UTC-anchored bars (1Dutc, 1Wutc): OKX's plain 1D opens at 16:00 UTC.
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# Best bid and ask (`bbo-tbt`, public socket).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 300
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 2000
+
+[account]
+balances = true
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+quote_preference = ["USDT", "USDC", "USD", "EUR", "BTC"]
+quote_reverse = true
+# Demo trading shares the host and needs an extra header (the signer adds it).
+sandbox_env = "demo"

@@ -1,0 +1,27 @@
+# Interactive Brokers Flex Web Service (account history). Every claim below is sourced in
+# PROVIDER.md.
+
+provider = "ibkr_flex"
+label = "Interactive Brokers (Flex)"
+venue = "IBKR"
+api_version = "Flex Web Service v3"
+maturity = "M2"
+asset_classes = ["equity", "etf", "option", "future", "cfd", "forex", "spot", "bond", "commodity", "other"]
+instrument_discovery = "none"
+# A Flex Web Service token, sent as the `t` parameter. It reads reports only.
+auth = "api_key"
+
+# The statement is asked once, then collected; while IBKR builds it the collection is
+# repeated every five seconds.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "statement"
+capacity = 1
+refill_ms = 5000
+
+[account]
+positions = true
+fills_history = true
+summary = true
+holdings_from_positions = true
+rows_carry_terms = true

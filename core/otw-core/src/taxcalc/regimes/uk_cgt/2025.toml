@@ -1,0 +1,72 @@
+id = "uk_cgt"
+year = 2025
+country = "GB"
+label = "United Kingdom, individual (CGT, dividends, savings)"
+currency = "GBP"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "TCGA 1992 s.1H (CGT 18 % / 24 % from 30 October 2024), s.1K (annual exempt amount 3 000 GBP)",
+  "TCGA 1992 s.104 to s.106A (same day, 30 days, section 104 pool); HMRC HS284",
+  "ITA 2007 s.8, s.13A (dividend allowance 500 GBP; 8.75 / 33.75 / 39.35 %)",
+  "ITA 2007 s.12B (personal savings allowance)",
+  "TCGA 1992 s.2A (carried losses only down to the annual exempt amount; gov.uk/capital-gains-tax/losses)",
+  "gov.uk: income tax rates and allowances, current and past (basic rate limit 37 700, additional rate over 125 140)",
+]
+notes = "Tax year 2025 = 6 April 2025 to 5 April 2026. other_income is taxable non-savings income after the personal allowance. Simplified: the savings allowance is taken as 1 000 GBP (basic-rate taxpayer), the starting rate for savings is ignored, nil-rate bands do not use band space."
+inputs = ["other_income"]
+
+[calendar]
+year_start = "04-06"
+label = "start"
+
+[matching]
+method = "uk_pool"
+
+[[pools]]
+key = "all"
+buckets = ["capital", "derivative", "crypto"]
+preserve_allowance = true
+
+[[allowances]]
+items = ["capital", "derivative", "crypto"]
+amount = 3000
+kind = "allowance"
+
+[[allowances]]
+items = ["dividends"]
+amount = 500
+kind = "allowance"
+
+[[allowances]]
+items = ["interest"]
+amount = 1000
+kind = "allowance"
+
+[[schedules]]
+key = "savings"
+label = "Savings income"
+items = ["interest"]
+order = 1
+stack = true
+kind = "brackets"
+brackets = [{ up_to = 37700, rate = 20 }, { up_to = 125140, rate = 40 }, { rate = 45 }]
+
+[[schedules]]
+key = "dividends"
+label = "Dividend income"
+items = ["dividends"]
+order = 2
+stack = true
+kind = "brackets"
+brackets = [{ up_to = 37700, rate = 8.75 }, { up_to = 125140, rate = 33.75 }, { rate = 39.35 }]
+
+[[schedules]]
+key = "cgt"
+label = "Capital gains tax"
+items = ["capital", "derivative", "crypto"]
+order = 3
+stack = true
+kind = "brackets"
+brackets = [{ up_to = 37700, rate = 18 }, { rate = 24 }]

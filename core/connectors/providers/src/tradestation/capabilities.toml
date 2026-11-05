@@ -1,0 +1,35 @@
+# TradeStation v3 (market data and brokerage). Every claim below is sourced in PROVIDER.md.
+
+provider = "tradestation"
+label = "TradeStation"
+venue = "TRADESTATION"
+api_version = "v3"
+maturity = "M2"
+asset_classes = ["equity", "etf", "option", "future", "index", "forex", "spot"]
+instrument_discovery = "search_only"
+# An OAuth refresh token exchanged for a twenty-minute access token.
+auth = "o_auth2_refresh"
+# 1h, 4h and 1w bars are anchored on the session open (9:30), not on the epoch: not used.
+native_timeframes = ["1m", "5m", "15m", "1d"]
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 57600
+paging = "time"
+final_flag = true
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+resolve_by_id = true
+holdings_from_positions = true
+quotes_from_snapshots = true
+quotes_last_trade = true
+sandbox_env = "sim"
+
+[regions]
+sandbox_url = "https://sim-api.tradestation.com"

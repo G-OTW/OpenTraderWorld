@@ -1,0 +1,39 @@
+# Coinbase (Exchange API for market data, Advanced Trade for the account). Every claim below
+# is sourced in PROVIDER.md.
+
+provider = "coinbase"
+label = "Coinbase"
+venue = "COINBASE"
+api_version = "Exchange REST + feed, Advanced Trade v3"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Candle granularities OTW serves (same set as the legacy connector). Coinbase also serves
+# 6h; it has no 4h or 1w candles.
+native_timeframes = ["1m", "5m", "15m", "1h", "1d"]
+
+# Trades only: every live timeframe is folded from them.
+[live]
+trades = "push"
+# Best bid and ask: the top of the `level2_batch` book.
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 300
+paging = "time"
+# No forming flag: the engine finalizes a bar at its period's end.
+final_flag = false
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+spot_only = true
+quote_preference = ["USD", "USDC", "USDT", "EUR"]
+venue_label = "Coinbase"

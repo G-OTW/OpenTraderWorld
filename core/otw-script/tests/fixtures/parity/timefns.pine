@@ -1,0 +1,6 @@
+//@version=6
+indicator("time functions")
+plot(hour)
+plot(dayofweek)
+plot(na(time("60", "0930-1600")) ? 0 : 1)
+plot(time_close - time)

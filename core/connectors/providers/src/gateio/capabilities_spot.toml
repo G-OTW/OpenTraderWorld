@@ -1,0 +1,41 @@
+# Gate.io spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "gateio"
+label = "Gate.io"
+venue = "GATEIO"
+api_version = "v4"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Daily bars open at midnight UTC, weekly ones (`7d`) on Monday, monthly ones (`30d`) on the
+# first of the calendar month.
+native_timeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"]
+
+[live]
+candles = "push"
+# Best bid and ask (`spot.book_ticker` / `futures.book_ticker`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 1000
+paging = "time"
+
+# Public market data: 200 requests per 10 s per endpoint per IP.
+[[rate_limits]]
+scope = "ip"
+capacity = 200
+refill_ms = 10000
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+quote_preference = ["USDT", "USDC", "BTC", "ETH"]
+quote_reverse = true
+venue_label = "Gate.io"

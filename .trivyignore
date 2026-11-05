@@ -1,0 +1,6 @@
+# Trivy findings accepted on purpose. Each entry says why and expires, so it is re-checked.
+
+# libssl3 in gcr.io/distroless/cc-debian12 (core runtime). otw-core uses rustls and never loads
+# libssl3 (no openssl-sys in the crate graph, not in ldd), and DTLS is not used. Distroless has no
+# apt, so the fix arrives only with an upstream rebuild: drop this line once it ships 3.0.22.
+CVE-2026-84782 exp:2026-11-30

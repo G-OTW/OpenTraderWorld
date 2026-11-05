@@ -1,0 +1,70 @@
+[package]
+name = "otw-connector-providers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld connector framework: one module per venue, each behind its own feature"
+
+[features]
+default = ["alpaca", "alphavantage", "binance", "bitfinex", "bitget", "bybit", "capitalcom", "coinbase", "deribit", "eodhd", "forexcom", "gateio", "ibkr", "kraken", "kucoin", "massive", "mexc", "ninjatrader", "oanda", "okx", "tradestation", "yahoo"]
+alpaca = []
+alphavantage = []
+binance = []
+bitfinex = []
+bitget = []
+bybit = []
+capitalcom = []
+coinbase = []
+deribit = []
+eodhd = []
+forexcom = []
+gateio = []
+ibkr = []
+kraken = []
+kucoin = []
+massive = []
+mexc = []
+ninjatrader = []
+oanda = []
+okx = []
+tradestation = []
+yahoo = []
+
+[dependencies]
+otw-connector-model = { path = "../model" }
+otw-connector-sdk = { path = "../sdk" }
+serde.workspace = true
+secrecy.workspace = true
+bytes.workspace = true
+base64 = "0.23"
+# Bybit signs with a hex HMAC.
+hex = "0.4"
+# Coinbase signs an Ed25519 JWT per request, with a random nonce.
+ring = "0.17"
+getrandom = "0.4"
+serde_json = { workspace = true, features = ["raw_value"] }
+tracing.workspace = true
+
+time.workspace = true
+# An IBKR Flex statement is XML.
+quick-xml = "0.42"
+# IB Gateway / TWS speak the TWS socket API; one long-lived client per gateway.
+ibapi = { version = "2.12", default-features = false, features = ["async"] }
+tokio.workspace = true
+# Alpha Vantage stamps its intraday series in a named zone (US/Eastern).
+time-tz = { version = "2", features = ["db"] }
+
+[dev-dependencies]
+otw-connector-testkit = { path = "../testkit" }
+otw-connector-engine = { path = "../engine" }
+tokio.workspace = true
+reqwest.workspace = true
+proptest = "1"
+wiremock = "0.6.5"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+float_arithmetic = "deny"

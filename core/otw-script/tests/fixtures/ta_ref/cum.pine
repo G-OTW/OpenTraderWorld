@@ -1,0 +1,9 @@
+//@version=6
+// Reference: a running total; an na value adds nothing (ta.obv starts at 0 on bar 0).
+indicator("ref cum")
+pine_cum(src) =>
+    var float s = 0.0
+    s := s + nz(src)
+    s
+plot(pine_cum(close - open))
+plot(ta.cum(close - open))

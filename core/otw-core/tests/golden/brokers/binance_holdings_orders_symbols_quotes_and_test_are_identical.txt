@@ -1,0 +1,26 @@
+#### holdings
+[
+    "BTC|4604930618986332160|long|crypto||None|Binance|",
+    "USDC|4487126258331716666|long|crypto||None|Binance|",
+    "USDT|4653144502051863213|long|crypto||None|Binance|",
+]
+#### open orders
+[
+    "77|ETHBTC|sell|LIMIT|4609434218613702656|4602678819172646912|Some(4588807732320345784)|None|BTC|crypto|Some(2023-11-14 22:13:21.0 +00:00:00)|Binance",
+    "78|BTCUSDT|buy|STOP_LOSS_LIMIT|4576918229304087675|0|Some(4673975551164153856)|Some(4674112990117625856)|USDT|crypto|Some(2023-11-14 22:14:59.0 +00:00:00)|Binance",
+]
+#### symbol suggestions
+[
+    "BTCUSDT",
+    "ETHBTC",
+    "USDCUSDT",
+]
+#### quotes
+[
+    "BTC|4675318071354342769|USDT|BTCUSDT",
+    "eth|4656358428196019896|USDT|ETHUSDT",
+    "USDT|4607183770285351219|USDC|USDCUSDT",
+    "USDC|4607179716640240986|USDT|USDCUSDT",
+]
+#### native.test(&client, &creds()).await.unwrap()
+"SPOT account, 3 asset(s) held, permissions [SPOT]. The key can trade, as orders need: keep withdrawals off on it"

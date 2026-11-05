@@ -1,0 +1,81 @@
+#### 1m
+"1"
+#### 1m
+Native
+#### 5m
+"5"
+#### 5m
+Native
+#### 15m
+"15"
+#### 15m
+Native
+#### 1h
+"60"
+#### 1h
+Native
+#### 4h
+"240"
+#### 4h
+Native
+#### 1d
+"1440"
+#### 1d
+Native
+#### 1w
+"10080"
+#### 1w
+Native
+#### native.url()
+"wss://ws.kraken.com/v2"
+#### opening frames
+[
+    Object {
+        "method": String("subscribe"),
+        "params": Object {
+            "channel": String("ohlc"),
+            "interval": Number(1),
+            "symbol": Array [
+                String("BTC/USD"),
+                String("ETH/USD"),
+            ],
+        },
+    },
+]
+#### json(&native.subscribe(&sol))
+[
+    Object {
+        "method": String("subscribe"),
+        "params": Object {
+            "channel": String("ohlc"),
+            "interval": Number(1),
+            "symbol": Array [
+                String("SOL/USD"),
+            ],
+        },
+    },
+]
+#### json(&native.unsubscribe(&sol))
+[
+    Object {
+        "method": String("unsubscribe"),
+        "params": Object {
+            "channel": String("ohlc"),
+            "interval": Number(1),
+            "symbol": Array [
+                String("SOL/USD"),
+            ],
+        },
+    },
+]
+#### kraken candles
+98 lines, 18667 bytes, sha256 4fd27a40824316ec3a86e743d3ef578703f1d740a06a4f48763bbcccc87363e4
+[
+    "BTC/USD|crypto|1m|2026-09-05 9:58:00.0 +00:00:00|2026-09-05 9:58:59.0 +00:00:00|false|4677104912439653171|4677105159829769421|4677104762631193887|4677104967415234560|4607183004267968966",
+    "BTC/USD|crypto|1m|2026-09-05 9:58:00.0 +00:00:00|2026-09-05 9:58:59.0 +00:00:00|true|4677104912439653171|4677105159829769421|4677104762631193887|4677104967415234560|4607183004267968966",
+...
+    "ETH/USD|crypto|1m|2026-09-05 10:01:00.0 +00:00:00|2026-09-05 10:09:48.0 +00:00:00|false|4677109997680931635|4677110245071047885|4677109847872472351|4677110052656513024|4613948942132152757",
+    "ETH/USD|crypto|1m|2026-09-05 10:01:00.0 +00:00:00|2026-09-05 10:09:49.0 +00:00:00|false|4677110135119885107|4677110382510001357|4677109985311425823|4677110190095466496|4616195326367286092",
+]
+#### ts(&rb).unix_timestamp()
+1788606000
