@@ -1,0 +1,58 @@
+# Deribit: perpetuals, dated futures (inverse and USDC-settled), options and spot, one
+# adapter. Every claim below is sourced in PROVIDER.md.
+
+provider = "deribit"
+label = "Deribit"
+venue = "DERIBIT"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["spot", "perp", "future", "option"]
+instrument_discovery = "full"
+auth = "none"
+# The epoch-aligned resolutions, and the day, which opens at 08:00 UTC (Deribit's
+# settlement time). 3h, 6h and 12h open on that 08:00 grid too, off the epoch: they are
+# left to the engine, folded from hours.
+native_timeframes = ["1m", "3m", "5m", "10m", "15m", "30m", "1h", "2h", "1d"]
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (`quote.<instrument>`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 5000
+paging = "time"
+# A week folded from 08:00 days is stamped with its first day's open.
+aggregate_stamp = "first_bar"
+
+# Non-matching-engine calls: 500 credits each, 50,000 in the pool, 10,000 back a second
+# (20 calls a second sustained, bursts of 100).
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 1000
+
+# The instrument list costs 10,000 credits of its own pool: one a second.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "instruments"
+capacity = 1
+refill_ms = 1000
+
+[account]
+balances = true
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+# Fills are read per currency and kind, not per instrument.
+fills_need_symbols = false
+quote_preference = ["USDC", "USDT"]
+quote_reverse = true
+venue_label = "Deribit"

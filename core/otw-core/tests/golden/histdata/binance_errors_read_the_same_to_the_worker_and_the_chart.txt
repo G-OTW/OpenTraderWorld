@@ -1,0 +1,18 @@
+#### NOPE 400: retry
+false
+#### NOPE: rate limit
+false
+#### LIMITED 429: retry
+true
+#### LIMITED: rate limit
+true
+#### LIMITED: notice
+"rate_limit"
+#### DOWN 503: retry
+true
+#### DOWN: rate limit
+false
+#### BADPARAM 400: retry
+false
+#### BADPARAM: rate limit
+false

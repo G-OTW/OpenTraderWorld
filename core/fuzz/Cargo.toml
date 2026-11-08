@@ -1,0 +1,68 @@
+# Fuzz targets for every parser that reads somebody else's bytes. Outside the workspace on
+# purpose (cargo-fuzz builds with nightly and sanitizers): the empty `[workspace]` below keeps
+# it out of `core/Cargo.toml`.
+#
+#   cargo install cargo-fuzz
+#   cargo +nightly fuzz run import_grid
+#
+# Invariant of every target: the parser never panics, whatever the input.
+
+[package]
+name = "otw-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+bytes = "1"
+serde_json = "1"
+uuid = "1"
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros"] }
+# What otw-core's import modules use, compiled here from their own sources (otw-core is a
+# binary, so there is no library to depend on).
+anyhow = "1"
+base64 = "0.23"
+csv = "1"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.11"
+otw-connector-model = { path = "../connectors/model" }
+otw-connector-sdk = { path = "../connectors/sdk" }
+otw-connector-testkit = { path = "../connectors/testkit" }
+otw-connector-providers = { path = "../connectors/providers" }
+otw-feeds = { path = "../otw-feeds" }
+otw-store = { path = "../otw-store" }
+
+[[bin]]
+name = "import_grid"
+path = "fuzz_targets/import_grid.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ibkr_flex"
+path = "fuzz_targets/ibkr_flex.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "provider_history"
+path = "fuzz_targets/provider_history.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "feeds"
+path = "fuzz_targets/feeds.rs"
+test = false
+doc = false
+bench = false

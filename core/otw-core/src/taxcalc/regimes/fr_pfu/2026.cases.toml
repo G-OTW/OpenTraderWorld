@@ -1,0 +1,11 @@
+[[case]]
+name = "PFU on a share gain, 2026 social charges"
+source = "CGI 200 A 12.8 % + 18.6 % (LFSS 2026 art. 12)"
+inputs = { realized_capital_gains = 1000.0 }
+expect = { total_tax = 314.0 }
+
+[[case]]
+name = "Dividends and interest at the same flat rate"
+source = "CGI 200 A"
+inputs = { dividends = 500.0, interest_income = 500.0 }
+expect = { total_tax = 314.0 }

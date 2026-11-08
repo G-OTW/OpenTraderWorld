@@ -1,0 +1,5 @@
+---
+source: otw-core/src/api_tests/auth.rs
+expression: body
+---
+error: not signed in

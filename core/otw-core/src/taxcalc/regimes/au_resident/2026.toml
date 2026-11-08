@@ -1,0 +1,61 @@
+id = "au_resident"
+year = 2026
+country = "AU"
+label = "Australia, resident individual"
+currency = "AUD"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "ITAA 1997 Division 115 (50 % CGT discount, asset held at least 12 months)",
+  "ITAA 1997 s.102-5 (capital losses applied before the discount)",
+  "Income Tax Rates Act 1986, resident rates 2025-26 (unchanged from 2024-25)",
+  "Medicare Levy Act 1986 (2 %)",
+]
+notes = "Income year 2026 = 1 July 2025 to 30 June 2026. other_income is taxable income outside this calculation. Not modeled: franking credits, Medicare levy low-income reduction and surcharge, specific parcel identification. The 12 months exclude the day of purchase and of sale: a sale after the first anniversary qualifies."
+inputs = ["other_income", "long_term"]
+
+[calendar]
+year_start = "07-01"
+label = "end"
+
+[matching]
+method = "fifo"
+
+[[pools]]
+key = "all"
+buckets = ["capital", "derivative", "crypto"]
+
+[[holding]]
+bucket = "capital"
+after_years = 1
+term = "long"
+
+[[holding]]
+bucket = "crypto"
+after_years = 1
+term = "long"
+
+[[inclusion]]
+items = ["capital.long", "crypto.long"]
+share = 0.5
+
+[[schedules]]
+key = "income"
+label = "Income tax"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+stack = true
+kind = "brackets"
+brackets = [
+  { up_to = 18200, rate = 0 },
+  { up_to = 45000, rate = 16 },
+  { up_to = 135000, rate = 30 },
+  { up_to = 190000, rate = 37 },
+  { rate = 45 },
+]
+
+[[surcharges]]
+label = "Medicare levy"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+rate = 2
+on = "base"

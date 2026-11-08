@@ -1,0 +1,154 @@
+#### ninjatrader fills one  [] from <time>
+202 lines, 23603 bytes, sha256 48196a0713fa02e161516d64bb5f7a76bcb64d004b600db04b9300a1ab3c5d3f
+[
+    "9001|1001|1709253007000|CLJ4|buy|4611686018427387904|4500.500000000000|0.000000000|USD|USD|future|1000|NinjaTrader|42",
+    "9002|1002|1709254807000|CLJ4-CLK4|buy|4613937818241073152|4500.750000000000|2.060000000|||other|1|NinjaTrader|42",
+...
+    "9298|1058|1709787607000||buy|4613937818241073152|4574.750000000000|2.080000000|||other|1|NinjaTrader|42",
+    "9299|1059|1709789407000||buy|4616189618054758400|4575.000000000000|2.090000000|||other|1|NinjaTrader|42",
+]
+#### ninjatrader fills one  ["esh4", "CLJ4-CLK4"] from <time>
+45 lines, 5229 bytes, sha256 094da7737c1bfdaba519033e05f51dfb98c7244800a7f0be8ef34358176afe30
+[
+    "9020|1020|1709287207000|ESH4|buy|4607182418800017408|4505.250000000000|2.100000000|USD|USD|future|50|NinjaTrader|42",
+    "9022|1022|1709290807000|CLJ4-CLK4|buy|4613937818241073152|4505.750000000000|2.050000000|||other|1|NinjaTrader|42",
+...
+    "9172|1052|1709560807000|CLJ4-CLK4|buy|4607182418800017408|4543.250000000000|2.080000000|||other|1|NinjaTrader|42",
+    "9175|1055|1709566207000|ESH4|buy|4616189618054758400|4544.000000000000|2.040000000|USD|USD|future|50|NinjaTrader|42",
+]
+#### ninjatrader fills one  [] from <time>
+[]
+#### positions one 
+[
+    "CLJ4|long|4613937818241073152|Some(72.5)|USD|future|1000|NinjaTrader|42",
+    "ESH4|short|4611686018427387904|Some(4510.25)|USD|future|50|NinjaTrader|42",
+]
+#### holdings one 
+[
+    "CLJ4||4613937818241073152|long|future|Some(72.5)|USD|NinjaTrader|42",
+    "ESH4||4611686018427387904|short|future|Some(4510.25)|USD|NinjaTrader|42",
+]
+#### orders one 
+50 lines, 5363 bytes, sha256 9f838c83c4fbe868519a2f5efad04ff5ebbaf9c8ec6604fd992c53c2c8930cc5
+[
+    "1001|CLJ4|sell|Limit|4611686018427387904|0|Some(4001.25)|None|USD|future|Some(1709254800000)|NinjaTrader|42",
+    "1002|CLJ4-CLK4|buy|Limit|4613937818241073152|0|Some(4002.25)|None||other|Some(1709258400000)|NinjaTrader|42",
+...
+    "1116|CLJ4|buy|Stop|4613937818241073152|0|None|Some(3990.5)|USD|future|Some(1709668800000)|NinjaTrader|42",
+    "1119||sell|Limit|4613937818241073152|0|Some(4119.25)|None||other|Some(1709679600000)|NinjaTrader|42",
+]
+#### suggestions one 
+[
+    "CLJ4",
+    "CLJ4-CLK4",
+    "ESH4",
+]
+#### test one 
+"Live sign-in accepted, reading account APEX-1 (42) of [APEX-1 (42)]"
+#### ninjatrader fills one demo [] from <time>
+202 lines, 23603 bytes, sha256 48196a0713fa02e161516d64bb5f7a76bcb64d004b600db04b9300a1ab3c5d3f
+[
+    "9001|1001|1709253007000|CLJ4|buy|4611686018427387904|4500.500000000000|0.000000000|USD|USD|future|1000|NinjaTrader|42",
+    "9002|1002|1709254807000|CLJ4-CLK4|buy|4613937818241073152|4500.750000000000|2.060000000|||other|1|NinjaTrader|42",
+...
+    "9298|1058|1709787607000||buy|4613937818241073152|4574.750000000000|2.080000000|||other|1|NinjaTrader|42",
+    "9299|1059|1709789407000||buy|4616189618054758400|4575.000000000000|2.090000000|||other|1|NinjaTrader|42",
+]
+#### ninjatrader fills one demo ["esh4", "CLJ4-CLK4"] from <time>
+45 lines, 5229 bytes, sha256 094da7737c1bfdaba519033e05f51dfb98c7244800a7f0be8ef34358176afe30
+[
+    "9020|1020|1709287207000|ESH4|buy|4607182418800017408|4505.250000000000|2.100000000|USD|USD|future|50|NinjaTrader|42",
+    "9022|1022|1709290807000|CLJ4-CLK4|buy|4613937818241073152|4505.750000000000|2.050000000|||other|1|NinjaTrader|42",
+...
+    "9172|1052|1709560807000|CLJ4-CLK4|buy|4607182418800017408|4543.250000000000|2.080000000|||other|1|NinjaTrader|42",
+    "9175|1055|1709566207000|ESH4|buy|4616189618054758400|4544.000000000000|2.040000000|USD|USD|future|50|NinjaTrader|42",
+]
+#### ninjatrader fills one demo [] from <time>
+[]
+#### positions one demo
+[
+    "CLJ4|long|4613937818241073152|Some(72.5)|USD|future|1000|NinjaTrader|42",
+    "ESH4|short|4611686018427387904|Some(4510.25)|USD|future|50|NinjaTrader|42",
+]
+#### holdings one demo
+[
+    "CLJ4||4613937818241073152|long|future|Some(72.5)|USD|NinjaTrader|42",
+    "ESH4||4611686018427387904|short|future|Some(4510.25)|USD|NinjaTrader|42",
+]
+#### orders one demo
+50 lines, 5363 bytes, sha256 9f838c83c4fbe868519a2f5efad04ff5ebbaf9c8ec6604fd992c53c2c8930cc5
+[
+    "1001|CLJ4|sell|Limit|4611686018427387904|0|Some(4001.25)|None|USD|future|Some(1709254800000)|NinjaTrader|42",
+    "1002|CLJ4-CLK4|buy|Limit|4613937818241073152|0|Some(4002.25)|None||other|Some(1709258400000)|NinjaTrader|42",
+...
+    "1116|CLJ4|buy|Stop|4613937818241073152|0|None|Some(3990.5)|USD|future|Some(1709668800000)|NinjaTrader|42",
+    "1119||sell|Limit|4613937818241073152|0|Some(4119.25)|None||other|Some(1709679600000)|NinjaTrader|42",
+]
+#### suggestions one demo
+[
+    "CLJ4",
+    "CLJ4-CLK4",
+    "ESH4",
+]
+#### test one demo
+"Demo sign-in accepted, reading account APEX-1 (42) of [APEX-1 (42)]"
+#### ninjatrader fills multi  [] from <time>
+102 lines, 11903 bytes, sha256 ccc4f5aaf75fff4718680b5938d6b4a9d06213dda28747e00fa55fd3c69f39bc
+[
+    "9000|1000|1709251207000|ESH4|sell|4607182418800017408|4500.250000000000|2.040000000|USD|USD|future|50|NinjaTrader|43",
+    "9003|1003|1709256607000||sell|4616189618054758400|4501.000000000000|2.070000000|||other|1|NinjaTrader|43",
+...
+    "9294|1054|1709780407000||sell|4613937818241073152|4573.750000000000|2.040000000|||other|1|NinjaTrader|43",
+    "9297|1057|1709785807000|CLJ4-CLK4|sell|4611686018427387904|4574.500000000000|0.000000000|||other|1|NinjaTrader|43",
+]
+#### ninjatrader fills multi  ["esh4", "CLJ4-CLK4"] from <time>
+23 lines, 2574 bytes, sha256 e719faf3609677433db0f29c5c61e2525b788bf5653c1a1708c71717d6c580b4
+[
+    "9027|1027|1709299807000|CLJ4-CLK4|sell|4616189618054758400|4507.000000000000|2.100000000|||other|1|NinjaTrader|43",
+    "9030|1030|1709305207000|ESH4|sell|4613937818241073152|4507.750000000000|2.060000000|USD|USD|future|50|NinjaTrader|43",
+...
+    "9165|1045|1709548207000|ESH4|sell|4611686018427387904|4541.500000000000|0.000000000|USD|USD|future|50|NinjaTrader|43",
+    "9177|1057|1709569807000|CLJ4-CLK4|sell|4611686018427387904|4544.500000000000|0.000000000|||other|1|NinjaTrader|43",
+]
+#### ninjatrader fills multi  [] from <time>
+[]
+#### positions multi 
+[
+    "|long|4607182418800017408|None||other|1|NinjaTrader|43",
+    "CLJ4-CLK4|long|4616189618054758400|Some(0.35)||other|1|NinjaTrader|43",
+]
+#### holdings multi 
+[
+    "||4607182418800017408|long|other|None||NinjaTrader|43",
+    "CLJ4-CLK4||4616189618054758400|long|other|Some(0.35)||NinjaTrader|43",
+]
+#### orders multi 
+26 lines, 2683 bytes, sha256 9b32cbca128c177242c73ed280f0887d7bd4fbf6b1910ed3b1739620d778bcf3
+[
+    "1006|CLJ4|buy|Limit|4607182418800017408|0|Some(4006.25)|None|USD|future|Some(1709272800000)|NinjaTrader|43",
+    "1009||sell|Limit|4607182418800017408|0|Some(4009.25)|None||other|Some(1709283600000)|NinjaTrader|43",
+...
+    "1114||buy|Limit|4607182418800017408|0|Some(4114.25)|None||other|Some(1709661600000)|NinjaTrader|43",
+    "1117|CLJ4-CLK4|sell|Limit|4607182418800017408|0|Some(4117.25)|None||other|Some(1709672400000)|NinjaTrader|43",
+]
+#### suggestions multi 
+[
+    "CLJ4",
+    "CLJ4-CLK4",
+]
+#### test multi 
+"Live sign-in accepted, reading account DEMO (43) of [APEX-1 (42), DEMO (43)]"
+#### env ``
+true
+#### env `live`
+true
+#### env `demo`
+true
+#### env `paper`
+false
+#### account_id ``
+true
+#### account_id `42`
+true
+#### account_id `abc`
+false

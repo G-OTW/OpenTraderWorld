@@ -1,0 +1,6 @@
+---
+source: otw-core/src/api_tests/demo.rs
+expression: first.unwrap()
+---
+error: demo_disabled
+message: this action is disabled in the public demo

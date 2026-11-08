@@ -1,0 +1,250 @@
+/** Charts (module id `histviz`) API client.
+ *
+ * Bars come back as parallel arrays (ts/o/h/l/c/v) — compact and ready for ECharts.
+ *
+ * `series` is what the chart uses: one window of an instrument, stored bars plus only the
+ * missing edges fetched through a connector, storing nothing. `symbols` finds the
+ * instrument in the first place. Bars become permanent only through `savePreview`, which
+ * queues the normal download job (consolidating with any bars already stored).
+ * `bars`/`preview` remain for dataset-addressed and trailing-window reads. */
+import { redirectIfUnauthorized } from '$lib/auth.js';
+import { IMPORT_PROVIDER } from '../histdata/api.js';
+import { batchWithTemp, dropTemp, isTemp, takeTempSource, tempWindow } from './tempSeries.js';
+
+async function req(path, opts = {}) {
+  const res = await fetch(`/api${path}`, {
+    headers: { 'content-type': 'application/json' },
+    ...opts
+  });
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* empty */
+  }
+  redirectIfUnauthorized(res);
+  // `code` says what the caller can do about it (arming a trade: `background_trading_required`,
+  // `code_required`).
+  if (!res.ok) throw Object.assign(new Error(body?.error ?? `request failed (${res.status})`), { code: body?.code ?? null });
+  return body;
+}
+
+export const histvizApi = {
+  /** Stored datasets catalog (same source as the download module). */
+  datasets: () => req('/histdata/datasets').then((r) => r.datasets),
+
+  /** OHLCV for a dataset. opts: { from, to } RFC3339, limit (default server-side). */
+  bars: (id, opts = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.from) qs.set('from', opts.from);
+    if (opts.to) qs.set('to', opts.to);
+    if (opts.limit) qs.set('limit', String(opts.limit));
+    if (opts.module && opts.module !== 'histviz') qs.set('module', opts.module);
+    const q = qs.toString();
+    return req(`/histdata/datasets/${id}/bars${q ? `?${q}` : ''}`, { signal: opts.signal });
+  },
+
+  /** Global chart display settings (server-persisted). Returns the stored blob or null. */
+  chartSettings: () => req('/histviz/chart-settings'),
+
+  /** Replace the global chart settings with `settings` (plain object). */
+  saveChartSettings: (settings) =>
+    req('/histviz/chart-settings', { method: 'PUT', body: JSON.stringify(settings) }),
+
+  /** Chart layout of one dataset — indicators, drawings, plot style. Null when never saved. */
+  layout: (datasetId) => req(`/histviz/layouts/${datasetId}`),
+
+  /** Replace that dataset's layout. */
+  saveLayout: (datasetId, layout) =>
+    req(`/histviz/layouts/${datasetId}`, { method: 'PUT', body: JSON.stringify(layout) }),
+
+  /** Layout of an *instrument*, stored or not. Coordinates rather than a dataset id: a
+   *  symbol you are only looking at keeps its indicators and drawings too. */
+  layoutOf: ({ provider, asset_type, ticker, timeframe }) =>
+    req(
+      `/histviz/layout?${new URLSearchParams({ provider, asset_type, ticker, timeframe })}`
+    ),
+
+  /** Replace it. */
+  saveLayoutOf: ({ provider, asset_type, ticker, timeframe }, layout) =>
+    req('/histviz/layout', {
+      method: 'PUT',
+      body: JSON.stringify({ provider, asset_type, ticker, timeframe, layout })
+    }),
+
+  // ── Workspaces: the grid of panes ──
+  workspaces: () => req('/histviz/workspaces').then((r) => r.workspaces),
+  workspace: (id) => req(`/histviz/workspaces/${id}`),
+  createWorkspace: (w) => req('/histviz/workspaces', { method: 'POST', body: JSON.stringify(w) }),
+  saveWorkspace: (id, w) =>
+    req(`/histviz/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(w) }),
+  deleteWorkspace: (id) => req(`/histviz/workspaces/${id}`, { method: 'DELETE' }),
+
+  // ── Chart lists: the rail's own source, next to the Watchlists module's ──
+  lists: () => req('/histviz/lists').then((r) => r.lists),
+  createList: (l) => req('/histviz/lists', { method: 'POST', body: JSON.stringify(l) }),
+  saveList: (id, l) => req(`/histviz/lists/${id}`, { method: 'PUT', body: JSON.stringify(l) }),
+  deleteList: (id) => req(`/histviz/lists/${id}`, { method: 'DELETE' }),
+  /** Copy a chart list into the Watchlists module. Explicit: charting never writes there. */
+  promoteList: (id, name) =>
+    req(`/histviz/lists/${id}/promote`, { method: 'POST', body: JSON.stringify({ name }) }),
+
+  /** The journal an instrument's trades book into (null = none). Every position opened while
+   *  it is set lands there, whoever closes it. */
+  journalLink: ({ ticker, asset_type }) =>
+    req(`/histviz/journal-link?${new URLSearchParams({ ticker, asset_type })}`).then((r) => r.category_id ?? null),
+  setJournalLink: ({ ticker, asset_type }, category_id) =>
+    req('/histviz/journal-link', { method: 'PUT', body: JSON.stringify({ ticker, asset_type, category_id }) }).then((r) => r.category_id ?? null),
+
+  // ── Alerts: one series crossing another or a level, watched by the server, polled on
+  //    closed bars or on the live feed ──
+  /** Every alert, or one instrument's when the coordinates are given. */
+  alerts: (instrument = null) => {
+    const qs = instrument
+      ? `?${new URLSearchParams({
+          provider: instrument.provider,
+          asset_type: instrument.asset_type,
+          ticker: instrument.ticker,
+          timeframe: instrument.timeframe
+        })}`
+      : '';
+    return req(`/histviz/alerts${qs}`).then((r) => r.alerts);
+  },
+  alert: (id) => req(`/histviz/alerts/${id}`),
+  createAlert: (a) => req('/histviz/alerts', { method: 'POST', body: JSON.stringify(a) }),
+  saveAlert: (id, a) =>
+    req(`/histviz/alerts/${id}`, { method: 'PUT', body: JSON.stringify(a) }),
+  deleteAlert: (id) => req(`/histviz/alerts/${id}`, { method: 'DELETE' }),
+  /** Disable every armed alert at once. */
+  pauseAllAlerts: () => req('/histviz/alerts/pause-all', { method: 'POST' }),
+  /** The app is open: keeps the "live in app" alerts on their feed. */
+  alertPresence: () => req('/histviz/alerts/presence', { method: 'POST' }),
+
+  // ── Trades on alert: the ticket an alert sends to a broker account when it fires ──
+  /** Every trade on alert, armed or not. */
+  alertTrades: () => req('/histviz/alert-trades').then((r) => r.trades),
+  /** Write an alert's trade `{ account_id, intent, ticket, fallback }`: `{ trade, disarmed }`.
+   *  A change disarms it. */
+  saveAlertTrade: (id, body) => req(`/histviz/alerts/${id}/trade`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteAlertTrade: (id) => req(`/histviz/alerts/${id}/trade`, { method: 'DELETE' }),
+  /** Arm it. Refused with `background_trading_required` (sign it on the account) or
+   *  `code_required` (the trading lock is on: send the authenticator code). */
+  armAlertTrade: (id, code = '') => req(`/histviz/alerts/${id}/trade/arm`, { method: 'PUT', body: JSON.stringify({ code }) }),
+  disarmAlertTrade: (id) => req(`/histviz/alerts/${id}/trade/arm`, { method: 'DELETE' }),
+  /** The order it would send at `price` (a decimal string), the broker's dry run where it has
+   *  one, and what is already armed on the instrument. `trade` previews an unsaved draft. */
+  previewAlertTrade: (id, price, trade = null) =>
+    req(`/histviz/alerts/${id}/trade/preview`, { method: 'POST', body: JSON.stringify({ price: String(price), at: Date.now(), trade }) }),
+
+  /** Provider capability matrix (used to know which providers have a live WS feed). */
+  providers: () => req('/connectors/providers').then((r) => r.providers),
+
+  /** Fetch bars through a connector without storing them.
+   *  coords: { connector_id?, provider?, asset_type, ticker, timeframe, bars? } */
+  preview: (coords) =>
+    req('/histdata/preview', { method: 'POST', body: JSON.stringify(coords) }),
+
+  /** One window per instrument in a single round trip, what a workspace opens with.
+   *  Answers in the order asked; a pane that fails carries `error` and the others their
+   *  bars. Read one at a time server-side, because panes share connectors and a connector's
+   *  quota and rate limit are counted per account. */
+  seriesBatch: (items) =>
+    batchWithTemp(items, (rest) =>
+      req('/histviz/series/batch', { method: 'POST', body: JSON.stringify({ items: rest }) }).then(
+        (r) => r.results
+      )
+    ),
+
+  /** The same batch, answered on **one clock**: `clock` is the caller's own bar timestamps
+   *  ({provider, ts}) and each result comes back with a `map`, row → that instrument's bar
+   *  index, `null` where it has no bar in the period.
+   *
+   *  Two providers stamp the same trading day at two different instants (a crypto exchange
+   *  at 00:00 UTC, a US broker at the session open), so pairing bars by raw timestamp slides
+   *  one series a full day against the other. Bucketing is the server's `align::merge`, the
+   *  same one the quant and backtest sides use. Answers `{results, clock}`; `clock.refused`
+   *  says why there is no map (intraday across providers has no honest bucket). */
+  seriesBatchOn: (items, clock, opts = {}) =>
+    req('/histviz/series/batch', {
+      method: 'POST',
+      body: JSON.stringify({ items, align: true, clock }),
+      ...opts
+    }),
+
+  /** One chart slice: stored bars + only the missing edges fetched from the provider.
+   *  coords: { connector_id?, provider?, asset_type, ticker, timeframe, to?, bars? }.
+   *  Walk into the past by passing the oldest loaded timestamp as `to`. */
+  series: async (coords) =>
+    isTemp(coords)
+      ? tempWindow(coords)
+      : req('/histviz/series', { method: 'POST', body: JSON.stringify(coords) }),
+
+  /** Instrument lookup across the connectors granted to the chart (or to `module`).
+   *  opts: { q, asset_type, connectors: [id], limit, module } */
+  symbols: (opts = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.q) qs.set('q', opts.q);
+    if (opts.asset_type) qs.set('asset_type', opts.asset_type);
+    if (opts.connectors?.length) qs.set('connectors', opts.connectors.join(','));
+    if (opts.limit) qs.set('limit', String(opts.limit));
+    const q = qs.toString();
+    return req(`/histdata/symbols${q ? `?${q}` : ''}`);
+  },
+
+  /** Keep a file opened without being kept: the import commit it would have run, then the
+   *  coordinates of the stored dataset that now serves it. */
+  keepTemp: async (coords) => {
+    const source = takeTempSource(coords);
+    await req('/histdata/import/commit', { method: 'POST', body: JSON.stringify(source) });
+    dropTemp(coords);
+    return { ...coords, provider: IMPORT_PROVIDER };
+  },
+
+  /** Persist a window (queues a download job). coords + { from, to } or { bars }. */
+  savePreview: (coords) =>
+    req('/histdata/preview/save', { method: 'POST', body: JSON.stringify(coords) }),
+
+  /** SSE URL for an instrument's live bar stream (open it through `liveStream` in `$lib/live/stream.js`, never a bare EventSource).
+   *  Addressed by coordinates: watching stores nothing, and if the instrument happens to be
+   *  stored the server records the same bars into it.
+   *
+   *  `connector` picks which of the user's accounts for that provider to stream on. Two
+   *  keys are two entitlements and two connection seats, so it is part of the address and
+   *  not a detail: omit it and the server falls back to the oldest one the chart is granted.
+   *
+   *  Events: `status` ({state, code, message}), `snapshot` (the forming bar) and `bar`.
+   *  With `quotes`, also `quote` ({bid, ask, ts, lag_ms}) and `quote_status` ({state, code,
+   *  message, source}), or one `quote_status` {state: 'none'} when the venue streams none. */
+  streamUrl: ({ provider, asset_type, ticker, timeframe, connector_id, since, quotes }) => {
+    const qs = new URLSearchParams({ provider, asset_type, ticker, timeframe });
+    if (connector_id) qs.set('connector', connector_id);
+    if (quotes) qs.set('quotes', 'true');
+    // The newest bar already on the chart. The server sends what closed between it and the
+    // first live event, so the seam between the downloaded window and the stream has no
+    // hole: the series call, the WS connect and (for a minute-bar provider) the wait for the
+    // next publication all take time the chart would otherwise skip over.
+    if (since) qs.set('since', since);
+    return `/api/histviz/stream?${qs}`;
+  },
+
+  /** SSE URL for a whole workspace: one connection carrying every pane's instrument.
+   *
+   *  Each event gains `i`, the instrument's index in the array, so the page routes it to the
+   *  pane that asked. The list rides as URL-encoded JSON because a ticker carries `:`, `/`
+   *  and `@` (`SAN:EUR`, `BTC/USD`, `7203@TSEJ:JPY`) and any separator we invented would
+   *  eventually meet one of them. */
+  streamsUrl: (instruments) => {
+    const items = instruments.map(
+      ({ provider, asset_type, ticker, timeframe, connector_id, since, quotes }) => ({
+        provider,
+        asset_type,
+        ticker,
+        timeframe,
+        ...(connector_id ? { connector: connector_id } : {}),
+        ...(since ? { since } : {}),
+        ...(quotes ? { quotes: true } : {})
+      })
+    );
+    return `/api/histviz/streams?instruments=${encodeURIComponent(JSON.stringify(items))}`;
+  }
+};

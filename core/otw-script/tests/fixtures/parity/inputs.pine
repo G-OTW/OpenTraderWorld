@@ -1,0 +1,12 @@
+//@version=6
+indicator("inputs")
+len = input.int(14, "Length", minval=1, maxval=200, step=1)
+mult = input.float(2.0, "Mult", minval=0.1, step=0.1)
+show = input.bool(true, "Show")
+mode = input.string("sma", "Mode", options=["sma", "ema"])
+src = input.source(hl2, "Source")
+col = input.color(color.purple, "Color")
+sess = input.session("0930-1600", "Session")
+base = mode == "sma" ? ta.sma(src, len) : ta.ema(src, len)
+plot(show ? base * mult : na, color=col)
+plot(na(time(timeframe.period, sess)) ? 0 : 1)

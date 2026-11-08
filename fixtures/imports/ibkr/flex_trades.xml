@@ -1,0 +1,14 @@
+<FlexQueryResponse queryName="otw-fixture" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U0000000" fromDate="20260302" toDate="20260331" period="Last30CalendarDays" whenGenerated="20260401;080000">
+<Trades>
+<Trade accountId="U0000000" currency="USD" assetCategory="STK" symbol="AAPL" description="APPLE INC" listingExchange="NASDAQ" exchange="ISLAND" multiplier="1" tradeID="1001" ibOrderID="2001" ibExecID="0000e001.0001.01.01" dateTime="20260302;093000" tradeDate="20260302" quantity="10" tradePrice="150.25" ibCommission="-1.00" ibCommissionCurrency="USD" buySell="BUY" levelOfDetail="EXECUTION" />
+<Trade accountId="U0000000" currency="USD" assetCategory="STK" symbol="AAPL" description="APPLE INC" listingExchange="NASDAQ" exchange="ARCA" multiplier="1" tradeID="1002" ibOrderID="2002" ibExecID="0000e002.0001.01.01" dateTime="20260303;154500" tradeDate="20260303" quantity="-10" tradePrice="160.50" ibCommission="-1.00" ibCommissionCurrency="USD" buySell="SELL" levelOfDetail="EXECUTION" />
+<Trade accountId="U0000000" currency="USD" assetCategory="FUT" symbol="MESM6" description="MES 19JUN26" listingExchange="CME" exchange="CME" multiplier="5" tradeID="1003" ibOrderID="2003" ibExecID="0000e003.0001.01.01" dateTime="20260330;100000" tradeDate="20260330" quantity="-1" tradePrice="5800.25" ibCommission="-0.62" ibCommissionCurrency="USD" buySell="SELL" levelOfDetail="EXECUTION" />
+</Trades>
+<OpenPositions>
+<OpenPosition accountId="U0000000" currency="USD" assetCategory="FUT" symbol="MESM6" description="MES 19JUN26" listingExchange="CME" multiplier="5" position="-1" costBasisPrice="5800.25" />
+</OpenPositions>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>

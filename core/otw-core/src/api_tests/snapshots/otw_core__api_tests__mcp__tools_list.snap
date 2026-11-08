@@ -1,0 +1,124 @@
+---
+source: otw-core/src/api_tests/mcp.rs
+expression: "body[\"result\"]"
+---
+_meta: "[server meta]"
+cacheScope: private
+resultType: complete
+tools:
+  - annotations:
+      readOnlyHint: true
+    description: "Discover endpoints. With no argument, returns a compact index of the modules this token can access (label, access level, endpoint count). Pass a \"module\" to list that module's endpoints, or an \"endpoint\" (or several in \"endpoints\") to get its description, a working example and its body fields before writing it; add \"full\": true with one endpoint for its raw JSON Schema, only when the compact field table did not answer. Call this before otw_read/otw_write."
+    inputSchema:
+      additionalProperties: false
+      properties:
+        endpoint:
+          description: "One endpoint as the listing prints it, e.g. \"POST /api/backtest/run\": returns its description, example and body fields. Takes precedence over module."
+          type: string
+        endpoints:
+          description: "Several endpoints at once, same form as endpoint: one block each."
+          items:
+            type: string
+          type: array
+        full:
+          description: "With one endpoint: return its raw request-body JSON Schema instead of the field table, cut at 24000 characters. Refused with several endpoints; ask it only when the compact field table did not answer."
+          type: boolean
+        module:
+          description: "List this module's endpoints (e.g. \"journal\"). Omit to get the module index."
+          type: string
+      type: object
+    name: otw_catalog
+    title: List available endpoints
+  - annotations:
+      readOnlyHint: true
+    description: "GET an allowlisted endpoint. Returns the JSON response body. For large responses (portfolio detail, analytics), pass \"pick\" to extract only the fields the user asked for, and/or \"head\" to cap arrays."
+    inputSchema:
+      additionalProperties: false
+      properties:
+        head:
+          description: Truncate every array in the (picked) response to its first N elements; totals are reported.
+          minimum: 1
+          type: integer
+        path:
+          description: "API path with optional query string, e.g. /api/journal/trades?limit=20"
+          type: string
+        pick:
+          description: "Dot-paths to extract from the response, e.g. [\"result.var_hist\",\"positions.symbol\"]. Arrays map the remaining path over their elements; a numeric segment indexes. The response becomes {path: value, …}. WARNING on endpoints returning parallel column arrays (/api/histdata/.../bars returns ts/o/h/l/c/v side by side): picking one column drops the timestamps, so any date inferred by counting positions will be wrong — pick \"ts\" too."
+          items:
+            type: string
+          type: array
+      required:
+        - path
+      type: object
+    name: otw_read
+    title: Read from the API
+  - annotations:
+      openWorldHint: false
+      readOnlyHint: true
+    description: "POST an allowlisted compute endpoint: a backtest, a parameter sweep, risk metrics, a seasonality study. These answer a question and store nothing the user would miss, so they need no confirmation. The module listing marks these endpoints (compute); everything else goes through otw_write."
+    inputSchema:
+      additionalProperties: false
+      properties:
+        body:
+          description: "Required for every POST, PUT and PATCH: the JSON object goes here, never in path. GET and DELETE take none."
+        head:
+          description: Truncate every array in the (picked) result to its first N elements; totals are reported.
+          minimum: 1
+          type: integer
+        path:
+          description: "API path of a compute endpoint, e.g. /api/backtest/run"
+          type: string
+        pick:
+          description: "Dot-paths to extract from the result, e.g. [\"stats.sharpe\",\"stats.max_drawdown\"]. Results are large; picking is usually the difference between an answer and a truncated dump."
+          items:
+            type: string
+          type: array
+        validate_only:
+          description: "Check the body against the endpoint's type and schema and answer ok or every problem, without running anything."
+          type: boolean
+      required:
+        - path
+      type: object
+    name: otw_compute
+    title: Run a calculation
+  - annotations:
+      destructiveHint: true
+      openWorldHint: false
+    description: "Mutate through an allowlisted endpoint (POST/PUT/PATCH/DELETE): this stores, changes or removes data. Requires read+write permission on the endpoint's module. Calculations go through otw_compute instead."
+    inputSchema:
+      additionalProperties: false
+      properties:
+        body:
+          description: "Required for every POST, PUT and PATCH: the JSON object goes here, never in path. GET and DELETE take none."
+        head:
+          description: Truncate every array in the (picked) response to its first N elements; totals are reported.
+          minimum: 1
+          type: integer
+        idempotency_key:
+          description: "Optional. Retrying a write whose outcome you did not see (timeout, dropped connection)? Send the same key again: the first result is replayed instead of writing twice. One fresh key per distinct write."
+          type: string
+        method:
+          enum:
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+          type: string
+        path:
+          description: "API path, e.g. /api/journal/trades"
+          type: string
+        pick:
+          description: Dot-paths to extract from the response (useful on compute endpoints like /api/quant/* or /api/backtest/run).
+          items:
+            type: string
+          type: array
+        validate_only:
+          description: "Check the body against the endpoint's type and schema and answer ok or every problem, without writing anything."
+          type: boolean
+      required:
+        - method
+        - path
+      type: object
+    name: otw_write
+    title: Write to the API
+ttlMs: 300000

@@ -1,0 +1,22 @@
+//@version=6
+indicator("t")
+len = input.int(14)
+fast = ta.sma(close, len)
+slow = ta.ema(close, len * 2)
+r = ta.rsi(close, len)
+a = ta.atr(len)
+h = ta.highest(high, 20)
+spread = fast - slow
+norm = a > 0 ? spread / a : 0.0
+var float acc = 0.0
+acc := acc * 0.9 + norm
+up = r > 70
+down = r < 30
+score = up ? 1 : down ? -1 : 0
+band = h - a * 2
+mid = (fast + slow) / 2
+dist = close - mid
+z = dist / math.max(a, 1e-9)
+sig = z > 1 and score >= 0
+plot(acc)
+plot(sig ? band : na)

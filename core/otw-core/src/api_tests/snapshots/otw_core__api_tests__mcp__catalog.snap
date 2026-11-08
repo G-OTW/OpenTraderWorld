@@ -1,0 +1,522 @@
+---
+source: otw-core/src/api_tests/mcp.rs
+expression: "lines.join(\"\\n\")"
+---
+DELETE /api/backtest/indicators/{id} [backtest]
+DELETE /api/backtest/optimize/{id} [backtest]
+DELETE /api/backtest/paper/{id} [backtest]
+DELETE /api/backtest/runs [backtest]
+DELETE /api/backtest/runs/{id} [backtest]
+DELETE /api/backtest/strategies/{id} [backtest]
+DELETE /api/backtest/strategies/{id}/versions [backtest]
+DELETE /api/backtest/strategies/{id}/versions/{vid} [backtest]
+DELETE /api/calendar/events/{id} [calendar]
+DELETE /api/databases/columns/{col_id} [editor]
+DELETE /api/databases/rows/{row_id} [editor]
+DELETE /api/documents/{id} [editor]
+DELETE /api/documents/{id}/versions [editor]
+DELETE /api/documents/{id}/versions/{vid} [editor]
+DELETE /api/feed-dashboards/{id} [news]
+DELETE /api/feed-dashboards/{id}/sources/{feed_id} [news]
+DELETE /api/feeds/{id} [news]
+DELETE /api/findb/favorites/{id} [findb]
+DELETE /api/findb/folders/{id} [findb]
+DELETE /api/goals/{id} [goals]
+DELETE /api/histdata/datasets/{id} [histdata]
+DELETE /api/histdata/jobs/batch/{id} [histdata]
+DELETE /api/histdata/jobs/{id} [histdata]
+DELETE /api/histviz/alerts/{id} [histviz]
+DELETE /api/histviz/lists/{id} [histviz]
+DELETE /api/histviz/workspaces/{id} [histviz]
+DELETE /api/journal/capital/{id} [journal]
+DELETE /api/journal/categories/{id} [journal]
+DELETE /api/journal/fee-schedules/{id} [journal]
+DELETE /api/journal/routines/links/{id} [journal]
+DELETE /api/journal/strategies/{id} [journal]
+DELETE /api/journal/tags/{id} [journal]
+DELETE /api/journal/templates/{id} [journal]
+DELETE /api/journal/trades/{id} [journal]
+DELETE /api/mailbox/links/{id} [mailbox]
+DELETE /api/mailbox/messages/{id} [mailbox]
+DELETE /api/mindset/categories/{id} [mindset]
+DELETE /api/mindset/entries [mindset] body{date*,phase,template_id}
+DELETE /api/mindset/prompts/{id} [mindset]
+DELETE /api/mindset/templates [mindset]
+DELETE /api/mindset/templates/{id} [mindset]
+DELETE /api/mportfolios/snapshots/by-slug/{slug} [mportfolios]
+DELETE /api/mportfolios/snapshots/{id} [mportfolios]
+DELETE /api/notifications/{id} [remindme]
+DELETE /api/portfolios/assets/{asset_id} [portfolios]
+DELETE /api/portfolios/operations/{op_id} [portfolios]
+DELETE /api/portfolios/scenarios/{id} [portfolios]
+DELETE /api/portfolios/{id} [portfolios]
+DELETE /api/prompts/{id} [prompt-store]
+DELETE /api/reminders/{id} [remindme]
+DELETE /api/resources/categories/{id} [resources]
+DELETE /api/resources/{id} [resources]
+DELETE /api/scanner/hives/{id} [scanner]
+DELETE /api/subscriptions/{id} [subscriptions]
+DELETE /api/taxcalc/profiles/{id} [taxcalc]
+DELETE /api/taxcalc/scenarios/{id} [taxcalc]
+DELETE /api/time/entries/{id} [time]
+DELETE /api/time/projects/{id} [time]
+DELETE /api/todos/{id} [todos]
+DELETE /api/trader/categories/{id} [routines]
+DELETE /api/trader/routines/{id} [routines]
+DELETE /api/trader/tasks/{id} [routines]
+DELETE /api/watchlists/alerts/{alert_id} [watchlists]
+DELETE /api/watchlists/items/{item_id} [watchlists]
+DELETE /api/watchlists/{id} [watchlists]
+DELETE /api/wealth/assets/{id} [wealth]
+DELETE /api/wealth/revisions/{id} [wealth]
+DELETE /api/wealth/templates/{id} [wealth]
+GET /api/automator/catalog [automator]
+GET /api/automator/catalog/schema [automator]
+GET /api/automator/runs [automator]
+GET /api/automator/runs/{id} [automator]
+GET /api/automator/workflows [automator]
+GET /api/automator/workflows/{id} [automator]
+GET /api/automator/workflows/{id}/versions [automator]
+GET /api/backtest/execution-data [backtest]
+GET /api/backtest/indicators [backtest]
+GET /api/backtest/indicators/{id} [backtest]
+GET /api/backtest/manifest [backtest]
+GET /api/backtest/optimize [backtest]
+GET /api/backtest/optimize/{id} [backtest]
+GET /api/backtest/optimize/{id}/cloud [backtest]
+GET /api/backtest/paper [backtest]
+GET /api/backtest/paper/events [backtest]
+GET /api/backtest/paper/variables [backtest]
+GET /api/backtest/paper/{id} [backtest]
+GET /api/backtest/paper/{id}/dashboard [backtest]
+GET /api/backtest/paper/{id}/trades [backtest]
+GET /api/backtest/run/intrabar/{id} [backtest]
+GET /api/backtest/runs [backtest]
+GET /api/backtest/runs/{id} [backtest]
+GET /api/backtest/runs/{id}/report.md [backtest]
+GET /api/backtest/runs/{id}/series [backtest]
+GET /api/backtest/strategies [backtest]
+GET /api/backtest/strategies/deleted-versions [backtest]
+GET /api/backtest/strategies/{id} [backtest]
+GET /api/backtest/strategies/{id}/versions [backtest]
+GET /api/backtest/strategies/{id}/versions/{vid} [backtest]
+GET /api/calendar/events [calendar]
+GET /api/calendar/events/{id} [calendar]
+GET /api/community-docs [community-docs]
+GET /api/community-docs/favorites [community-docs]
+GET /api/community-docs/{slug} [community-docs]
+GET /api/connectors [connectors]
+GET /api/connectors/modules [connectors]
+GET /api/connectors/providers [connectors]
+GET /api/databases/{id} [editor]
+GET /api/documents [editor]
+GET /api/documents/{id} [editor]
+GET /api/documents/{id}/versions [editor]
+GET /api/documents/{id}/versions/{vid} [editor]
+GET /api/feed-dashboards [news]
+GET /api/feed-dashboards/{id} [news]
+GET /api/feed-dashboards/{id}/sources [news]
+GET /api/feed-items [news]
+GET /api/feed-sources [news]
+GET /api/feeds [news]
+GET /api/feeds/quotas [news]
+GET /api/feeds/{id} [news]
+GET /api/findb/facets [findb]
+GET /api/findb/favorites [findb]
+GET /api/findb/folders [findb]
+GET /api/findb/search [findb]
+GET /api/findb/status [findb]
+GET /api/fundamentals/calendar [fundamentals]
+GET /api/fundamentals/companies [fundamentals]
+GET /api/fundamentals/companies/{ticker} [fundamentals]
+GET /api/fundamentals/companies/{ticker}/documents [fundamentals]
+GET /api/fundamentals/companies/{ticker}/insiders [fundamentals]
+GET /api/fundamentals/companies/{ticker}/statements [fundamentals]
+GET /api/fundamentals/companies/{ticker}/view/{view} [fundamentals]
+GET /api/fundamentals/data/{dataset} [fundamentals]
+GET /api/fundamentals/datasets [fundamentals]
+GET /api/fundamentals/documents [fundamentals]
+GET /api/fundamentals/documents/{id} [fundamentals]
+GET /api/fundamentals/etfs [fundamentals]
+GET /api/fundamentals/series [fundamentals]
+GET /api/fundamentals/series/{id} [fundamentals]
+GET /api/fundamentals/series/{id}/observations [fundamentals]
+GET /api/fundamentals/sources [fundamentals]
+GET /api/goals [goals]
+GET /api/goals/{id} [goals]
+GET /api/histdata/datasets [histdata]
+GET /api/histdata/datasets/{id}/bars [histdata]
+GET /api/histdata/datasets/{id}/check [histdata]
+GET /api/histdata/datasets/{id}/export [histdata]
+GET /api/histdata/jobs [histdata]
+GET /api/histdata/symbols [histdata]
+GET /api/histviz/alerts [histviz]
+GET /api/histviz/alerts/{id} [histviz]
+GET /api/histviz/lists [histviz]
+GET /api/histviz/lists/{id} [histviz]
+GET /api/histviz/workspaces [histviz]
+GET /api/histviz/workspaces/{id} [histviz]
+GET /api/journal/analytics [journal]
+GET /api/journal/breakdown [journal]
+GET /api/journal/calendar [journal]
+GET /api/journal/categories [journal]
+GET /api/journal/categories/{id}/capital [journal]
+GET /api/journal/compare [journal]
+GET /api/journal/exits/catalog [journal]
+GET /api/journal/export/trades.csv [journal]
+GET /api/journal/exposure [journal]
+GET /api/journal/fee-schedules [journal]
+GET /api/journal/fx/pending [journal]
+GET /api/journal/fx/quotes [journal]
+GET /api/journal/fx/rates/{date} [journal]
+GET /api/journal/lab/catalog [journal]
+GET /api/journal/market/coverage [journal]
+GET /api/journal/market/settings [journal]
+GET /api/journal/report [journal]
+GET /api/journal/routines/links [journal]
+GET /api/journal/routines/status [journal]
+GET /api/journal/settings [journal]
+GET /api/journal/strategies [journal]
+GET /api/journal/strategies/{id}/report [journal]
+GET /api/journal/tags [journal]
+GET /api/journal/templates [journal]
+GET /api/journal/trade-suggestions [journal]
+GET /api/journal/trades [journal]
+GET /api/journal/trades/{id} [journal]
+GET /api/mailbox/links [mailbox]
+GET /api/mailbox/messages [mailbox]
+GET /api/mailbox/messages/{id} [mailbox]
+GET /api/mailbox/senders [mailbox]
+GET /api/market-sessions [histviz]
+GET /api/mindset/categories [mindset]
+GET /api/mindset/day [mindset]
+GET /api/mindset/history [mindset]
+GET /api/mindset/marks [mindset]
+GET /api/mindset/prompts [mindset]
+GET /api/mindset/templates [mindset]
+GET /api/mindset/templates/{id} [mindset]
+GET /api/mportfolios [mportfolios]
+GET /api/mportfolios/snapshots [mportfolios]
+GET /api/mportfolios/snapshots/{id} [mportfolios]
+GET /api/mportfolios/{slug} [mportfolios]
+GET /api/notifications [remindme]
+GET /api/notifications/unread [remindme]
+GET /api/options/strategies [options]
+GET /api/portfolios [portfolios]
+GET /api/portfolios/assets/{asset_id} [portfolios]
+GET /api/portfolios/blocks [portfolios]
+GET /api/portfolios/factors [portfolios]
+GET /api/portfolios/overview [portfolios]
+GET /api/portfolios/reviews/due [portfolios]
+GET /api/portfolios/scenarios [portfolios]
+GET /api/portfolios/search [portfolios]
+GET /api/portfolios/{id} [portfolios]
+GET /api/portfolios/{id}/analytics [portfolios]
+GET /api/portfolios/{id}/analytics/compare [portfolios]
+GET /api/portfolios/{id}/analytics/harvest [portfolios]
+GET /api/portfolios/{id}/analytics/projection [portfolios]
+GET /api/portfolios/{id}/assets/{asset_id}/lots [portfolios]
+GET /api/portfolios/{id}/goal [portfolios]
+GET /api/portfolios/{id}/history/coverage [portfolios]
+GET /api/portfolios/{id}/income/calendar [portfolios]
+GET /api/portfolios/{id}/plans [portfolios]
+GET /api/portfolios/{id}/targets [portfolios]
+GET /api/prompts [prompt-store]
+GET /api/prompts/tags [prompt-store]
+GET /api/prompts/{id} [prompt-store]
+GET /api/prompts/{id}/versions [prompt-store]
+GET /api/quant/market/tasks/{id} [quant]
+GET /api/reminders [remindme]
+GET /api/reminders/{id} [remindme]
+GET /api/resources [resources]
+GET /api/resources/categories [resources]
+GET /api/scanner/alerts [scanner]
+GET /api/scanner/hits [scanner]
+GET /api/scanner/hives [scanner]
+GET /api/scanner/hives/{id}/board [scanner]
+GET /api/scanner/items [scanner]
+GET /api/scanner/signals [scanner]
+GET /api/search [search]
+GET /api/settings/versioning/editor [editor]
+GET /api/settings/versioning/strategies [backtest]
+GET /api/subscriptions [subscriptions]
+GET /api/subscriptions/breakdown [subscriptions]
+GET /api/subscriptions/forecast [subscriptions]
+GET /api/subscriptions/settings [subscriptions]
+GET /api/subscriptions/suggestions [subscriptions]
+GET /api/subscriptions/{id} [subscriptions]
+GET /api/subscriptions/{id}/prices [subscriptions]
+GET /api/taxcalc/profiles [taxcalc]
+GET /api/taxcalc/profiles/{id} [taxcalc]
+GET /api/taxcalc/scenarios [taxcalc]
+GET /api/taxcalc/scenarios/{id} [taxcalc]
+GET /api/taxcalc/templates [taxcalc]
+GET /api/time/breakdown [time]
+GET /api/time/projects [time]
+GET /api/time/projects/{id} [time]
+GET /api/time/projects/{id}/entries [time]
+GET /api/time/state [time]
+GET /api/todos [todos]
+GET /api/todos/{id} [todos]
+GET /api/trader/board [routines]
+GET /api/trader/categories [routines]
+GET /api/trader/marks [routines]
+GET /api/trader/routines [routines]
+GET /api/trader/routines/{id} [routines]
+GET /api/vocab [search]
+GET /api/vocab/{field} [search]
+GET /api/watchlists [watchlists]
+GET /api/watchlists/search [watchlists]
+GET /api/watchlists/templates [watchlists]
+GET /api/watchlists/{id} [watchlists]
+GET /api/watchlists/{id}/correlation [watchlists]
+GET /api/watchlists/{id}/events [watchlists]
+GET /api/watchlists/{id}/news-counts [watchlists]
+GET /api/watchlists/{id}/series [watchlists]
+GET /api/wealth/assets [wealth]
+GET /api/wealth/assets/{id}/revisions [wealth]
+GET /api/wealth/assets/{id}/schedule [wealth]
+GET /api/wealth/breakdown [wealth]
+GET /api/wealth/categories [wealth]
+GET /api/wealth/goals [wealth]
+GET /api/wealth/movers [wealth]
+GET /api/wealth/settings [wealth]
+GET /api/wealth/snapshot [wealth]
+GET /api/wealth/targets [wealth]
+GET /api/wealth/templates [wealth]
+PATCH /api/automator/workflows/{id} [automator] body{description,enabled,favorite,max_runtime_secs,mcp_token_id,name}
+PATCH /api/calendar/events/{id} [calendar] body{all_day,category,color,end_at,location,notes,start_at*,title}
+PATCH /api/databases/columns/{col_id} [editor] body{name,options,position,type}
+PATCH /api/databases/rows/{row_id} [editor] body{cells*}
+PATCH /api/documents/{id} [editor] body{content,layout,title}
+PATCH /api/feed-dashboards/{id} [news] body{favorite,name,position,started}
+PATCH /api/feeds/{id} [news] body{color,config,enabled,interval_secs,name}
+PATCH /api/findb/favorites/{id} [findb] body{folder_id,instrument_id*,note}
+PATCH /api/findb/folders/{id} [findb] body{color,name}
+PATCH /api/goals/{id} [goals] body{category,color,deadline,details,kpis,name}
+PATCH /api/journal/categories/{id} [journal] body{color,description,name,position}
+PATCH /api/journal/fee-schedules/{id} [journal] body{amount,amount_kind,currency,name,per,position}
+PATCH /api/journal/market/settings [journal] body{connectors,symbols,sync_mode,timeframe}
+PATCH /api/journal/routines/links/{id} [journal] body{end_date,start_date}
+PATCH /api/journal/settings [journal] body{display_currency}
+PATCH /api/journal/strategies/{id} [journal] body{description,name,position,signals}
+PATCH /api/journal/tags/{id} [journal] body{color,description,kind,name,position}
+PATCH /api/journal/templates/{id} [journal] body{default_fee_schedule_id,description,fields,name,position}
+PATCH /api/journal/trades/{id} [journal] body{advanced,asset_class,brackets,category_id*,cost_basis_method,currency,entries,entry_at,entry_price,exchange,exit_at,exit_price,exits,fee_schedule_id,feedback,fees,fields,images,leverage,multiplier,quantity,side,signal_name,stop_price,strategy_id,tags,template_id,ticker,unit_type}
+PATCH /api/mailbox/links/{id} [mailbox] body{description,name,position,subscribed,topic,url}
+PATCH /api/mailbox/messages/{id} [mailbox] body{archived,read,starred}
+PATCH /api/mailbox/senders/{id} [mailbox] body{category,description,name,notify,site_url,status}
+PATCH /api/mindset/categories/{id} [mindset] body{color,name,position}
+PATCH /api/mindset/prompts/{id} [mindset] body{active,config,hint,label,position}
+PATCH /api/mindset/templates/{id} [mindset] body{active,category_id,description,name,notes,phase,prompts}
+PATCH /api/portfolios/assets/{asset_id} [portfolios] body{asset_class,country,div_frequency,div_next_ex,div_next_pay,div_per_share,hist_currency,hist_symbol,recon_status,review_at,sector,spot_provider,spot_symbol,thesis}
+PATCH /api/portfolios/{id} [portfolios] body{alert_channels,auto_refresh,benchmark,concentration_notify,currency,description,digest,digest_channels,drift_notify,max_weight_pct,name,notes,risk_free}
+PATCH /api/prompts/{id} [prompt-store] body{body,name,tags}
+PATCH /api/prompts/{id}/vote [prompt-store] body{vote*}
+PATCH /api/reminders/{id} [remindme] body{active,details,end_date,frequency,kind,link_label,linked_id,max_count,name,start_date,start_time,tz_offset_minutes,url,weekdays}
+PATCH /api/resources/categories/{id} [resources] body{name}
+PATCH /api/resources/{id} [resources] body{category_id,description,link,name,thumb_url}
+PATCH /api/subscriptions/settings [subscriptions] body{budget_channels,category_budgets,display_currency}
+PATCH /api/subscriptions/{id} [subscriptions] body{active,card_expiry,category,currency,ended_at,frequency,my_share_pct,name,payment_method,platform,price,remind_channels,remind_days,started_on,trial_end,url,yearly_price}
+PATCH /api/time/projects/{id} [time] body{archived,category,color,hourly_rate,name,planned_end,rate_currency,time_budget_hours}
+PATCH /api/time/settings [time] body{display_currency}
+PATCH /api/todos/{id} [todos] body{category,details,done,due_date,due_time,name}
+PATCH /api/todos/{id}/done [todos] body{done*}
+PATCH /api/trader/categories/{id} [routines] body{color,name,position}
+PATCH /api/trader/routines/{id} [routines] body{active,category_id,description,end_date,items,name,notes,schedule,session,start_date,weekdays}
+PATCH /api/trader/tasks/{id} [routines] body{done,due_date,note,priority,title}
+PATCH /api/watchlists/alerts/{alert_id} [watchlists] body{basis,channel_ids,cooldown_secs,direction*,enabled,metric*,note,repeat,threshold*,window_secs}
+PATCH /api/watchlists/items/{item_id} [watchlists] body{flag,notes,position,quote_source,quote_ticker,section,target_buy,target_sell,virt_date,virt_price,virt_qty}
+PATCH /api/watchlists/{id} [watchlists] body{columns,connector_id,description,digest,digest_channels,digest_hour,name,refresh_secs,sync_enabled}
+PATCH /api/wealth/assets/{id} [wealth] body{address,asset_type,broker_account_id,category,chain,currency,drift_pct_year,loan,name,owner,paired_liability_id,portfolio_id,review_days,sign,template_id}
+PATCH /api/wealth/revisions/{id} [wealth] body{fields,note,price,quantity,value,valued_at}
+PATCH /api/wealth/settings [wealth] body{display_currency}
+PATCH /api/wealth/templates/{id} [wealth] body{asset_type,description,fields,name,position}
+POST /api/automator/workflows [automator] body{description,name*}
+POST /api/automator/workflows/{id}/test [automator] compute body{call_external,input,send_notifications}
+POST /api/backtest/align [backtest] compute body{dataset_id,dataset_ids,from,limit,settings,to}
+POST /api/backtest/data-gaps/fill [backtest] body{gaps*}
+POST /api/backtest/indicators [backtest] body{definition,description,kind,name*,source}
+POST /api/backtest/indicators/compile [backtest] compute body{source*}
+POST /api/backtest/optimize [backtest] body{axes,dataset_id,dataset_ids,from,limit,metric,settings*,to}
+POST /api/backtest/optimize/estimate [backtest] compute body{axes,dataset_id,dataset_ids,from,limit,metric,settings*,to}
+POST /api/backtest/optimize/params [backtest] compute body{settings,strategy_id}
+POST /api/backtest/optimize/{id}/cancel [backtest]
+POST /api/backtest/paper [backtest] body{at_hour,at_minute,cadence,channel_ids,dataset_ids,day_of_month,entry_template,entry_title_template,every_minutes,execution,exit_template,exit_title_template,feed,kind*,name*,notify_close,notify_open,notify_tickers,notify_when,run_at,settings*,start_ts,status,strategy_id,summary_template,summary_title_template,timezone*,weekdays,window_bars}
+POST /api/backtest/paper/events/seen [backtest] body{session}
+POST /api/backtest/paper/preview [backtest] compute body{entry_template,entry_title_template,event,exit_template,exit_title_template,name,summary_template,summary_title_template}
+POST /api/backtest/paper/{id}/preview [backtest] compute body{entry_template,entry_title_template,event,exit_template,exit_title_template,name,summary_template,summary_title_template}
+POST /api/backtest/paper/{id}/run [backtest]
+POST /api/backtest/paper/{id}/status [backtest] body{status*}
+POST /api/backtest/run [backtest] compute body{dataset_id,dataset_ids,dry_run,from,limit,record,settings*,to,view}
+POST /api/backtest/run/intrabar [backtest] body{dataset_id,dataset_ids,dry_run,from,limit,record,settings*,to,view}
+POST /api/backtest/run/intrabar/{id}/cancel [backtest]
+POST /api/backtest/runs [backtest] body{dataset_id,dataset_ids,from,name*,run_id,settings,stats,strategy_id,to}
+POST /api/backtest/runs/{id}/montecarlo [backtest] compute body{block,horizon,iterations,ruin_pct,view}
+POST /api/backtest/strategies [backtest] body{description,name*,settings*,tags}
+POST /api/backtest/strategies/{id}/versioning [backtest] body{enabled*,purge}
+POST /api/backtest/strategies/{id}/versions [backtest] body{note}
+POST /api/backtest/strategies/{id}/versions/{vid}/restore [backtest] body{note}
+POST /api/backtest/sweep [backtest] compute body{dataset_id,dataset_ids,from,grid,limit,record,settings*,to}
+POST /api/calendar/events [calendar] body{all_day,category,color,end_at,location,notes,start_at*,title}
+POST /api/community-docs/refresh [community-docs]
+POST /api/connectors/{id}/test [connectors]
+POST /api/databases/rows/{row_id}/move [editor] body{position*}
+POST /api/databases/{id}/columns [editor] body{name,options,type}
+POST /api/databases/{id}/rows [editor] body{cells}
+POST /api/documents [editor] body{kind,parent_id,title}
+POST /api/documents/{id}/flag [editor] body{flag}
+POST /api/documents/{id}/move [editor] body{parent_id,position*}
+POST /api/documents/{id}/versioning [editor] body{enabled*,purge}
+POST /api/documents/{id}/versions [editor] body{note}
+POST /api/documents/{id}/versions/{vid}/restore [editor] body{note}
+POST /api/feed-dashboards [news] body{name}
+POST /api/feed-dashboards/{id}/default [news]
+POST /api/feed-dashboards/{id}/refresh [news]
+POST /api/feed-dashboards/{id}/sources [news] body{color,config,feed_id,force,interval_secs,kind,name}
+POST /api/feeds [news] body{color,config,interval_secs,kind*,name}
+POST /api/feeds/refresh-all [news]
+POST /api/feeds/{id}/refresh [news]
+POST /api/findb/favorites [findb] body{folder_id,instrument_id*,note}
+POST /api/findb/folders [findb] body{color,name}
+POST /api/goals [goals] body{category,color,deadline,details,kpis,name}
+POST /api/goals/{id}/position [goals] body{position*}
+POST /api/histdata/datasets/{id}/append [histdata]
+POST /api/histdata/downloads [histdata] body{asset_type*,connector_id,estimate_only,from*,provider,ticker*,tickers,timeframe*,timeframes,to*}
+POST /api/histdata/preview [histdata] compute body{asset_type*,bars,connector_id,provider,ticker*,timeframe*}
+POST /api/histdata/preview/save [histdata] body{asset_type*,bars,connector_id,from,provider,ticker*,timeframe*,to}
+POST /api/histdata/resolve [histdata] compute body{asset_type,from*,ticker*,timeframe*,to*}
+POST /api/histviz/alerts [histviz] body{asset_type*,channels,connector_id,cooldown_secs,enabled,expires_at,fire_at,frequency,inputs,lhs,mode,name,op*,provider*,rhs,session_id,ticker*,timeframe*}
+POST /api/histviz/lists [histviz] body{items,name,position}
+POST /api/histviz/lists/{id}/promote [histviz] body{name}
+POST /api/histviz/series [histdata] compute body{asset_type*,bars,connector_id,provider,stored_only,ticker*,timeframe*,to}
+POST /api/histviz/series/batch [histdata] compute body{align,clock,items*}
+POST /api/histviz/workspaces [histviz] body{cols,name,panes,position,rows,settings}
+POST /api/insights [journal] compute body{researchers,source*,tz_offset}
+POST /api/journal/categories [journal] body{color,name}
+POST /api/journal/categories/{id}/capital [journal] body{amount,currency,kind,note,occurred_at}
+POST /api/journal/exits/simulate [journal] compute body{combo,extend_bars,mode,objective,signals,trade_ids*,view}
+POST /api/journal/fee-schedules [journal] body{amount,amount_kind,currency,name,per}
+POST /api/journal/fx/pending/{date}/{quote}/download [journal]
+POST /api/journal/fx/pending/{date}/{quote}/histdata [journal]
+POST /api/journal/fx/rates/{date} [journal] body{rates*}
+POST /api/journal/lab/simulate [journal] compute body{scenario*,trade_ids}
+POST /api/journal/market/compute [journal]
+POST /api/journal/market/sync [journal]
+POST /api/journal/routines/links [journal] body{category_id,end_date,routine_ids,start_date}
+POST /api/journal/strategies [journal] body{description,name,signals}
+POST /api/journal/tags [journal] body{color,description,kind,name}
+POST /api/journal/templates [journal] body{default_fee_schedule_id,description,fields,name}
+POST /api/journal/trades [journal] body{advanced,asset_class,brackets,category_id*,cost_basis_method,currency,entries,entry_at,entry_price,exchange,exit_at,exit_price,exits,fee_schedule_id,feedback,fees,fields,images,leverage,multiplier,quantity,side,signal_name,stop_price,strategy_id,tags,template_id,ticker,unit_type}
+POST /api/mailbox/links [mailbox] body{description,name*,subscribed,topic,url}
+POST /api/mailbox/messages/read-all [mailbox] body{sender_id}
+POST /api/mailbox/messages/{id}/remind [mailbox] body{date,time,tz_offset_minutes}
+POST /api/mindset/categories [mindset] body{color,name*}
+POST /api/mindset/prompts [mindset] body{config,hint,kind*,label*,template_id*}
+POST /api/mindset/templates [mindset] body{category_id,description,name*,notes,phase,prompts}
+POST /api/mindset/templates/reset [mindset]
+POST /api/mindset/templates/{id}/duplicate [mindset] body{name}
+POST /api/mportfolios/refresh [mportfolios]
+POST /api/mportfolios/snapshots [mportfolios] body{slug*}
+POST /api/notifications/ack-all [remindme]
+POST /api/notifications/{id}/read [remindme]
+POST /api/options/strategies [options] body{asset_type*,legs*,name*,notes,provider,underlying*}
+POST /api/options/strategy/evaluate [options] compute body{at,atm_iv,dividend,dividends,iv_shift,legs*,range,rate,smile,spot*,style,vol_regime}
+POST /api/portfolios [portfolios] body{currency,description,name*}
+POST /api/portfolios/assets/{asset_id}/operations [portfolios] body{amount,asset_id,child_asset_id,child_qty,cost_share_pct,currency,fee,note,op_date,price,quantity,ratio_den,ratio_num,side*}
+POST /api/portfolios/scenarios [portfolios] body{kind*,legs*,name*,note}
+POST /api/portfolios/{id}/assets [portfolios] body{asset_class*,currency,name,provider*,provider_id*,symbol*}
+POST /api/portfolios/{id}/history/rebuild [portfolios] body{from}
+POST /api/portfolios/{id}/history/sync [portfolios]
+POST /api/portfolios/{id}/operations [portfolios] body{amount,asset_id,child_asset_id,child_qty,cost_share_pct,currency,fee,note,op_date,price,quantity,ratio_den,ratio_num,side*}
+POST /api/portfolios/{id}/reconcile [portfolios]
+POST /api/portfolios/{id}/refresh [portfolios]
+POST /api/portfolios/{id}/stress [portfolios] body{from,legs,scenario_id,to}
+POST /api/prompts [prompt-store] body{body,name,tags}
+POST /api/prompts/{id}/duplicate [prompt-store]
+POST /api/prompts/{id}/rollback [prompt-store] body{version*}
+POST /api/quant/asset-signals [quant] compute body{atr_period,dataset_id*,entry,from,side*,swing_lookback,until}
+POST /api/quant/basis [quant] compute body{days*,future*,next_days,next_future,rate,spot*,yield_rate}
+POST /api/quant/basket [quant] compute body{dataset_ids*,linkage,measure,weights}
+POST /api/quant/compare [quant] compute body{partitions,run_ids*}
+POST /api/quant/compound [quant] compute body{contribution,periods*,principal*,rate*,target}
+POST /api/quant/events [quant] compute body{condition*,dataset_id*,from,horizons,min_gap,post,pre,until}
+POST /api/quant/iv [quant] compute body{days*,dividend,kind*,price*,rate,spot*,strike*}
+POST /api/quant/kelly [quant] compute body{avg_loss*,avg_win*,win_rate*}
+POST /api/quant/market/futures [quant] compute body{connector_id*,months_ahead,rate,roll_days,root*,spot_asset_type,spot_ticker,years,yield_rate}
+POST /api/quant/market/ivhistory [quant] compute body{asset_type,connector_id*,lookback,underlying*,window,years}
+POST /api/quant/market/options [quant] compute body{asset_type,connector_id*,dividend,expiries,max_days,min_days,rate,strikes,underlying*}
+POST /api/quant/options [quant] compute body{days*,dividend,kind*,rate,spot*,steps,strike*,style,vol*}
+POST /api/quant/pairs [quant] compute body{dataset_ids*,log,max_lag,measure,window}
+POST /api/quant/portfolio [quant] compute body{dataset_ids*,measure,risk_free,samples}
+POST /api/quant/regimes [quant] compute body{dataset_id*,from,states,until}
+POST /api/quant/regression [quant] compute body{dataset_id*,factor_ids*,measure,risk_free,window}
+POST /api/quant/ruin [quant] compute body{horizon,paths,payoff*,risk*,ruin*,sizing*,win_rate*}
+POST /api/quant/seasonality [quant] compute body{dataset_id*,from,metric,until}
+POST /api/quant/sharpe [quant] compute body{benchmark,confidence,kurtosis,observations*,periods_per_year*,sharpe*,skew,trials,trials_sharpe_std}
+POST /api/quant/single [quant] compute body{confidence,dataset_id*,from,until}
+POST /api/quant/size [quant] compute body{entry*,leverage,multiplier,risk_amount,risk_pct,side*,stack*,stop*,target}
+POST /api/quant/stats [quant] compute body{benchmark_sharpe,dataset_id*,from,lags,risk_free,until}
+POST /api/quant/trades [quant] compute body{run_id*}
+POST /api/quant/volatility [quant] compute body{dataset_id*,from,horizon,until,window}
+POST /api/quant/voltarget [quant] compute body{dataset_id*,equity,estimator,from,max_leverage,target*,until,window}
+POST /api/reminders [remindme] body{active,details,end_date,frequency,kind,link_label,linked_id,max_count,name,start_date,start_time,tz_offset_minutes,url,weekdays}
+POST /api/resources [resources] body{category_id,description,link,name,thumb_url}
+POST /api/resources/categories [resources] body{name}
+POST /api/scanner/alerts [scanner] body{channels,cooldown_secs,enabled,name,notify,signal_ids*,target_id*,target_kind*}
+POST /api/scanner/alerts/{id}/run-now [scanner] compute
+POST /api/scanner/hives [scanner] body{color,name*,sort}
+POST /api/scanner/items [scanner] body{asset_type*,color,connector_id,hive_ids,label,provider*,ticker*,timeframe*}
+POST /api/scanner/signals [scanner] body{builder*,color,config*,name*}
+POST /api/scanner/signals/test [scanner] compute body{builder*,config*,item_id*}
+POST /api/scanner/signals/{id}/test [scanner] compute body{item_id*}
+POST /api/settings/versioning/editor [editor] body{enabled*}
+POST /api/settings/versioning/strategies [backtest] body{enabled*}
+POST /api/subscriptions [subscriptions] body{active,card_expiry,category,currency,ended_at,frequency,my_share_pct,name,payment_method,platform,price,remind_channels,remind_days,started_on,trial_end,url,yearly_price}
+POST /api/taxcalc/compute [taxcalc] compute body{context,currency,inputs,mode,name*,profile_id*,tax_year*}
+POST /api/taxcalc/profiles [taxcalc] body{allowances,cost_method,country*,currency,flat_rate,holding_period_rules,is_custom,loss_carry,marginal_income_rate,name*,notes,person_type,regime,region,social_charges_rate,wealth_tax}
+POST /api/taxcalc/scenarios [taxcalc] body{context,currency,inputs,mode,name*,profile_id*,tax_year*}
+POST /api/taxcalc/scenarios/{id}/compute [taxcalc] compute
+POST /api/time/heartbeat [time]
+POST /api/time/projects [time] body{archived,category,color,hourly_rate,name,planned_end,rate_currency,time_budget_hours}
+POST /api/time/projects/{id}/entries [time] body{duration_seconds,ended_at,note,started_at*}
+POST /api/time/projects/{id}/position [time] body{position*}
+POST /api/time/projects/{id}/start [time]
+POST /api/time/projects/{id}/stop [time]
+POST /api/time/revert [time]
+POST /api/todos [todos] body{category,details,done,due_date,due_time,name}
+POST /api/trader/categories [routines] body{color,name*}
+POST /api/trader/items/{id}/check [routines] body{checked*,date}
+POST /api/trader/routines [routines] body{category_id,description,end_date,items,name*,notes,schedule,session,start_date,weekdays}
+POST /api/trader/routines/reorder [routines] body{ids*}
+POST /api/trader/routines/{id}/duplicate [routines] body{name}
+POST /api/trader/tasks [routines] body{due_date,note,priority,title*}
+POST /api/watchlists [watchlists] body{description,name,template}
+POST /api/watchlists/items/{item_id}/alerts [watchlists] body{basis,channel_ids,cooldown_secs,direction*,enabled,metric*,note,repeat,threshold*,window_secs}
+POST /api/watchlists/{id}/import [watchlists] body{portfolio_id*}
+POST /api/watchlists/{id}/items [watchlists] body{asset_class*,name,provider*,provider_id*,symbol*}
+POST /api/watchlists/{id}/refresh [watchlists]
+POST /api/wealth/assets [wealth] body{address,asset_type,broker_account_id,category,chain,currency,drift_pct_year,loan,name,owner,paired_liability_id,portfolio_id,review_days,sign,template_id}
+POST /api/wealth/assets/{id}/revisions [wealth] body{fields,note,price,quantity,value,valued_at}
+POST /api/wealth/templates [wealth] body{asset_type,description,fields,name}
+PUT /api/automator/workflows/{id} [automator] body{draft,graph*,note,repoint_schedules}
+PUT /api/backtest/indicators/{id} [backtest] body{definition,description,kind,name*,source}
+PUT /api/backtest/paper/{id} [backtest] body{at_hour,at_minute,cadence,channel_ids,dataset_ids,day_of_month,entry_template,entry_title_template,every_minutes,execution,exit_template,exit_title_template,feed,kind*,name*,notify_close,notify_open,notify_tickers,notify_when,run_at,settings*,start_ts,status,strategy_id,summary_template,summary_title_template,timezone*,weekdays,window_bars}
+PUT /api/backtest/strategies/{id} [backtest] body{description,name*,settings*,tags}
+PUT /api/community-docs/{slug}/favorite [community-docs] body{favorite*}
+PUT /api/histviz/alerts/{id} [histviz] body{asset_type*,channels,connector_id,cooldown_secs,enabled,expires_at,fire_at,frequency,inputs,lhs,mode,name,op*,provider*,rhs,session_id,ticker*,timeframe*}
+PUT /api/histviz/lists/{id} [histviz] body{items,name,position}
+PUT /api/histviz/workspaces/{id} [histviz] body{cols,name,panes,position,rows,settings}
+PUT /api/mindset/entries [mindset] body{answers*,date,phase,template_id}
+PUT /api/mindset/marks [mindset] body{date,mark}
+PUT /api/mindset/notes [mindset] body{content,date}
+PUT /api/portfolios/scenarios/{id} [portfolios] body{kind*,legs*,name*,note}
+PUT /api/portfolios/{id}/targets [portfolios] body{dimension,rows*}
+PUT /api/scanner/alerts/{id} [scanner] body{channels,cooldown_secs,enabled,name,notify,signal_ids*,target_id*,target_kind*}
+PUT /api/scanner/hives/{id} [scanner] body{color,name*,sort}
+PUT /api/scanner/hives/{id}/items [scanner] body{item_ids*}
+PUT /api/scanner/items/{id} [scanner] body{asset_type*,color,connector_id,hive_ids,label,provider*,ticker*,timeframe*}
+PUT /api/scanner/signals/{id} [scanner] body{builder*,color,config*,name*}
+PUT /api/taxcalc/profiles/{id} [taxcalc] body{allowances,cost_method,country*,currency,flat_rate,holding_period_rules,is_custom,loss_carry,marginal_income_rate,name*,notes,person_type,regime,region,social_charges_rate,wealth_tax}
+PUT /api/taxcalc/scenarios/{id} [taxcalc] body{context,currency,inputs,mode,name*,profile_id*,tax_year*}
+PUT /api/trader/marks [routines] body{date,mark}

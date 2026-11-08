@@ -1,0 +1,48 @@
+id = "fr_pfu"
+year = 2026
+country = "FR"
+label = "France, individual, flat tax (PFU)"
+currency = "EUR"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "CGI art. 200 A (prélèvement forfaitaire unique, 12.8 %)",
+  "LFSS 2026 art. 12, CSS L136-8: CSG 10.6 %, social charges 18.6 % (impots.gouv.fr, Brochure pratique IR 2026; service-public.gouv.fr F2329)",
+  "CGI art. 150-0 D (PMP, losses carried 10 years)",
+  "CGI art. 150 VH bis (digital assets, 305 EUR threshold, no carry)",
+]
+notes = "Life insurance, home savings, rental income and real-estate gains stay at 17.2 % (outside this calculator). Not modeled: the global option for the progressive scale (2OP) with its allowances, CEHR, CDHR, PEA and life insurance wrappers."
+inputs = ["proceeds"]
+
+[matching]
+method = "average"
+
+[[pools]]
+key = "securities"
+buckets = ["capital", "derivative"]
+carry_years = 10
+
+[[pools]]
+key = "crypto"
+buckets = ["crypto"]
+carry_years = 0
+
+[[allowances]]
+items = ["crypto"]
+amount = 305
+kind = "cliff"
+measure = "proceeds"
+
+[[schedules]]
+key = "pfu"
+label = "PFU, income tax part"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+kind = "brackets"
+brackets = [{ rate = 12.8 }]
+
+[[surcharges]]
+label = "Prélèvements sociaux"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+rate = 18.6
+on = "base"

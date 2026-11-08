@@ -1,0 +1,60 @@
+#### native.url()
+"wss://ws.okx.com:8443/ws/v5/business"
+#### opening frames
+[
+    Object {
+        "args": Array [
+            Object {
+                "channel": String("candle1m"),
+                "instId": String("BTC-USDT"),
+            },
+            Object {
+                "channel": String("candle1Dutc"),
+                "instId": String("ETH-USDT-SWAP"),
+            },
+            Object {
+                "channel": String("candle1H"),
+                "instId": String("BTC-USDT"),
+            },
+        ],
+        "op": String("subscribe"),
+    },
+]
+#### json(&native.subscribe(&sol))
+[
+    Object {
+        "args": Array [
+            Object {
+                "channel": String("candle5m"),
+                "instId": String("SOL-USDT"),
+            },
+        ],
+        "op": String("subscribe"),
+    },
+]
+#### json(&native.unsubscribe(&sol))
+[
+    Object {
+        "args": Array [
+            Object {
+                "channel": String("candle5m"),
+                "instId": String("SOL-USDT"),
+            },
+        ],
+        "op": String("unsubscribe"),
+    },
+]
+#### okx candles
+124 lines, 23888 bytes, sha256 77266bc121b5ec04caf7553fd5e9327451968b56f0322af03880dc37e5a0c2e9
+[
+    "BTC-USDT|crypto|1h|2023-11-14 22:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4677104775000699699|4677105022390815949|4677104625192240415|4677104829976281088|0",
+    "BTC-USDT|crypto|1h|2023-11-14 22:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4677104912439653171|4677105159829769421|4677104762631193887|4677104967415234560|4607188273479532990",
+...
+    "ETH-USDT-SWAP|crypto|1d|2023-11-14 0:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4677109997680931635|4677110245071047885|4677109847872472351|4677110052656513024|4614049057151869203",
+    "ETH-USDT-SWAP|crypto|1d|2023-11-14 0:00:00.0 +00:00:00|1970-01-01 0:00:00.0 +00:00:00|false|4677110135119885107|4677110382510001357|4677109985311425823|4677110190095466496|4616246701180035321",
+]
+#### (1, 1)
+(
+    1,
+    1,
+)

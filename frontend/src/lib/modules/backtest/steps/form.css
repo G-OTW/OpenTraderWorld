@@ -1,0 +1,123 @@
+/* Form primitives shared by the four backtest steps.
+ *
+ * The steps are one wizard: the same field grid, the same segmented control, the same caption
+ * rhythm in each. Scoped Svelte styles would mean four copies of it, so the shared shapes live
+ * here under a `bt-` prefix and each step keeps only what is genuinely its own. */
+
+.bt-step {
+  /* One density knob for the whole wizard: every input and Dropdown inside a step reads
+     --control-h, so the form compacts as a unit instead of field by field. */
+  --control-h: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 1280px;
+}
+
+/* One titled block inside a step ("Fees", "Slippage", …). */
+.bt-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.bt-cap {
+  font-size: 0.68rem;
+  font-weight: var(--fw-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.bt-cap::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.bt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+.bt-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  min-width: 0;
+}
+.bt-field input,
+.bt-field :global(.dd) {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Strip native number spinners so digits aren't clipped in tight cells. */
+.bt-step input[type='number']::-webkit-outer-spin-button,
+.bt-step input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.bt-step input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.bt-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--surface-2);
+  border: var(--hairline) solid var(--border-control);
+  padding: 2px;
+  gap: 2px;
+  max-width: 420px;
+}
+.bt-seg button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 0;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.bt-seg button:hover:not(.on) {
+  color: var(--text);
+}
+.bt-seg button.on {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--text);
+}
+
+.bt-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.bt-note {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-style: italic;
+}
+.bt-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--amber);
+}

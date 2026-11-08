@@ -1,0 +1,35 @@
+# OANDA v20 REST. Every claim below is sourced in PROVIDER.md.
+
+provider = "oanda"
+label = "OANDA"
+venue = "OANDA"
+api_version = "v20 REST v3"
+maturity = "M2"
+asset_classes = ["forex", "cfd", "commodity"]
+instrument_discovery = "full"
+# One bearer token, the account's; the account id rides the path.
+auth = "api_key"
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[history]
+quote = true
+
+# Mid candles with their bid and ask, complete ones flagged.
+[history.candles]
+max_items_per_call = 5000
+paging = "time"
+final_flag = true
+sides = true
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+resolve_by_id = true
+holdings_from_positions = true
+quotes_from_snapshots = true
+sandbox_env = "practice"
+
+[regions]
+sandbox_url = "https://api-fxpractice.oanda.com"

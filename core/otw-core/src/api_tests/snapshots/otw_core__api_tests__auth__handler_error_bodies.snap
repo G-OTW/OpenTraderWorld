@@ -1,0 +1,14 @@
+---
+source: otw-core/src/api_tests/auth.rs
+expression: seen
+---
+blank_name:
+  error: todo name required
+unknown_asset_class:
+  error: "unknown asset_class \"tulips\"; valid: stock, option, crypto, etf, future, forex, other"
+unknown_category:
+  error: unknown category
+unknown_id:
+  error: todo not found
+unknown_id_on_delete:
+  error: todo not found
