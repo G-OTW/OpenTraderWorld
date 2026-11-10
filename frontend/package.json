@@ -41,7 +41,7 @@
     "@codemirror/lint": "^6.9.7",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
-    "@fullcalendar/core": "^6.1.21",
+    "@fullcalendar/core": "^7.1.4",
     "@fullcalendar/daygrid": "^6.1.22",
     "@fullcalendar/interaction": "^6.1.22",
     "@fullcalendar/multimonth": "^6.1.22",
