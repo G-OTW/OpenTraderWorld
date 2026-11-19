@@ -1,0 +1,11 @@
+{  "channel": "push.personal.position",  "data": {    "positionId": 123456789,    "symbol": "BTC_USDT",
+    "holdVol": 10,    "positionType": 1,    "openType": 1,    "state": 1,    "frozenVol": 0,    "closeVol": 0,
+    "holdAvgPrice": 45000.5,    "holdAvgPriceFullyScale": "45000.500000000000000000",    "closeAvgPrice": 0,
+    "openAvgPrice": 45000.5,    "openAvgPriceFullyScale": "45000.500000000000000000",
+    "liquidatePrice": 40000.0,    "oim": 2250.025,    "adlLevel": 1,    "im": 2250.025,
+    "holdFee": 0,    "realised": 0,    "leverage": 20,    "autoAddIm": false,    "pnl": 100.5,
+    "marginRatio": 0.2,    "newOpenAvgPrice": 45000.5,    "newCloseAvgPrice": 0,    "closeProfitLoss": 0,
+    "fee": 0,    "deductFeeList": [      {        "currency": "USDT",
+        "deductFee": 0.1125,        "convertSettleFee": 0.1125      }    ],
+    "makerFeeRate": 0.0002,    "takerFeeRate": 0.0004,    "createTime": 1760942212000,
+    "updateTime": 1760942212000,    "version": 1  },  "ts": 1760942212000}

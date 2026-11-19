@@ -1,0 +1,95 @@
+{
+  "jsonrpc": "2.0",
+  "method": "subscription",
+  "params": {
+    "channel": "user.changes.future.any.raw",
+    "data": {
+      "instrument_name": "BTC-PERPETUAL",
+      "orders": [
+        {
+          "triggered": true,
+          "trigger": "index_price",
+          "time_in_force": "good_til_cancelled",
+          "trigger_price": 5285,
+          "reduce_only": true,
+          "price": "market_price",
+          "post_only": false,
+          "order_type": "stop_market",
+          "order_state": "triggered",
+          "order_id": "SLIS-103",
+          "label": "otwk1",
+          "instrument_name": "BTC-PERPETUAL",
+          "filled_amount": 0,
+          "direction": "buy",
+          "creation_timestamp": 1555918900000,
+          "last_update_timestamp": 1555918941451,
+          "api": true,
+          "amount": 10
+        },
+        {
+          "time_in_force": "good_til_cancelled",
+          "reduce_only": true,
+          "price": 5179.28,
+          "post_only": false,
+          "order_type": "market",
+          "order_state": "filled",
+          "order_id": "671473",
+          "trigger_order_id": "SLIS-103",
+          "label": "otwk1",
+          "instrument_name": "BTC-PERPETUAL",
+          "filled_amount": 10,
+          "average_price": 5179.0,
+          "direction": "buy",
+          "creation_timestamp": 1555918941451,
+          "last_update_timestamp": 1555918941452,
+          "api": true,
+          "amount": 10
+        }
+      ],
+      "trades": [
+        {
+          "trade_seq": 30289127,
+          "trade_id": "48078944",
+          "timestamp": 1555918941452,
+          "tick_direction": 2,
+          "state": "filled",
+          "reduce_only": true,
+          "price": 5179.0,
+          "post_only": false,
+          "order_type": "market",
+          "order_id": "671473",
+          "label": "otwk1",
+          "matching_id": null,
+          "mark_price": 5180.1,
+          "liquidity": "T",
+          "instrument_name": "BTC-PERPETUAL",
+          "index_price": 5285.2,
+          "fee_currency": "BTC",
+          "fee": 0.00000145,
+          "direction": "buy",
+          "amount": 10
+        }
+      ],
+      "positions": [
+        {
+          "average_price": 0,
+          "delta": 0,
+          "direction": "zero",
+          "floating_profit_loss": 0,
+          "index_price": 5285.2,
+          "initial_margin": 0,
+          "instrument_name": "BTC-PERPETUAL",
+          "kind": "future",
+          "leverage": 50,
+          "maintenance_margin": 0,
+          "mark_price": 5180.1,
+          "realized_profit_loss": 0,
+          "settlement_price": 5180.1,
+          "size": 0,
+          "size_currency": 0,
+          "total_profit_loss": 0
+        }
+      ]
+    }
+  }
+}

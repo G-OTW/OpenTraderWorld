@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- lang defaults to en; $lib/i18n syncs it to the active locale on the client. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Favicon: PNG first as the fallback for browsers without SVG icon support, then the
+         vector pair. logo-dark.svg is the dark-ring mark (reads on a light tab), logo-light.svg
+         the light-ring one (reads on a dark tab). apple-touch-icon stays PNG: Safari wants it. -->
+    <link rel="icon" href="/favicon.png" type="image/png" sizes="64x64" />
+    <link
+      rel="icon"
+      href="/logo-dark.svg"
+      type="image/svg+xml"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      rel="icon"
+      href="/logo-light.svg"
+      type="image/svg+xml"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>OpenTraderWorld</title>
+    <!-- Pre-paint theme + accent, before SvelteKit paints. External, not inline: the CSP
+         admits no inline script (see static/prepaint.js). Blocking on purpose — it must run
+         before the first frame. -->
+    <script src="%sveltekit.assets%/prepaint.js"></script>
+    %sveltekit.head%
+  </head>
+  <body>
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

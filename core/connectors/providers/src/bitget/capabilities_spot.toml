@@ -1,0 +1,52 @@
+# Bitget spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "bitget"
+label = "Bitget"
+venue = "BITGET"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Daily and weekly are the UTC-anchored bars (1Dutc, 1Wutc): Bitget's plain 1day opens at 16:00 UTC.
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# Best bid and ask (`books1`).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 200
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 1000
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+quote_preference = ["USDT", "USDC", "EUR", "BTC"]
+quote_reverse = true
+venue_label = "Bitget"
+
+# Execution (v2 Classic), from the documentation alone (PROVIDER.md "Trading"): E2D, never run
+# against the venue. Market and limit orders, post-only through `force`; a stop is a plan order
+# sent at the market once triggered (a spot plan row states no traded amount, so a stop-limit is
+# not declared). A market buy is sized in the quote coin: valued at the best ask read just before
+# sending. No reduce-only, no position, no dry run.
+[orders]
+types = ["market", "limit", "stop"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+client_id = true
+cancel_all_native = true
+level = "E2D"

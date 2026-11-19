@@ -1,0 +1,44 @@
+# Dependency updates. Without this, a vulnerability in a transitive crate or npm package is
+# something you learn about from a blog post, weeks late.
+#
+# Weekly rather than daily: the point is to not fall behind, not to review a PR every morning.
+# Patch and minor updates are grouped per ecosystem so one PR carries the whole batch; a major
+# bump arrives on its own, because it needs reading.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /core
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /core
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /deploy/caddy
+    schedule:
+      interval: weekly

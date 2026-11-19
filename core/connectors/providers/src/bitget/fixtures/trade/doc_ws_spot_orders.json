@@ -1,0 +1,42 @@
+{
+  "action": "snapshot",
+  "arg": {
+    "instType": "SPOT",
+    "channel": "orders",
+    "instId": "BTCUSDT"
+  },
+  "data": [
+    {
+      "instId": "BTCUSDT",
+      "orderId": "1",
+      "clientOid": "1",
+      "size": "8.0000",
+      "newSize": "500.0000",
+      "notional": "8.000000",
+      "orderType": "market",
+      "force": "gtc",
+      "side": "buy",
+      "fillPrice": "26256.0",
+      "tradeId": "1",
+      "baseVolume": "0.0003",
+      "fillTime": "1695797773286",
+      "fillFee": "-0.00000018",
+      "fillFeeCoin": "BTC",
+      "tradeScope": "T",
+      "accBaseVolume": "0.0003",
+      "priceAvg": "26256.0",
+      "status": "partially_filled",
+      "cTime": "1695797773257",
+      "uTime": "1695797773326",
+      "stpMode": "cancel_taker",
+      "feeDetail": [
+        {
+          "feeCoin": "BTC",
+          "fee": "-0.00000018"
+        }
+      ],
+      "enterPointSource": "WEB"
+    }
+  ],
+  "ts": 1695797773370
+}

@@ -1,0 +1,19 @@
+//@version=6
+// Reference: offset (0 or negative) of the window's extreme, na values skipped, the newest
+// bar on a tie; na until the window is full.
+indicator("ref highestbars")
+pine_bars(src, len, hi) =>
+    float x = na
+    int off = na
+    if bar_index >= len - 1
+        for i = 0 to len - 1
+            if not na(src[i]) and (na(x) or (hi ? src[i] > x : src[i] < x))
+                x := src[i]
+                off := -i
+    off
+plot(pine_bars(close, 10, true))
+plot(ta.highestbars(close, 10))
+plot(pine_bars(close, 10, false))
+plot(ta.lowestbars(close, 10))
+plot(pine_bars(high, 5, true))
+plot(ta.highestbars(5))

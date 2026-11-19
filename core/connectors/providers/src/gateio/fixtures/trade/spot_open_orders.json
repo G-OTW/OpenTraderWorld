@@ -1,0 +1,31 @@
+[
+  {
+    "currency_pair": "ETH_BTC",
+    "total": 1,
+    "orders": [
+      {
+        "id": "12332324",
+        "text": "t-123456",
+        "create_time": "1548000000",
+        "update_time": "1548000100",
+        "create_time_ms": 1548000000123,
+        "update_time_ms": 1548000100123,
+        "status": "open",
+        "currency_pair": "ETH_BTC",
+        "type": "limit",
+        "account": "spot",
+        "side": "buy",
+        "amount": "1",
+        "price": "5.00032",
+        "time_in_force": "gtc",
+        "left": "1",
+        "filled_amount": "0",
+        "filled_total": "0",
+        "avg_deal_price": "0",
+        "fee": "0",
+        "fee_currency": "ETH",
+        "finish_as": "open"
+      }
+    ]
+  }
+]

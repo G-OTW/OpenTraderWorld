@@ -1,0 +1,155 @@
+# Bitfinex spot pairs, and the whole account (both books) read only. Every claim below is
+# sourced in PROVIDER.md.
+
+provider = "bitfinex"
+label = "Bitfinex"
+venue = "BITFINEX"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Bars open at midnight UTC (and on the hour for 3h, 4h, 6h, 12h), weekly ones (`1W`) on
+# Monday, monthly ones (`1M`) on the first of the calendar month.
+native_timeframes = ["1m", "5m", "15m", "30m", "1h", "3h", "4h", "6h", "12h", "1d", "1w", "1M"]
+# The socket docs say 30 subscriptions per socket (the limits page says 25).
+max_subs_per_connection = 30
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (a one-level `book`, P0).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 10000
+paging = "time"
+
+# Requests per minute and IP, per endpoint (docs). An IP over a limit is blocked for 60 s.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "candles"
+capacity = 30
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "tickers"
+capacity = 30
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "ticker"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "conf"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "permissions"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "wallets"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "positions"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "orders"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "tradesHist"
+capacity = 90
+refill_ms = 60000
+
+[account]
+balances = true
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+quote_preference = ["USD", "UST", "BTC", "ETH"]
+quote_reverse = true
+venue_label = "Bitfinex"
+# Each order and position row names its own book (`Bitfinex` or `Bitfinex derivatives`), so an
+# order or a close from the account's panel goes to the book that holds it. Rows carry their
+# quote currency; every size counts the base coin (no contract to look up).
+rows_carry_terms = true
+
+# Orders on the exchange (spot cash) book: `EXCHANGE`-prefixed types on a spot pair, over REST.
+# Every claim sourced in PROVIDER.md ("Trading"). Immediate-or-cancel and fill-or-kill are limit
+# types of their own; good till a date is `tif`; post-only is a flag. Prices are changed in
+# place (Update Order), never the size. The margin book (unprefixed types on the same pairs) is
+# not traded. No dry run (the venue has none).
+[orders]
+types = ["market", "limit", "stop", "stop_limit"]
+tif = ["gtc", "gtd", "ioc", "fok"]
+post_only = true
+amend = true
+client_id = true
+level = "E2D"
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "orderSubmit"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "orderUpdate"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "orderCancel"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "orderCancelMulti"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "ordersSymbol"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "ordersHist"
+capacity = 90
+refill_ms = 60000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "tradesSymbolHist"
+capacity = 90
+refill_ms = 60000

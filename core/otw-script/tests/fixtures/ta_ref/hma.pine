@@ -1,0 +1,7 @@
+//@version=6
+// Reference: Hull MA as defined for ta.hma (WMA of 2*WMA(n/2) - WMA(n), length floor(sqrt(n))).
+indicator("ref hma")
+pine_hma(src, length) =>
+    ta.wma(2 * ta.wma(src, int(length / 2)) - ta.wma(src, length), math.floor(math.sqrt(length)))
+plot(pine_hma(close, 14))
+plot(ta.hma(close, 14))

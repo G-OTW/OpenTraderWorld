@@ -1,0 +1,1 @@
+{"success":false,"error_response":{"error":"INSUFFICIENT_FUND","message":"Insufficient balance in source account","error_details":"","preview_failure_reason":"PREVIEW_INSUFFICIENT_FUND"},"order_configuration":{"limit_limit_gtc":{"base_size":"1","limit_price":"70000.44","post_only":false,"rfq_disabled":false,"reduce_only":false,"currency_size":null,"oco_ref":""}}}

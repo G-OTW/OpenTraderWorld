@@ -1,0 +1,30 @@
+//@version=6
+indicator("Drawings", overlay = true, max_labels_count = 20, max_lines_count = 10)
+len = input.int(10)
+ph = ta.pivothigh(high, 3, 3)
+pl = ta.pivotlow(low, 3, 3)
+var line[] zz = array.new<line>()
+var float last = na
+var int lastX = na
+if not na(ph) or not na(pl)
+    p = not na(ph) ? ph : pl
+    if not na(last)
+        zz.push(line.new(lastX, last, bar_index - 3, p, color = not na(ph) ? color.green : color.red, width = 2))
+    label.new(bar_index - 3, p, str.tostring(p, format.mintick), style = not na(ph) ? label.style_label_down : label.style_label_up)
+    last := p
+    lastX := bar_index - 3
+var box b = box.new(bar_index, high, bar_index, low, bgcolor = color.new(color.blue, 80))
+b.set_right(bar_index)
+b.set_top(math.max(b.get_top(), high))
+b.set_bottom(math.min(b.get_bottom(), low))
+var table t = table.new(position.top_right, 2, 2, bgcolor = color.black)
+if barstate.islast
+    t.cell(0, 0, "Lines", text_color = color.white)
+    t.cell(1, 0, str.tostring(zz.size()), text_color = color.white)
+    if zz.size() >= 2
+        linefill.new(zz.get(0), zz.get(1), color.new(color.gray, 70))
+    pts = array.new<chart.point>()
+    for i = 0 to 4
+        pts.push(chart.point.from_index(bar_index - i * 5, close[i * 5]))
+    polyline.new(pts, curved = true)
+plot(ta.sma(close, len))

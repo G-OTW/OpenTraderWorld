@@ -1,0 +1,28 @@
+# FOREX.com / StoneX Trading API (CIAPI). Every claim below is sourced in PROVIDER.md.
+
+provider = "forexcom"
+label = "FOREX.com (StoneX)"
+venue = "FOREXCOM"
+api_version = "TradingAPI (CIAPI) v1"
+maturity = "M2"
+asset_classes = ["forex", "cfd"]
+instrument_discovery = "search_only"
+# Username, password and AppKey open a session; its token rides two headers.
+auth = "session"
+# 4h has no documented anchor here; 1w is not served.
+native_timeframes = ["1m", "5m", "15m", "1h", "1d"]
+
+# Mid bars, and the same history per side for the bid and the ask.
+[history.candles]
+max_items_per_call = 4000
+paging = "time"
+final_flag = true
+sides = true
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+holdings_from_positions = true
+venue_label = "FOREX.com"

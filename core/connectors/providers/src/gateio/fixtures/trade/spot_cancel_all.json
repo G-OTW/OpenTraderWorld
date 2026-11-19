@@ -1,0 +1,23 @@
+[
+  {
+    "id": "1852454420",
+    "text": "t-abc123",
+    "succeeded": true,
+    "label": "",
+    "message": "",
+    "currency_pair": "BTC_USDT",
+    "status": "cancelled",
+    "type": "limit",
+    "side": "buy",
+    "amount": "0.001",
+    "price": "30000"
+  },
+  {
+    "id": "1852454425",
+    "text": "apiv4",
+    "succeeded": false,
+    "label": "ORDER_NOT_FOUND",
+    "message": "Order not found",
+    "currency_pair": "BTC_USDT"
+  }
+]

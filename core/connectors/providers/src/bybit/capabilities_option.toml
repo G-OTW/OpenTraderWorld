@@ -1,0 +1,27 @@
+# Bybit options (USDT and USDC settled). Bybit publishes no option candles, so this book is
+# read for its instruments, quotes and the account only. Every claim below is sourced in
+# PROVIDER.md.
+
+provider = "bybit"
+label = "Bybit options"
+venue = "BYBIT_OPTION"
+api_version = "v5"
+maturity = "M2"
+asset_classes = ["option"]
+instrument_discovery = "full"
+auth = "none"
+
+[history]
+quote = true
+
+[[rate_limits]]
+scope = "ip"
+capacity = 600
+refill_ms = 5000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+venue_label = "Bybit options"

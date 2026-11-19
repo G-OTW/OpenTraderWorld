@@ -1,0 +1,29 @@
+{
+  "topic": "/contractMarket/tradeOrders:XBTUSDTM",
+  "type": "message",
+  "subject": "symbolOrderChange",
+  "userId": "633559791e1cbc0001f319bc",
+  "channelType": "private",
+  "data": {
+    "symbol": "XBTUSDTM",
+    "orderType": "limit",
+    "tradeType": "trade",
+    "side": "buy",
+    "canceledSize": "0",
+    "orderId": "247899236673269761",
+    "liquidity": "maker",
+    "marginMode": "ISOLATED",
+    "type": "match",
+    "feeType": "makerFee",
+    "orderTime": 1731916985768138917,
+    "size": "1",
+    "filledSize": "1",
+    "price": "91670",
+    "matchPrice": "91670",
+    "matchSize": "1",
+    "remainSize": "0",
+    "tradeId": "1794175373644",
+    "status": "done",
+    "ts": 1731916996762000000
+  }
+}

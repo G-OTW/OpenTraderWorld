@@ -1,0 +1,9 @@
+[package]
+name = "otw-i18n"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "OpenTraderWorld: Internationalization: key-based language packs"
+
+[dependencies]

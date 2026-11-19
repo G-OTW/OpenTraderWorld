@@ -1,0 +1,9 @@
+{ "success": true, "code": 0, "data": {
+"orderId": "739106551624717312", "symbol": "BTC_USDT", "positionId": 1109973831, "price": 109777.5,
+"priceStr": "109777.500000000000000000", "vol": 5, "leverage": 2, "side": 1, "category": 1, "orderType": 5,
+"dealAvgPrice": 109777.5, "dealAvgPriceStr": "109777.500000000000000000", "dealVol": 5, "orderMargin": 27.444375,
+"takerFee": 0, "makerFee": 0, "profit": 0, "feeCurrency": "USDT", "openType": 1, "state": 3,
+"externalOid": "_m_903a9f81cc1148be99ac9ece15981374", "errorCode": 0, "usedMargin": 27.444375,
+"createTime": 1761887134000, "updateTime": 1761887134000, "positionMode": 1, "version": 2,
+"showCancelReason": 0, "showProfitRateShare": 0, "bboTypeNum": 0, "totalFee": 0,
+"zeroSaveTotalFeeBinance": 0, "zeroTradeTotalFeeBinance": 0 } }

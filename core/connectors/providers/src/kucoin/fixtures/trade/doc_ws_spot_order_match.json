@@ -1,0 +1,28 @@
+{
+  "topic": "/spotMarket/tradeOrdersV2",
+  "type": "message",
+  "subject": "orderChange",
+  "userId": "633559791e1cbc0001f319bc",
+  "channelType": "private",
+  "data": {
+    "canceledSize": "0",
+    "clientOid": "5c52e11203aa677f33e493fc",
+    "feeType": "takerFee",
+    "filledSize": "0.00001",
+    "liquidity": "taker",
+    "matchPrice": "71171.9",
+    "matchSize": "0.00001",
+    "orderId": "6720da3fa30a360007f5f832",
+    "orderTime": 1730206271588,
+    "orderType": "market",
+    "originSize": "0.00001",
+    "remainSize": "0",
+    "side": "buy",
+    "size": "0.00001",
+    "status": "match",
+    "symbol": "BTC-USDT",
+    "tradeId": "11116472408358913",
+    "ts": 1730206271616000000,
+    "type": "match"
+  }
+}

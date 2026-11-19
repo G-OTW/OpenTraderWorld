@@ -1,0 +1,55 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.sar.
+indicator("ref sar")
+pine_sar(start, inc, max) =>
+    var float result = na
+    var float maxMin = na
+    var float acceleration = na
+    var bool isBelow = false
+    bool isFirstTrendBar = false
+    if bar_index == 1
+        if close > close[1]
+            isBelow := true
+            maxMin := high
+            result := low[1]
+        else
+            isBelow := false
+            maxMin := low
+            result := high[1]
+        isFirstTrendBar := true
+        acceleration := start
+    result := result + acceleration * (maxMin - result)
+    if isBelow
+        if result > low
+            isFirstTrendBar := true
+            isBelow := false
+            result := math.max(high, maxMin)
+            maxMin := low
+            acceleration := start
+    else
+        if result < high
+            isFirstTrendBar := true
+            isBelow := true
+            result := math.min(low, maxMin)
+            maxMin := high
+            acceleration := start
+    if not isFirstTrendBar
+        if isBelow
+            if high > maxMin
+                maxMin := high
+                acceleration := math.min(acceleration + inc, max)
+        else
+            if low < maxMin
+                maxMin := low
+                acceleration := math.min(acceleration + inc, max)
+    if isBelow
+        result := math.min(result, low[1])
+        if bar_index > 1
+            result := math.min(result, low[2])
+    else
+        result := math.max(result, high[1])
+        if bar_index > 1
+            result := math.max(result, high[2])
+    result
+plot(pine_sar(0.02, 0.02, 0.2))
+plot(ta.sar(0.02, 0.02, 0.2))

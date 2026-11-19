@@ -1,0 +1,44 @@
+{
+  "channel": "user",
+  "client_id": "",
+  "timestamp": "2026-11-12T10:00:01.123456Z",
+  "sequence_num": 7,
+  "events": [
+    {
+      "type": "update",
+      "orders": [
+        {
+          "avg_price": "70000.44",
+          "cancel_reason": "",
+          "client_order_id": "otw-k1",
+          "completion_percentage": "50",
+          "contract_expiry_type": "UNKNOWN_CONTRACT_EXPIRY",
+          "cumulative_quantity": "0.0005",
+          "filled_value": "35.00022",
+          "leaves_quantity": "0.0005",
+          "limit_price": "70000.44",
+          "number_of_fills": "1",
+          "order_id": "ff6e8dad-22c4-422d-bbf2-3c55b70e42d2",
+          "order_side": "BUY",
+          "order_type": "LIMIT",
+          "outstanding_hold_amount": "35.00022",
+          "post_only": "false",
+          "product_id": "BTC-USD",
+          "product_type": "SPOT",
+          "reject_reason": "",
+          "retail_portfolio_id": "eec99928-3d46-5b38-a1ca-122d0e5fb7f0",
+          "risk_managed_by": "UNKNOWN_RISK_MANAGEMENT_TYPE",
+          "status": "OPEN",
+          "stop_price": "0",
+          "time_in_force": "GOOD_UNTIL_CANCELLED",
+          "total_fees": "0.28",
+          "total_value_after_fees": "35.28022",
+          "trigger_status": "INVALID_ORDER_TYPE",
+          "creation_time": "2026-11-12T09:59:58.000000Z",
+          "end_time": "0001-01-01T00:00:00Z",
+          "start_time": "0001-01-01T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

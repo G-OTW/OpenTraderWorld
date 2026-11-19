@@ -1,0 +1,13 @@
+//@version=6
+// Reference: the current value is above (below) each of the previous `length` values.
+indicator("ref rising")
+pine_rising(src, len, up) =>
+    bool r = bar_index >= len
+    for i = 1 to len
+        if not (up ? src > src[i] : src < src[i])
+            r := false
+    r
+plot(pine_rising(close, 3, true) ? 1 : 0)
+plot(ta.rising(close, 3) ? 1 : 0)
+plot(pine_rising(close, 3, false) ? 1 : 0)
+plot(ta.falling(close, 3) ? 1 : 0)

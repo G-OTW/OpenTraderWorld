@@ -1,0 +1,53 @@
+# Coinbase (Exchange API for market data, Advanced Trade for the account). Every claim below
+# is sourced in PROVIDER.md.
+
+provider = "coinbase"
+label = "Coinbase"
+venue = "COINBASE"
+api_version = "Exchange REST + feed, Advanced Trade v3"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# Candle granularities OTW serves (same set as the legacy connector). Coinbase also serves
+# 6h; it has no 4h or 1w candles.
+native_timeframes = ["1m", "5m", "15m", "1h", "1d"]
+
+# Trades only: every live timeframe is folded from them.
+[live]
+trades = "push"
+# Best bid and ask: the top of the `level2_batch` book.
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+[history.candles]
+max_items_per_call = 300
+paging = "time"
+# No forming flag: the engine finalizes a bar at its period's end.
+final_flag = false
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+spot_only = true
+quote_preference = ["USD", "USDC", "USDT", "EUR"]
+venue_label = "Coinbase"
+
+# Spot orders through the shared trader (`trade.rs`), from the documentation alone. Stop-limit
+# triggers on the last trade price in the direction its side implies; `lit` is the same order
+# configuration with the opposite direction. No stop-market, trailing, iceberg, reduce-only or
+# attached exits on spot. A market order is immediate-or-cancel whatever its time in force
+# (`check_order` refuses one asked FOK or GTD).
+[orders]
+types = ["market", "limit", "stop_limit", "lit"]
+tif = ["gtc", "gtd", "ioc", "fok"]
+post_only = true
+amend = true
+client_id = true
+dry_run = "validate"
+level = "E2D"

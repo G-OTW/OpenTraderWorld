@@ -1,0 +1,51 @@
+{
+  "jsonrpc": "2.0",
+  "id": 276,
+  "result": {
+    "trades": [
+      {
+        "trade_seq": 30289127,
+        "trade_id": "48078944",
+        "timestamp": 1590480866924,
+        "tick_direction": 2,
+        "state": "filled",
+        "reduce_only": false,
+        "price": 8988.5,
+        "post_only": false,
+        "order_type": "limit",
+        "order_id": "4008716877",
+        "matching_id": null,
+        "mark_price": 8990.52,
+        "liquidity": "T",
+        "instrument_name": "BTC-PERPETUAL",
+        "index_price": 8995.15,
+        "fee_currency": "BTC",
+        "fee": 0.00037465,
+        "direction": "sell",
+        "amount": 4490
+      },
+      {
+        "trade_seq": 30289128,
+        "trade_id": "48078945",
+        "timestamp": 1590480866924,
+        "tick_direction": 2,
+        "state": "filled",
+        "reduce_only": false,
+        "price": 8983.5,
+        "post_only": false,
+        "order_type": "limit",
+        "order_id": "4008716877",
+        "matching_id": null,
+        "mark_price": 8990.52,
+        "liquidity": "T",
+        "instrument_name": "BTC-PERPETUAL",
+        "index_price": 8995.15,
+        "fee_currency": "BTC",
+        "fee": 1.503e-05,
+        "direction": "sell",
+        "amount": 180
+      }
+    ],
+    "has_more": true
+  }
+}

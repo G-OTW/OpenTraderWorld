@@ -1,0 +1,14 @@
+# OKX perpetual swap book (linear contracts): appended to capabilities.toml (Okx::swap). Every
+# claim sourced in PROVIDER.md ("Trading"). Sizes are counted in contracts at OKX (ctVal base
+# coins each) and in the base coin in OpenTraderWorld. Position mode net or long/short, read from
+# the account (posMode), never changed. No stops (trigger orders are refused in net mode, 51298),
+# no attached take profit or stop loss (the doc does not say whether one cancels the other).
+[orders]
+types = ["market", "limit"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+reduce_only = true
+amend = true
+client_id = true
+position_mode = "both"
+level = "E2D"

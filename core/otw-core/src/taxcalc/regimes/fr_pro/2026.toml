@@ -1,0 +1,25 @@
+id = "fr_pro"
+year = 2026
+country = "FR"
+label = "France, professional trader (BNC, simplified)"
+currency = "EUR"
+coverage = "simple"
+status = "verified"
+verified_on = "2026-09-25"
+sources = ["CGI art. 92 (BNC)", "CGI art. 156 I (deficits)"]
+notes = "Professional trading is rare in France (habitual, personal, sophisticated activity). The result is taxed at the marginal rate; social contributions (URSSAF) are not modeled; deficits carried 6 years (simplified)."
+inputs = ["marginal_rate"]
+
+[matching]
+method = "average"
+
+[[pools]]
+key = "business"
+buckets = ["capital", "derivative", "crypto"]
+carry_years = 6
+
+[[schedules]]
+key = "bnc"
+label = "BNC at the marginal rate"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+kind = "marginal"

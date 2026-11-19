@@ -1,0 +1,40 @@
+{
+ "code": "00000",
+ "msg": "success",
+ "requestTime": 1768195413808,
+ "data": [
+ {
+ "marginCoin": "USDT",
+ "symbol": "BTCUSDT",
+ "holdSide": "short",
+ "openDelegateSize": "0",
+ "marginSize": "32.9182142857142858",
+ "available": "0.005",
+ "locked": "0",
+ "total": "0.005",
+ "leverage": "14",
+ "achievedProfits": "-48.1989666666666705",
+ "openPriceAvg": "88505.233333333333",
+ "marginMode": "crossed",
+ "posMode": "hedge_mode",
+ "unrealizedPL": "-18.328833333333335",
+ "liquidationPrice": "17288450.450983311758416",
+ "keepMarginRate": "0.004",
+ "markPrice": "92171",
+ "marginRatio": "0.0030244464835655",
+ "breakEvenPrice": "67274.9159193683778732",
+ "totalFee": "-56.2349883554",
+ "deductedFee": "1.5158073",
+ "cashDividend": "0",
+ "grant": "",
+ "assetMode": "union",
+ "autoMargin": "off",
+ "takeProfit": null,
+ "stopLoss": null,
+ "takeProfitId": null,
+ "stopLossId": null,
+ "cTime": "1766103799183",
+ "uTime": "1768194000530"
+ }
+ ]
+}

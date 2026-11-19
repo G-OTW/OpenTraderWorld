@@ -1,0 +1,33 @@
+{
+ "code": "00000",
+ "msg": "success",
+ "requestTime": 1695808949356,
+ "data": [
+ {
+ "userId": "**********",
+ "symbol": "btcusdt",
+ "orderId": "2222222",
+ "clientOid": "xxxxxxx",
+ "priceAvg": "34829.12",
+ "size": "1",
+ "orderType": "limit",
+ "side": "buy",
+ "status": "new",
+ "basePrice": "0",
+ "baseVolume": "0",
+ "quoteVolume": "0",
+ "enterPointSource": "WEB",
+ "orderSource": "normal",
+ "triggerPrice": null,
+ "tpslType": "normal",
+ "presetTakeProfitPrice": "70000",
+ "executeTakeProfitPrice": "",
+ "presetStopLossPrice": "10000",
+ "executeStopLossPrice": "",
+ "force": "gtc",
+ "executionType": "exchange",
+ "cTime": "1622697148",
+ "uTime": "1622697148"
+ }
+ ]
+}

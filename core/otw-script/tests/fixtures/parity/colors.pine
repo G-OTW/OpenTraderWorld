@@ -1,0 +1,5 @@
+//@version=6
+indicator("colors", overlay=true)
+bgcolor(close > open ? color.new(color.green, 90) : na)
+barcolor(close > ta.sma(close, 20) ? color.lime : color.maroon)
+barcolor(bar_index % 5 == 0 ? color.yellow : na)

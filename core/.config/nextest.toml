@@ -1,0 +1,21 @@
+# cargo-nextest configuration for the Cargo workspace (read from the workspace root, `core/`).
+#
+#   cargo nextest run --workspace              local run (default profile)
+#   cargo nextest run --workspace --profile ci the CI run: every failure reported, no retry
+#
+# Doctests are not run by nextest: CI runs `cargo test --doc --workspace` beside it.
+
+[profile.default]
+# A test still running after 60 s is reported as slow, never killed: the randomized backtest
+# checks (backtest::scenarios) take over two minutes in a debug build.
+slow-timeout = { period = "60s" }
+
+[profile.ci]
+# Run everything and report every failure, not just the first one.
+fail-fast = false
+# A flaky test is a bug to fix, never something a retry hides (TESTING.md section 0, rule 9).
+retries = 0
+
+[profile.ci.junit]
+# Written to target/nextest/ci/junit.xml.
+path = "junit.xml"

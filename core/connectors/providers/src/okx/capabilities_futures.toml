@@ -1,0 +1,11 @@
+# OKX expiry futures book (linear contracts): appended to capabilities.toml (Okx::futures).
+# The same calls and rules as the swap book (capabilities_swap.toml), on instType FUTURES.
+[orders]
+types = ["market", "limit"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+reduce_only = true
+amend = true
+client_id = true
+position_mode = "both"
+level = "E2D"

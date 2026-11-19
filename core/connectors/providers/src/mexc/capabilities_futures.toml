@@ -1,0 +1,78 @@
+# MEXC perpetual contracts settled in their quote (USDT, USDC, USD1). Every claim below is
+# sourced in PROVIDER.md.
+
+provider = "mexc"
+label = "MEXC futures"
+venue = "MEXC_FUTURES"
+api_version = "v1"
+maturity = "M2"
+asset_classes = ["perp"]
+instrument_discovery = "full"
+auth = "none"
+# Daily bars open at midnight UTC, weekly ones (`Week1`) on Monday, monthly ones (`Month1`)
+# on the first of the calendar month.
+native_timeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "8h", "1d", "1w", "1M"]
+
+[live]
+candles = "push"
+# The socket's candles carry no closed flag: the engine closes one when the next starts.
+candles_final_flag = false
+# Best bid and ask (spot `aggre.bookTicker`, contracts `sub.ticker`).
+quote = "push"
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 2000
+paging = "time"
+
+# Market data: 20 requests per 2 s per endpoint.
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 2000
+
+# The contract list and a single contract's terms ("Get Contract Info"): 10 per 2 s. The
+# order path's read of the list (`contracts:rules`) counts in the same bucket.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "contracts"
+capacity = 10
+refill_ms = 2000
+
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "contract"
+capacity = 10
+refill_ms = 2000
+
+# Place order: "Rate limit: 4 times/2 seconds".
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "fut_create"
+capacity = 4
+refill_ms = 2000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+fills_need_symbols = true
+venue_label = "MEXC futures"
+
+# Orders, from the documentation alone (PROVIDER.md "Trading"): E2D, never run against the
+# venue. Sizes are whole contracts. Hedge mode only, a close included (the doc does not say
+# which side code a one-way order takes); the margin mode and leverage are the venue's, read
+# before the order.
+# No plan, TP/SL, trailing or chase order, no amend, no batch, no dry run.
+[orders]
+types = ["market", "limit"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+reduce_only = true
+client_id = true
+cancel_all_native = true
+position_mode = "hedge"
+level = "E2D"

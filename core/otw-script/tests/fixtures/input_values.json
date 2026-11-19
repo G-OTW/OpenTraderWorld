@@ -1,0 +1,21 @@
+[
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": 20, "expect": {"Int": 20}},
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": 14.0, "expect": {"Int": 14}},
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": 14.5, "expect": {"reason": "type"}},
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": "", "expect": {"reason": "type"}},
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": "12", "expect": {"Int": 12}},
+  {"meta": {"key": "len", "title": "Length", "kind": "Int", "default": {"Int": 14}, "minval": 2, "maxval": 50, "step": null, "options": []}, "raw": 1, "expect": {"reason": "range"}},
+  {"meta": {"key": "m", "title": "Mult", "kind": "Float", "default": {"Float": 2.0}, "minval": null, "maxval": 5, "step": null, "options": []}, "raw": 5.5, "expect": {"reason": "range"}},
+  {"meta": {"key": "m", "title": "Mult", "kind": "Float", "default": {"Float": 2.0}, "minval": null, "maxval": 5, "step": null, "options": []}, "raw": 1.25, "expect": {"Float": 1.25}},
+  {"meta": {"key": "b", "title": "Show", "kind": "Bool", "default": {"Bool": true}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "true", "expect": {"reason": "type"}},
+  {"meta": {"key": "b", "title": "Show", "kind": "Bool", "default": {"Bool": true}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": false, "expect": {"Bool": false}},
+  {"meta": {"key": "src", "title": "Source", "kind": "Source", "default": {"Source": "close"}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "hl2", "expect": {"Source": "hl2"}},
+  {"meta": {"key": "src", "title": "Source", "kind": "Source", "default": {"Source": "close"}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "foo", "expect": {"reason": "option"}},
+  {"meta": {"key": "c", "title": "Color", "kind": "Color", "default": {"Color": {"r": 0, "g": 0, "b": 0, "a": 255}}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "#ff000080", "expect": {"Color": {"r": 255, "g": 0, "b": 0, "a": 128}}},
+  {"meta": {"key": "c", "title": "Color", "kind": "Color", "default": {"Color": {"r": 0, "g": 0, "b": 0, "a": 255}}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "#00ff00", "expect": {"Color": {"r": 0, "g": 255, "b": 0, "a": 255}}},
+  {"meta": {"key": "c", "title": "Color", "kind": "Color", "default": {"Color": {"r": 0, "g": 0, "b": 0, "a": 255}}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "red", "expect": {"reason": "type"}},
+  {"meta": {"key": "mode", "title": "Mode", "kind": "Str", "default": {"Str": "A"}, "minval": null, "maxval": null, "step": null, "options": ["A", "B"]}, "raw": "B", "expect": {"Str": "B"}},
+  {"meta": {"key": "mode", "title": "Mode", "kind": "Str", "default": {"Str": "A"}, "minval": null, "maxval": null, "step": null, "options": ["A", "B"]}, "raw": "C", "expect": {"reason": "option"}},
+  {"meta": {"key": "mode", "title": "Mode", "kind": "Str", "default": {"Str": "A"}, "minval": null, "maxval": null, "step": null, "options": ["A", "B"]}, "raw": 3, "expect": {"reason": "type"}},
+  {"meta": {"key": "s", "title": "Session", "kind": "Session", "default": {"Str": "0930-1600"}, "minval": null, "maxval": null, "step": null, "options": []}, "raw": "0800-1200", "expect": {"Str": "0800-1200"}}
+]

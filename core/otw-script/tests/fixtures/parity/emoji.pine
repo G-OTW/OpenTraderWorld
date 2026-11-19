@@ -1,0 +1,3 @@
+//@version=6
+indicator("🚀 Momentum ✨")
+plot(ta.change(close, 3), "Δ 🔥")

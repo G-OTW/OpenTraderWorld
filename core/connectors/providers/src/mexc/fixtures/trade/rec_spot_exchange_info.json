@@ -1,0 +1,60 @@
+{
+    "timezone": "CST",
+    "serverTime": 1794487541307,
+    "rateLimits": [],
+    "exchangeFilters": [],
+    "symbols": [
+        {
+            "symbol": "BTCUSDT",
+            "status": "1",
+            "baseAsset": "BTC",
+            "baseAssetPrecision": 8,
+            "quoteAsset": "USDT",
+            "quotePrecision": 2,
+            "quoteAssetPrecision": 2,
+            "baseCommissionPrecision": 8,
+            "quoteCommissionPrecision": 2,
+            "orderTypes": [
+                "LIMIT",
+                "MARKET",
+                "LIMIT_MAKER"
+            ],
+            "isSpotTradingAllowed": true,
+            "isMarginTradingAllowed": false,
+            "quoteAmountPrecision": "1",
+            "baseSizePrecision": "0.000001",
+            "permissions": [
+                "SPOT"
+            ],
+            "filters": [
+                {
+                    "filterType": "PERCENT_PRICE_BY_SIDE",
+                    "bidMultiplierUp": "0.005",
+                    "askMultiplierDown": "0.005"
+                }
+            ],
+            "maxQuoteAmount": "4000000",
+            "makerCommission": "0",
+            "takerCommission": "0.0005",
+            "quoteAmountPrecisionMarket": "1",
+            "maxQuoteAmountMarket": "4000000",
+            "fullName": "Bitcoin",
+            "tradeSideType": 1,
+            "contractAddress": "",
+            "conceptPlateIds": [
+                50,
+                5,
+                39,
+                12
+            ],
+            "firstOpenTime": 1506787200000,
+            "conceptPlates": [
+                "Main",
+                "LAYER 1 / LAYER 2",
+                "BTC Ecosystem",
+                "POW"
+            ],
+            "st": false
+        }
+    ]
+}

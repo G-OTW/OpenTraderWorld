@@ -1,0 +1,22 @@
+{
+  "time": 1543205083,
+  "time_ms": 1543205083123,
+  "channel": "futures.usertrades",
+  "event": "update",
+  "result": [
+    {
+      "id": "3335259",
+      "create_time": 1628736848,
+      "create_time_ms": 1628736848321,
+      "contract": "BTC_USDT",
+      "order_id": "4872460",
+      "size": 1,
+      "price": "40000.4",
+      "role": "maker",
+      "text": "t-2",
+      "fee": 0.0009290592,
+      "point_fee": 0,
+      "close_size": 0
+    }
+  ]
+}
