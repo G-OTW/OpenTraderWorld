@@ -1,0 +1,14 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.macd example.
+indicator("ref macd")
+fastMA = ta.ema(close, 12)
+slowMA = ta.ema(close, 26)
+m = fastMA - slowMA
+s = ta.ema(m, 9)
+[l, sg, h] = ta.macd(close, 12, 26, 9)
+plot(m)
+plot(l)
+plot(s)
+plot(sg)
+plot(m - s)
+plot(h)

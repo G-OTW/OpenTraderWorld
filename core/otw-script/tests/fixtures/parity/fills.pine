@@ -1,0 +1,8 @@
+//@version=6
+indicator("fills", overlay=true)
+a = plot(ta.sma(close, 10), "fast")
+b = plot(ta.sma(close, 30), "slow")
+fill(a, b, color=ta.sma(close, 10) > ta.sma(close, 30) ? color.new(color.green, 80) : color.new(color.red, 80))
+h1 = hline(105, "hi", color=color.gray, linestyle=hline.style_dashed)
+h2 = hline(95, "lo", linestyle=hline.style_dotted, linewidth=2)
+fill(h1, h2, color=color.new(color.blue, 90))

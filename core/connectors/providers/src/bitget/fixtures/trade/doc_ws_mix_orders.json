@@ -1,0 +1,49 @@
+{
+  "data": [
+    {
+      "leverage": "12",
+      "orderType": "limit",
+      "presetStopLossType": "fill_price",
+      "tradeSide": "open",
+      "orderId": "13333333333333333333",
+      "presetStopSurplusExecutePrice": "3200",
+      "feeDetail": [
+        {
+          "feeCoin": "USDT",
+          "fee": "0.00000000"
+        }
+      ],
+      "cTime": "1760461517274",
+      "posMode": "hedge_mode",
+      "marginMode": "crossed",
+      "presetStopLossExecutePrice": "2800",
+      "posSide": "long",
+      "price": "3000",
+      "enterPointSource": "API",
+      "cancelReason": "",
+      "accBaseVolume": "0",
+      "stpMode": "none",
+      "side": "buy",
+      "totalProfits": "0",
+      "marginCoin": "USDT",
+      "notionalUsd": "1200",
+      "instId": "ETHUSDT",
+      "presetStopSurplusPrice": "3200",
+      "size": "0.4",
+      "reduceOnly": "no",
+      "presetStopLossPrice": "2800",
+      "force": "gtc",
+      "uTime": "1760461517274",
+      "presetStopSurplusType": "fill_price",
+      "clientOid": "12354678990111",
+      "status": "live"
+    }
+  ],
+  "arg": {
+    "instType": "USDT-FUTURES",
+    "instId": "default",
+    "channel": "orders"
+  },
+  "action": "snapshot",
+  "ts": 1760461517285
+}

@@ -1,0 +1,29 @@
+{
+    "symbol": "TOMO3LUSDT",
+    "status": "ENABLED",
+    "baseAsset": "TOMO3L",
+    "baseAssetPrecision": 2,
+    "quoteAsset": "USDT",
+    "quotePrecision": 3,
+    "quoteAssetPrecision": 3,
+    "baseCommissionPrecision": 2,
+    "quoteCommissionPrecision": 3,
+    "orderTypes": [
+        "LIMIT",
+        "LIMIT_MAKER"
+    ],
+    "quoteOrderQtyMarketAllowed": false,
+    "isSpotTradingAllowed": false,
+    "isMarginTradingAllowed": false,
+    "quoteAmountPrecision": "5",
+    "baseSizePrecision": "0.0001",
+    "permissions": [
+        "SPOT",
+        "LIMIT"
+    ],
+    "filters": [],
+    "maxQuoteAmount": "5000000",
+    "makerCommission": "0.002",
+    "takerCommission": "0.002",
+    "tradeSideType":"1"
+}

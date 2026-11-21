@@ -1,0 +1,40 @@
+[[case]]
+name = "Gain inside the basic band"
+source = "TCGA 1H: (10 000 - 3 000) x 18 %, 17 700 of basic band left"
+inputs = { realized_capital_gains = 10000.0, other_income = 20000.0 }
+expect = { total_tax = 1260.0 }
+
+[[case]]
+name = "Gain for a higher-rate taxpayer"
+source = "TCGA 1H: (13 000 - 3 000) x 24 %"
+inputs = { realized_capital_gains = 13000.0, other_income = 40000.0 }
+expect = { total_tax = 2400.0 }
+
+[[case]]
+name = "Gain straddling the basic band"
+source = "TCGA 1H: 7 700 x 18 % + 9 300 x 24 %"
+inputs = { realized_capital_gains = 20000.0, other_income = 30000.0 }
+expect = { total_tax = 3618.0 }
+
+[[case]]
+name = "Carried losses stop at the annual exempt amount"
+source = "TCGA 2A: 2 000 of the 10 000 carried used, 8 000 left"
+inputs = { realized_capital_gains = 5000.0, other_income = 50000.0, carried_losses = { all = 10000.0 } }
+expect = { total_tax = 0.0, pools = { all = { carried_used = 2000.0 } } }
+
+[[case]]
+name = "Dividends for a higher-rate taxpayer"
+source = "ITA 13A: (2 500 - 500) x 33.75 %"
+inputs = { dividends = 2500.0, other_income = 40000.0 }
+expect = { total_tax = 675.0 }
+
+[[lots_case]]
+name = "Same day, then 30 days, then the pool"
+source = "HMRC HS284 identification order"
+fills = [
+  { at = "2024-05-01", side = "buy", qty = 1000, price = 4 },
+  { at = "2025-06-01T10:00:00Z", side = "sell", qty = 500, price = 6 },
+  { at = "2025-06-01T15:00:00Z", side = "buy", qty = 100, price = 5.5 },
+  { at = "2025-06-11", side = "buy", qty = 300, price = 5 },
+]
+expect = { total_gain = 550.0 }

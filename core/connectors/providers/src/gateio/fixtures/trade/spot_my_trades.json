@@ -1,0 +1,20 @@
+[
+  {
+    "id": "1232893232",
+    "create_time": "1548000000",
+    "create_time_ms": "1548000000123.456",
+    "currency_pair": "BTC_USDT",
+    "side": "buy",
+    "role": "taker",
+    "amount": "0.15",
+    "price": "7000",
+    "order_id": "4128442423",
+    "fee": "0.0005",
+    "fee_currency": "BTC",
+    "point_fee": "0",
+    "gt_fee": "0.02",
+    "amend_text": "-",
+    "sequence_id": "588018",
+    "text": "t-xxxxxx"
+  }
+]

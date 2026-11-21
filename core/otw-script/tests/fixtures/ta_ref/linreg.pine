@@ -1,0 +1,23 @@
+//@version=6
+// Reference: least squares over the window, oldest bar at x = 0:
+// linreg = intercept + slope * (length - 1 - offset) (Pine Reference Manual, ta.linreg).
+indicator("ref linreg")
+pine_linreg(src, len, off) =>
+    float sx = 0.0
+    float sy = 0.0
+    float sxy = 0.0
+    float sxx = 0.0
+    for i = 0 to len - 1
+        x = len - 1 - i
+        y = src[i]
+        sx := sx + x
+        sy := sy + y
+        sxy := sxy + x * y
+        sxx := sxx + x * x
+    slope = (len * sxy - sx * sy) / (len * sxx - sx * sx)
+    intercept = (sy - slope * sx) / len
+    intercept + slope * (len - 1 - off)
+plot(pine_linreg(close, 20, 0))
+plot(ta.linreg(close, 20, 0))
+plot(pine_linreg(close, 9, 3))
+plot(ta.linreg(close, 9, 3))

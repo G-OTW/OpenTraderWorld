@@ -1,0 +1,45 @@
+[[case]]
+name = "PFU on a share gain, 2025"
+source = "CGI 200 A 12.8 % + 18.6 % (LFSS 2026 art. 12: revenus du patrimoine from 2025 income)"
+inputs = { realized_capital_gains = 1000.0 }
+expect = { total_tax = 314.0 }
+
+[[case]]
+name = "Dividends paid in 2025 keep 17.2 %"
+source = "LFSS 2026 art. 12: produits de placement from 1 January 2026"
+inputs = { dividends = 1000.0 }
+expect = { total_tax = 300.0 }
+
+[[case]]
+name = "A derivative loss offsets a share gain, a crypto loss does not"
+source = "CGI 150-0 D 11 (same category) and 150 VH bis (crypto apart)"
+inputs = { realized_capital_gains = 1000.0, derivative_gains = -400.0, crypto_gains = -500.0 }
+expect = { total_tax = 188.4 }
+
+[[case]]
+name = "Crypto sales at or under 305 EUR are exempt"
+source = "CGI 150 VH bis II"
+inputs = { crypto_gains = 200.0, proceeds = { crypto = 300.0 } }
+expect = { total_tax = 0.0 }
+
+[[case]]
+name = "Crypto sales over 305 EUR are taxed in full"
+source = "CGI 150 VH bis II (a threshold, not an allowance)"
+inputs = { crypto_gains = 200.0, proceeds = { crypto = 306.0 } }
+expect = { total_tax = 62.8 }
+
+[[case]]
+name = "Carried securities loss"
+source = "CGI 150-0 D 11"
+inputs = { realized_capital_gains = 1000.0, carried_losses = { securities = 400.0 } }
+expect = { total_tax = 188.4 }
+
+[[lots_case]]
+name = "PMP: 10 at 100 then 10 at 200, sell 10 at 180"
+source = "CGI 150-0 D 3: weighted average acquisition price"
+fills = [
+  { at = "2025-01-02", side = "buy", qty = 10, price = 100 },
+  { at = "2025-02-02", side = "buy", qty = 10, price = 200 },
+  { at = "2025-03-02", side = "sell", qty = 10, price = 180 },
+]
+expect = { total_gain = 300.0 }

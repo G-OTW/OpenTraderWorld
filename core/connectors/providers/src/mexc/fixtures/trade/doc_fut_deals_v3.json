@@ -1,0 +1,4 @@
+{"success": true, "code": 0, "data": [
+{"id": "9466823344", "symbol": "DOGE_USDT", "side": 3, "vol": 1, "price": 0.18695, "fee": 0, "feeCurrency": "USDT", "profit": 0, "category": 1, "orderId": "739211854408619008", "timestamp": 1761912240000, "positionMode": 1, "taker": true},
+{"id": "9466784116", "symbol": "DOGE_USDT", "side": 3, "vol": 1, "price": 0.18645, "fee": 0, "feeCurrency": "USDT", "profit": 0, "category": 1, "orderId": "739211257974395392", "timestamp": 1761912098000, "positionMode": 1, "taker": true}
+]}

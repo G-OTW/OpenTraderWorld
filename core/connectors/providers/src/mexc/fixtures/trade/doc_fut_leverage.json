@@ -1,0 +1,7 @@
+{ "success": true, "code": 0, "data": [ {
+"level": 6, "maxVol": 4500000, "mmr": 0.05, "imr": 0.1, "positionType": 1,
+"openType": 1, "leverage": 2, "limitBySys": false, "currentMmr": 0.001, "maxLeverageView": 500
+}, {
+"level": 6, "maxVol": 4500000, "mmr": 0.05, "imr": 0.1, "positionType": 2,
+"openType": 1, "leverage": 2, "limitBySys": false, "currentMmr": 0.001, "maxLeverageView": 500
+} ] }

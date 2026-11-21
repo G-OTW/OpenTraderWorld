@@ -1,0 +1,30 @@
+{
+  "time": 1588212926,
+  "time_ms": 1588212926123,
+  "channel": "futures.positions",
+  "event": "update",
+  "result": [
+    {
+      "contract": "BTC_USDT",
+      "cross_leverage_limit": 0,
+      "entry_price": 40000.36666661111,
+      "history_pnl": -0.000108569505,
+      "history_point": 0,
+      "last_close_pnl": -0.000050123368,
+      "leverage": 10,
+      "leverage_max": 100,
+      "liq_price": 0.1,
+      "maintenance_rate": 0.005,
+      "margin": 49.999890611186,
+      "mode": "dual_long",
+      "realised_pnl": -1.25e-8,
+      "realised_point": 0,
+      "risk_limit": 100,
+      "size": 3,
+      "time": 1628736848,
+      "time_ms": 1628736848414,
+      "user": "110xxxxx",
+      "update_id": 170919
+    }
+  ]
+}

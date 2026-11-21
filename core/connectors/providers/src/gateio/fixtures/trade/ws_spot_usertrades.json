@@ -1,0 +1,24 @@
+{
+  "time": 1605176741,
+  "time_ms": 1605176741763,
+  "channel": "spot.usertrades",
+  "event": "update",
+  "result": [
+    {
+      "id": 5736713,
+      "user_id": 1000001,
+      "order_id": "30784428",
+      "currency_pair": "BTC_USDT",
+      "create_time": 1605176741,
+      "create_time_ms": "1605176741123.456",
+      "side": "sell",
+      "amount": "1.00000000",
+      "role": "taker",
+      "price": "10000.00000000",
+      "fee": "0.00200000000000",
+      "point_fee": "0",
+      "gt_fee": "0",
+      "text": "apiv4"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.wma example.
+indicator("ref wma")
+pine_wma(x, y) =>
+    norm = 0.0
+    sum = 0.0
+    for i = 0 to y - 1
+        weight = (y - i) * y
+        norm := norm + weight
+        sum := sum + x[i] * weight
+    sum / norm
+plot(pine_wma(close, 14))
+plot(ta.wma(close, 14))

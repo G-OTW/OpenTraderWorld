@@ -1,0 +1,14 @@
+{
+    "channel": "executions",
+    "type": "update",
+    "data": [
+        {
+            "timestamp": "2023-09-22T10:33:05.709982Z",
+            "order_status": "new",
+            "exec_type": "new",
+            "order_userref": 3,
+            "order_id": "OK4GJX-KSTLS-7DZZO5"
+        }
+    ],
+    "sequence": 9
+}

@@ -1,0 +1,43 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tick_size": 0.0005,
+    "tick_size_steps": [
+      {
+        "above_price": 120,
+        "tick_size": 0.001
+      },
+      {
+        "above_price": 200,
+        "tick_size": 0.003
+      }
+    ],
+    "taker_commission": 0.0003,
+    "strike": 16000,
+    "settlement_period": "week",
+    "settlement_currency": "BTC",
+    "quote_currency": "BTC",
+    "price_index": "btc_usd",
+    "option_type": "put",
+    "min_trade_amount": 0.1,
+    "maker_commission": 0.0003,
+    "kind": "option",
+    "is_active": true,
+    "instrument_name": "BTC-13JAN23-16000-P",
+    "instrument_id": 144613,
+    "expiration_timestamp": 1673596800000,
+    "creation_timestamp": 1671696002000,
+    "counter_currency": "USD",
+    "contract_size": 1,
+    "lot_size": 1,
+    "block_trade_tick_size": 0.0001,
+    "block_trade_min_trade_amount": 25,
+    "block_trade_commission": 0.00015,
+    "base_currency": "BTC",
+    "state": "open",
+    "index_id": 1000033,
+    "product_group": "BTC",
+    "underlying_type": "crypto"
+  }
+}

@@ -1,0 +1,67 @@
+# Kraken spot. Every claim below is sourced in PROVIDER.md.
+
+provider = "kraken"
+label = "Kraken"
+venue = "KRAKEN"
+api_version = "0 (REST), v2 (socket)"
+maturity = "M2"
+asset_classes = ["spot"]
+instrument_discovery = "full"
+auth = "none"
+# The resolutions OTW serves today (same set as the legacy connector). Kraken also serves
+# 30m and 15d.
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# No closed flag on the socket: the engine closes a candle when the next one starts.
+candles_final_flag = false
+# Best bid and ask (`ticker` on its `bbo` trigger, a socket of its own).
+quote = "push"
+
+[history]
+quote = true
+board = true
+
+# One page only: the venue answers its last 720 bars whatever the window.
+[history.candles]
+max_items_per_call = 720
+paging = "time"
+
+# The key's REST call counter (REST rate limits guide), at the most conservative tier (Starter:
+# at most 15, decaying 0.33 a second, so 15 refill in 15 / 0.33 s). Every private call counts
+# 1, a history call 2; AddOrder and CancelOrder "operate on a different limiter" and do not.
+# The calls that count go out under endpoint ids `private:...`, counted in this one bucket.
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "private"
+capacity = 15
+refill_ms = 45455
+
+[account]
+balances = true
+fills_history = true
+open_orders = true
+summary = true
+spot_only = true
+quote_preference = ["USD", "USDT", "USDC", "EUR"]
+display_symbols = true
+# The rows' venue, as the broker label writes it: what ties an orders panel row to the spot
+# book that takes its cancel and change (`spot:SYMBOL:txid`).
+venue_label = "Kraken"
+
+# Orders on the spot book (PROVIDER.md, "Trading"), from the documentation alone: never
+# tested against the venue (E2D). Stop = stop-loss, stop limit = stop-loss-limit, market if
+# touched = take-profit, limit if touched = take-profit-limit, each on the last price. FOK is
+# taken on a limit order only. Changed in place (AmendOrder: price, trigger, size). No margin,
+# no attached close order, no trailing stop, no iceberg, no index trigger.
+[orders]
+types = ["market", "limit", "stop", "stop_limit", "mit", "lit"]
+tif = ["gtc", "ioc", "gtd", "fok"]
+post_only = true
+amend = true
+client_id = true
+triggers = ["last"]
+dry_run = "validate"
+cancel_all_native = true
+level = "E2D"

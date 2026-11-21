@@ -1,0 +1,6 @@
+[advisories]
+# pin-utils is unmaintained, not vulnerable. Pulled only by async-imap, still required in 0.12.0.
+# chrono is unmaintained, not vulnerable. Pulled by async-imap, feed-rs and parquet; no replacement upstream.
+# libsqlite3-sys sits in the lockfile through sqlx's optional sqlite driver, never compiled (postgres only);
+# sqlx 0.9.1 (latest) still pins 0.37.
+ignore = ["RUSTSEC-2026-0441", "RUSTSEC-2026-0543", "RUSTSEC-2026-0459"]

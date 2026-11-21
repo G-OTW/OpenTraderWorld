@@ -1,0 +1,11 @@
+//@version=6
+indicator("shapes", overlay=true)
+x = ta.crossover(close, ta.sma(close, 10))
+y = ta.crossunder(close, ta.sma(close, 10))
+plotshape(x, "above", shape.triangledown, location.abovebar, color.red)
+plotshape(y, "below", shape.triangleup, location.belowbar, color.green)
+plotshape(x, "top", shape.circle, location.top)
+plotshape(y, "bottom", shape.square, location.bottom)
+plotshape(x ? high : na, "abs", shape.diamond, location.absolute, text="X")
+plotchar(y, "char", "▲", location.belowbar)
+plotarrow(x ? 1 : y ? -1 : 0, "arrows")

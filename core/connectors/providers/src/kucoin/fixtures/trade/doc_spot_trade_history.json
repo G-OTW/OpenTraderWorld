@@ -1,0 +1,30 @@
+{
+  "code": "200000",
+  "data": {
+    "items": [
+      {
+        "id": 19814995255305,
+        "orderId": "6717422bd51c29000775ea03",
+        "counterOrderId": "67174228135f9e000709da8c",
+        "tradeId": 11029373945659392,
+        "symbol": "BTC-USDT",
+        "side": "buy",
+        "liquidity": "taker",
+        "type": "limit",
+        "forceTaker": false,
+        "price": "67717.6",
+        "size": "0.00001",
+        "funds": "0.677176",
+        "fee": "0.000677176",
+        "feeRate": "0.001",
+        "feeCurrency": "USDT",
+        "stop": "",
+        "tradeType": "TRADE",
+        "taxRate": "0",
+        "tax": "0",
+        "createdAt": 1729577515473
+      }
+    ],
+    "lastId": 19814995255305
+  }
+}

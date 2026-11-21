@@ -1,0 +1,70 @@
+id = "de_abgeltung"
+year = 2026
+country = "DE"
+label = "Germany, individual (Abgeltungsteuer)"
+currency = "EUR"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "EStG § 32d (1) (25 % flat, gesetze-im-internet.de) and SolZG § 3, 4 (5.5 % of the tax)",
+  "EStG § 20 (9) (Sparer-Pauschbetrag 1 000 EUR)",
+  "EStG § 20 (4) S. 7 (FIFO), § 20 (6) S. 4 (share losses only against share gains)",
+  "EStG § 23 (1) Nr. 2, (3) S. 5 (private sales: 1-year exemption, 1 000 EUR Freigrenze)",
+]
+notes = "Not modeled: church tax, Günstigerprüfung, Teilfreistellung and Vorabpauschale on funds, the split of the share pot from the general pot for ETFs (both are in capital here). Share losses only offset share gains; losses of the general pot (derivatives, and ETFs in reality) also offset share gains. The 20 000 EUR cap on derivative losses no longer exists."
+inputs = ["marginal_rate", "long_term"]
+
+[matching]
+method = "fifo"
+
+[[pools]]
+key = "shares"
+buckets = ["capital"]
+
+[[pools]]
+key = "general"
+buckets = ["derivative", "dividends", "interest"]
+spill_to = ["shares"]
+
+[[pools]]
+key = "crypto"
+buckets = ["crypto"]
+
+[[holding]]
+bucket = "crypto"
+after_years = 1
+term = "long"
+
+[[exempt]]
+items = ["crypto.long"]
+
+[[allowances]]
+items = ["capital", "derivative", "dividends", "interest"]
+amount = 1000
+kind = "allowance"
+
+[[allowances]]
+items = ["crypto.short"]
+amount = 1000
+kind = "cliff"
+strict = true
+
+[[schedules]]
+key = "abgeltung"
+label = "Abgeltungsteuer"
+items = ["capital", "derivative", "dividends", "interest"]
+kind = "brackets"
+brackets = [{ rate = 25.0 }]
+
+[[schedules]]
+key = "private_sale"
+label = "Private sale, income tax"
+items = ["crypto.short"]
+kind = "marginal"
+
+[[surcharges]]
+label = "Solidaritätszuschlag"
+items = ["capital", "derivative", "dividends", "interest"]
+rate = 5.5
+on = "tax"

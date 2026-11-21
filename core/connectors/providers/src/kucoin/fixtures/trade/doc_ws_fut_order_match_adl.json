@@ -1,0 +1,30 @@
+{
+  "topic": "/contractMarket/tradeOrders",
+  "type": "message",
+  "subject": "orderChange",
+  "userId": "665d1df19c51ab0001029a49",
+  "channelType": "private",
+  "data": {
+    "symbol": "10PEPEUSDTM",
+    "orderType": "limit",
+    "side": "sell",
+    "canceledSize": "0",
+    "orderId": "1961728417792",
+    "positionSide": "BOTH",
+    "liquidity": "taker",
+    "marginMode": "ISOLATED",
+    "type": "match",
+    "feeType": "takerFee",
+    "orderTime": 1750839892050000000,
+    "size": "100",
+    "filledSize": "100",
+    "price": "0.0000126",
+    "matchPrice": "0.0000126",
+    "matchSize": "100",
+    "remainSize": "0",
+    "tradeId": "1750839397535",
+    "tradeType": "adl",
+    "status": "match",
+    "ts": 1750839892050000000
+  }
+}

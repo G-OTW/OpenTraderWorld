@@ -1,0 +1,6 @@
+{  "channel": "push.personal.order",  "data": {    "orderId": 123456789,    "symbol": "BTC_USDT",
+    "positionId": 987654321,    "price": 45000.5,    "vol": 10,    "leverage": 20,    "side": 1,    "category": 1,    "orderType": 1,
+    "dealAvgPrice": 45000.0,    "dealVol": 5,    "orderMargin": 2250.0,    "usedMargin": 1125.0,    "takerFee": 0.1125,
+    "makerFee": 0.09,    "profit": 0,    "feeCurrency": "USDT",    "openType": 1,    "state": 2,    "errorCode": 0,
+    "externalOid": "ext_001",    "createTime": 1760942212000,    "updateTime": 1760942212000,    "remainVol": 5,
+    "positionMode": 1,    "reduceOnly": false,    "bboTypeNum": 0,    "makerFeeRate": 0.0002,    "takerFeeRate": 0.0004  },  "ts": 1760942212000}

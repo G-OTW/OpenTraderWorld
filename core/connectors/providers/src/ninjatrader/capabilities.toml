@@ -1,0 +1,26 @@
+# NinjaTrader Trader API (the Tradovate platform). Every claim below is sourced in PROVIDER.md.
+
+provider = "ninjatrader"
+label = "NinjaTrader"
+venue = "NINJATRADER"
+api_version = "Trader API v1 (tradovateapi)"
+maturity = "M2"
+asset_classes = ["future", "equity", "spot", "option", "index", "other"]
+# Contracts are read by id from the account's own rows; no list is read.
+instrument_discovery = "none"
+# Login, password and the API key pair are exchanged for a ninety-minute bearer token.
+auth = "session"
+
+# Prices are a separate entitlement on a separate socket: no market data declared.
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+holdings_from_positions = true
+sandbox_env = "demo"
+venue_label = "NinjaTrader"
+
+[regions]
+sandbox_url = "https://demo.tradovateapi.com/v1"

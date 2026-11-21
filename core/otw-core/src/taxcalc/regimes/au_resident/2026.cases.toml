@@ -1,0 +1,11 @@
+[[case]]
+name = "Discounted long-term gain"
+source = "ITAA 1997 Div 115: 10 000 x 50 % at 30 % + 2 % Medicare"
+inputs = { realized_capital_gains = 10000.0, long_term = { capital = 10000.0 }, other_income = 100000.0 }
+expect = { total_tax = 1600.0 }
+
+[[case]]
+name = "Short-term gain, no discount"
+source = "ITAA 1997 s.102-5"
+inputs = { realized_capital_gains = 10000.0, other_income = 100000.0 }
+expect = { total_tax = 3200.0 }

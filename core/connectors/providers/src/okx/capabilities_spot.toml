@@ -1,0 +1,11 @@
+# OKX spot book: appended to capabilities.toml (Okx::spot). Every claim sourced in PROVIDER.md
+# ("Trading"). Market and limit; ioc, fok and post_only are OKX order types (ordType). A market
+# order is sized in the base coin (tgtCcy base_ccy, banAmend true). No reduce-only and no
+# positions on spot, no stops, no attached take profit or stop loss.
+[orders]
+types = ["market", "limit"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+amend = true
+client_id = true
+level = "E2D"

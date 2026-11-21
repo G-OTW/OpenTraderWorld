@@ -1,0 +1,16 @@
+{
+  "success": true,
+  "failure_reason": "UNKNOWN_FAILURE_REASON",
+  "order_id": "62475e97-7485-45eb-a5ac-594805fa2748",
+  "success_response": {
+    "order_id": "62475e97-7485-45eb-a5ac-594805fa2748",
+    "product_id": "BTC-USD",
+    "side": "BUY",
+    "client_order_id": "12345678"
+  },
+  "order_configuration": {
+    "market_market_ioc": {
+      "quote_size": "1.0"
+    }
+  }
+}

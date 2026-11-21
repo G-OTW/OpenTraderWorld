@@ -1,0 +1,40 @@
+{
+  "code": "200000",
+  "data": {
+    "currentPage": 1,
+    "pageSize": 50,
+    "totalNum": 2,
+    "totalPage": 1,
+    "items": [
+      {
+        "symbol": "XBTUSDTM",
+        "tradeId": "1828954878212",
+        "orderId": "284486580251463680",
+        "side": "buy",
+        "liquidity": "taker",
+        "forceTaker": false,
+        "price": "86275.1",
+        "size": 1,
+        "value": "86.2751",
+        "openFeePay": "0.05176506",
+        "closeFeePay": "0",
+        "stop": "",
+        "feeRate": "0.00060",
+        "fixFee": "0",
+        "feeCurrency": "USDT",
+        "subTradeType": null,
+        "marginMode": "CROSS",
+        "positionSide": "BOTH",
+        "openFeeTaxPay": "0",
+        "closeFeeTaxPay": "0",
+        "displayType": "market",
+        "fee": "0.05176506",
+        "settleCurrency": "USDT",
+        "orderType": "market",
+        "tradeType": "trade",
+        "tradeTime": 1740640088244000000,
+        "createdAt": 1740640088427
+      }
+    ]
+  }
+}

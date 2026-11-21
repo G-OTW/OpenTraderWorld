@@ -1,0 +1,7 @@
+//@version=6
+// Reference: ta.cross = ta.crossover or ta.crossunder.
+indicator("ref cross")
+o = ta.crossover(close, open)
+u = ta.crossunder(close, open)
+plot(o or u ? 1 : 0)
+plot(ta.cross(close, open) ? 1 : 0)

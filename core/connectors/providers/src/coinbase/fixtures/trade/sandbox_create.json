@@ -1,0 +1,1 @@
+{"success":true,"success_response":{"order_id":"f898eaf4-6ffc-47be-a159-7ff292e5cdcf","product_id":"BTC-USD","side":"SELL","client_order_id":"sandbox_success_order","attached_order_id":""},"order_configuration":{"limit_limit_gtc":{"base_size":"1","limit_price":"70000.44","post_only":false,"rfq_disabled":false,"reduce_only":false,"currency_size":null,"oco_ref":""}}}

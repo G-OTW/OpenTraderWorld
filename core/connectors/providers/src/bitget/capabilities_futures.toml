@@ -1,0 +1,54 @@
+# Bitget USDT-M futures. Every claim below is sourced in PROVIDER.md.
+
+provider = "bitget"
+label = "Bitget USDT-M futures"
+venue = "BITGET_USDTM"
+api_version = "v2"
+maturity = "M2"
+asset_classes = ["perp", "future"]
+instrument_discovery = "full"
+auth = "none"
+native_timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
+
+[live]
+candles = "push"
+# Best bid and ask (`books1`).
+quote = "push"
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 200
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 20
+refill_ms = 1000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+venue_label = "Bitget USDT-M futures"
+
+# Execution (v2 Classic), from the documentation alone (PROVIDER.md "Trading"): E2D, never run
+# against the venue. Stops are trigger orders (`normal_plan`) on the last or the mark price.
+# One-way or hedge mode and the margin mode are read from the account, never changed. No
+# attached take profit or stop loss, no amend, no dry run (PROVIDER.md, "left out").
+[orders]
+types = ["market", "limit", "stop", "stop_limit"]
+tif = ["gtc", "ioc", "fok"]
+triggers = ["last", "mark"]
+# Every order type, as caps cannot say it per type: in one-way mode with a position held, the
+# venue refuses a reduce-only stop (`22042`, "trigger order cannot only reduce positions").
+reduce_only = true
+post_only = true
+# Place Position TP/SL (`place-pos-tpsl`), Modify the TP/SL order, Cancel Trigger Order.
+position_exits = true
+client_id = true
+cancel_all_native = true
+position_mode = "both"
+level = "E2D"

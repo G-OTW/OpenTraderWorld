@@ -1,0 +1,54 @@
+# Bybit linear contracts (USDT and USDC perpetuals, USDT dated futures). Every claim below is
+# sourced in PROVIDER.md.
+
+provider = "bybit"
+label = "Bybit linear"
+venue = "BYBIT_LINEAR"
+api_version = "v5"
+maturity = "M2"
+asset_classes = ["perp", "future"]
+instrument_discovery = "full"
+auth = "none"
+native_timeframes = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "1w", "1M"]
+
+[live]
+candles = "push"
+# Best bid and ask (`orderbook.1.<symbol>`).
+quote = "push"
+
+[history]
+quote = true
+
+[history.candles]
+max_items_per_call = 1000
+paging = "time"
+
+[[rate_limits]]
+scope = "ip"
+capacity = 600
+refill_ms = 5000
+
+[account]
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+venue_label = "Bybit linear"
+
+# Execution (v2), from the documentation alone (PROVIDER.md "Trading"): E2D, never run against
+# the venue. Stops trigger on the last price in the direction their side implies
+# (`triggerDirection`). One-way or hedge mode is read from the account, never changed. The
+# pre-check answers the margin an order would take (cross and portfolio margin only, no
+# conditional order). Attached TP/SL: `tpslMode=Full` only, market on trigger (PROVIDER.md).
+[orders]
+types = ["market", "limit", "stop", "stop_limit"]
+tif = ["gtc", "ioc", "fok"]
+reduce_only = true
+brackets = true
+# Set Trading Stop (`/v5/position/trading-stop`): the position's own take profit and stop loss.
+position_exits = true
+client_id = true
+cancel_all_native = true
+position_mode = "both"
+dry_run = "margin_preview"
+level = "E2D"

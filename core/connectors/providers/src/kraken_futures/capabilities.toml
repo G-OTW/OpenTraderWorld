@@ -1,0 +1,60 @@
+# Kraken Futures (Kraken Derivatives). Every claim below is sourced in PROVIDER.md.
+
+provider = "kraken_futures"
+label = "Kraken Futures"
+venue = "KRAKEN_FUTURES"
+api_version = "derivatives v3 (REST), history v3"
+maturity = "M1"
+asset_classes = ["perp", "future"]
+# The contract list is public and keyless.
+instrument_discovery = "full"
+auth = "none"
+
+# Account only: no market data is declared.
+
+# `/derivatives`: "clients can spend up to 500 every 10 seconds"; each call weighs its cost
+# (sendorder, editorder, cancelorder 10, cancelallorders 25, openorders and openpositions 2,
+# orders/status 1).
+[[rate_limits]]
+scope = "account"
+capacity = 500
+refill_ms = 10000
+
+# The history pool: "up to 100 tokens that continually replenishes at a rate of 100 every 10
+# minutes"; one page costs 1. Every history read counts in it: the fills (`executions`) and the
+# order lookups (`executions:lookup_orders`, `executions:lookup_executions`, counted in the
+# bucket named before the `:`).
+[[rate_limits]]
+scope = "endpoint"
+endpoint = "executions"
+capacity = 100
+refill_ms = 600000
+
+[account]
+balances = true
+positions = true
+fills_history = true
+open_orders = true
+summary = true
+sandbox_env = "demo"
+venue_label = "Kraken Futures"
+
+[regions]
+sandbox_url = "https://demo-futures.kraken.com"
+
+# Orders from the documentation alone (PROVIDER.md "Trading"), on the multi-collateral
+# contracts (PF_, FF_) only: market (`mkt`), limit (`lmt`, `post`, `ioc`, `fok`), stop and
+# stop-limit (`stp`), take profit with or without a limit (`take_profit`, as market-if-touched
+# and limit-if-touched), triggered on the mark, the last trade or the index; reduce-only;
+# change in place (`editorder`, absolute size); one position per contract, never changed.
+[orders]
+types = ["market", "limit", "stop", "stop_limit", "mit", "lit"]
+tif = ["gtc", "ioc", "fok"]
+post_only = true
+reduce_only = true
+amend = true
+client_id = true
+cancel_all_native = true
+triggers = ["last", "mark", "index"]
+position_mode = "net"
+level = "E2D"

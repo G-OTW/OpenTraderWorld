@@ -1,0 +1,40 @@
+[
+  {
+    "name": "BTC_USDT",
+    "type": "direct",
+    "quanto_multiplier": "0.0001",
+    "leverage_min": "1",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "mark_type": "index",
+    "mark_price": "30000",
+    "index_price": "30000",
+    "last_price": "30000",
+    "maker_fee_rate": "-0.00025",
+    "taker_fee_rate": "0.00075",
+    "order_price_round": "0.1",
+    "mark_price_round": "0.01",
+    "funding_rate": "0.002053",
+    "funding_interval": 28800,
+    "funding_next_apply": 1610035200,
+    "order_size_min": 1,
+    "order_size_max": 1000000,
+    "market_order_size_max": 500000,
+    "order_price_deviate": "0.5",
+    "orders_limit": 50,
+    "in_delisting": false,
+    "enable_decimal": false,
+    "status": "trading"
+  },
+  {
+    "name": "OLD_USDT",
+    "type": "direct",
+    "quanto_multiplier": "10",
+    "order_price_round": "0.0001",
+    "order_size_min": 1,
+    "order_size_max": 100000,
+    "market_order_size_max": 0,
+    "in_delisting": true,
+    "status": "delisting"
+  }
+]

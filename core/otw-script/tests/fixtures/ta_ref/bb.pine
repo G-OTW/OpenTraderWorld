@@ -1,0 +1,28 @@
+//@version=6
+// Reference: Pine Reference Manual, ta.bb (sma basis, biased stdev); ta.variance, ta.range,
+// ta.wpr.
+indicator("ref bb")
+[m, u, l] = ta.bb(close, 20, 2)
+basis = ta.sma(close, 20)
+dev = 2 * ta.stdev(close, 20)
+plot(basis)
+plot(m)
+plot(basis + dev)
+plot(u)
+plot(basis - dev)
+plot(l)
+pine_variance(src, length) =>
+    avg = ta.sma(src, length)
+    s = 0.0
+    for i = 0 to length - 1
+        d = src[i] - avg
+        s := s + d * d
+    s / length
+plot(pine_variance(close, 20))
+plot(ta.variance(close, 20))
+plot(ta.highest(close, 10) - ta.lowest(close, 10))
+plot(ta.range(close, 10))
+hh = ta.highest(14)
+ll = ta.lowest(14)
+plot(100 * (close - hh) / (hh - ll))
+plot(ta.wpr(14))

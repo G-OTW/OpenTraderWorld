@@ -1,0 +1,15 @@
+{
+  "total": "9707.803567115145",
+  "unrealised_pnl": "3371.248828",
+  "position_margin": "38.712189181",
+  "order_margin": "0",
+  "available": "9669.091377934145",
+  "point": "0",
+  "currency": "USDT",
+  "in_dual_mode": false,
+  "position_mode": "single",
+  "enable_credit": false,
+  "bonus": "0",
+  "enable_evolved_classic": true,
+  "margin_mode": 0
+}

@@ -1,0 +1,23 @@
+{
+  "topic": "/contractMarket/advancedOrders",
+  "type": "message",
+  "subject": "stopOrder",
+  "id": "6720ab1ea52a9b0001734392",
+  "userId": "66f12e8befb04d0001882b49",
+  "channelType": "private",
+  "data": {
+    "marginMode": "ISOLATED",
+    "orderId": "240673378116083712",
+    "orderPrice": "0.1",
+    "orderType": "stop",
+    "side": "buy",
+    "size": 1,
+    "stop": "down",
+    "stopPrice": "1000",
+    "stopPriceType": "TP",
+    "symbol": "XBTUSDTM",
+    "type": "open",
+    "createdAt": 1730194206837,
+    "ts": 1730194206843133000
+  }
+}

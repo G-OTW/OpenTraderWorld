@@ -1,0 +1,214 @@
+---
+source: otw-core/src/backtest/snapshot_tests.rs
+expression: "run_twice(&s, &[&a, &b])"
+---
+dca: ~
+equity_every_10:
+  - equity: 20000
+    ts: "2024-01-01T00:00:00Z"
+  - equity: 20000
+    ts: "2024-01-11T00:00:00Z"
+  - equity: 19993.41385
+    ts: "2024-01-21T00:00:00Z"
+  - equity: 20016.11815
+    ts: "2024-01-31T00:00:00Z"
+  - equity: 20040.71195
+    ts: "2024-02-10T00:00:00Z"
+  - equity: 20012.27045
+    ts: "2024-02-20T00:00:00Z"
+  - equity: 20008.25865
+    ts: "2024-03-01T00:00:00Z"
+  - equity: 19954.86365
+    ts: "2024-03-11T00:00:00Z"
+  - equity: 19968.16365
+    ts: "2024-03-21T00:00:00Z"
+  - equity: 20002.91365
+    ts: "2024-03-31T00:00:00Z"
+  - equity: 19984.31365
+    ts: "2024-04-10T00:00:00Z"
+  - equity: 20001.42975
+    ts: "2024-04-20T00:00:00Z"
+  - equity: 19986.2968
+    ts: "2024-04-30T00:00:00Z"
+  - equity: 19961.58555
+    ts: "2024-05-10T00:00:00Z"
+  - equity: 19990.3597
+    ts: "2024-05-20T00:00:00Z"
+  - equity: 19962.7243
+    ts: "2024-05-30T00:00:00Z"
+  - equity: 19921.08955
+    ts: "2024-06-08T00:00:00Z"
+notes: []
+open_positions:
+  - avg_price: 107.02646
+    direction: short
+    entry_ts: "2024-05-26T00:00:00Z"
+    fees: 1
+    qty: 10
+    stop_reason: stop_loss
+    take_profit: 100.604872
+    ticker: A
+  - avg_price: 48.825575
+    direction: short
+    entry_ts: "2024-04-16T00:00:00Z"
+    fees: 1
+    qty: 10
+    stop_reason: stop_loss
+    take_profit: 45.896041
+    ticker: B
+stats:
+  buy_hold_return_pct: 10.353666
+  engine_version: 7
+  exit_reasons:
+    end: 2
+    exit_signal: 7
+  final_equity: 19921.08955
+  losses: 4
+  max_drawdown: 134.5483
+  max_drawdown_pct: 0.671047
+  net_pnl: -78.91045
+  profit_factor: 0.547617
+  return_pct: -0.394552
+  sharpe: -0.783299
+  sortino: -1.054548
+  total_fees: 18
+  trades: 9
+  wins: 5
+trades:
+  - bars_held: 13
+    direction: long
+    entries: 1
+    entry_price: 97.278615
+    entry_ts: "2024-01-18T00:00:00Z"
+    exit_price: 99.09043
+    exit_reason: exit_signal
+    exit_ts: "2024-01-31T00:00:00Z"
+    fees: 2
+    mae: 45.78615
+    mfe: 25.41385
+    pnl: 16.11815
+    qty: 10
+    return_pct: 1.656906
+    ticker: A
+  - bars_held: 7
+    direction: long
+    entries: 1
+    entry_price: 48.32415
+    entry_ts: "2024-02-16T00:00:00Z"
+    exit_price: 50.564705
+    exit_reason: exit_signal
+    exit_ts: "2024-02-23T00:00:00Z"
+    fees: 2
+    mae: 3.8415
+    mfe: 25.4585
+    pnl: 20.40555
+    qty: 10
+    return_pct: 4.22264
+    ticker: B
+  - bars_held: 7
+    direction: short
+    entries: 1
+    entry_price: 51.744115
+    entry_ts: "2024-02-26T00:00:00Z"
+    exit_price: 50.18508
+    exit_reason: exit_signal
+    exit_ts: "2024-03-04T00:00:00Z"
+    fees: 2
+    mae: 13.15885
+    mfe: 20.34115
+    pnl: 13.59035
+    qty: 10
+    return_pct: 2.626453
+    ticker: B
+  - bars_held: 53
+    direction: short
+    entries: 1
+    entry_price: 101.18938
+    entry_ts: "2024-02-05T00:00:00Z"
+    exit_price: 105.69282
+    exit_reason: exit_signal
+    exit_ts: "2024-03-29T00:00:00Z"
+    fees: 2
+    mae: 140.4062
+    mfe: 45.1938
+    pnl: -47.0344
+    qty: 10
+    return_pct: -4.648156
+    ticker: A
+  - bars_held: 36
+    direction: long
+    entries: 1
+    entry_price: 48.86442
+    entry_ts: "2024-03-09T00:00:00Z"
+    exit_price: 47.906035
+    exit_reason: exit_signal
+    exit_ts: "2024-04-14T00:00:00Z"
+    fees: 2
+    mae: 35.9442
+    mfe: 11.7558
+    pnl: -11.58385
+    qty: 10
+    return_pct: -2.37061
+    ticker: B
+  - bars_held: 22
+    direction: long
+    entries: 1
+    entry_price: 104.41218
+    entry_ts: "2024-03-30T00:00:00Z"
+    exit_price: 106.536705
+    exit_reason: exit_signal
+    exit_ts: "2024-04-21T00:00:00Z"
+    fees: 2
+    mae: 30.8218
+    mfe: 48.1782
+    pnl: 19.24525
+    qty: 10
+    return_pct: 1.8432
+    ticker: A
+  - bars_held: 18
+    direction: long
+    entries: 1
+    entry_price: 102.301125
+    entry_ts: "2024-05-02T00:00:00Z"
+    exit_price: 105.117415
+    exit_reason: exit_signal
+    exit_ts: "2024-05-20T00:00:00Z"
+    fees: 2
+    mae: 28.11125
+    mfe: 44.28875
+    pnl: 26.1629
+    qty: 10
+    return_pct: 2.55744
+    ticker: A
+  - bars_held: 13
+    direction: short
+    entries: 1
+    entry_price: 107.02646
+    entry_ts: "2024-05-26T00:00:00Z"
+    exit_price: 112.466205
+    exit_reason: end
+    exit_ts: "2024-06-08T00:00:00Z"
+    fees: 2
+    mae: 59.8354
+    mfe: 18.7646
+    pnl: -56.39745
+    qty: 10
+    return_pct: -5.269487
+    ticker: A
+  - bars_held: 53
+    direction: short
+    entries: 1
+    entry_price: 48.825575
+    entry_ts: "2024-04-16T00:00:00Z"
+    exit_price: 54.56727
+    exit_reason: end
+    exit_ts: "2024-06-08T00:00:00Z"
+    fees: 2
+    mae: 62.64425
+    mfe: 0.85575
+    pnl: -59.41695
+    qty: 10
+    return_pct: -12.169227
+    ticker: B
+trading_start_ts: "2024-01-16T00:00:00Z"
+warmup_bars: 15

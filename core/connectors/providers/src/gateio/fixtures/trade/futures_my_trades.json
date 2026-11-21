@@ -1,0 +1,28 @@
+[
+  {
+    "trade_id": "121234231",
+    "create_time": 1514764800.123,
+    "contract": "BTC_USDT",
+    "order_id": "21893289839",
+    "size": -100,
+    "close_size": 0,
+    "price": "100.123",
+    "role": "taker",
+    "text": "t-123456",
+    "fee": "0.01",
+    "point_fee": "0"
+  },
+  {
+    "trade_id": "121234232",
+    "create_time": 1514764801.5,
+    "contract": "BTC_USDT",
+    "order_id": "21893289840",
+    "size": 50,
+    "close_size": 50,
+    "price": "101",
+    "role": "taker",
+    "text": "auto_deleveraging",
+    "fee": "0",
+    "point_fee": "0.002"
+  }
+]

@@ -1,0 +1,54 @@
+id = "fr_pfu"
+year = 2025
+country = "FR"
+label = "France, individual, flat tax (PFU)"
+currency = "EUR"
+coverage = "complete"
+status = "verified"
+verified_on = "2026-09-25"
+sources = [
+  "CGI art. 200 A (prélèvement forfaitaire unique, 12.8 %)",
+  "LFSS 2026 art. 12, CSS L136-8: CSG 10.6 % (social charges 18.6 %) on revenus du patrimoine from 2025 income, on produits de placement from 1 January 2026 (impots.gouv.fr, Brochure pratique IR 2026, Principales nouveautés)",
+  "CGI art. 150-0 D (PMP, losses carried 10 years)",
+  "CGI art. 150 VH bis (digital assets, 305 EUR threshold, no carry)",
+]
+notes = "2025: gains (securities, derivatives, crypto) take 18.6 % social charges, dividends and interest paid through a French paying agent 17.2 % (withheld when paid in 2025; foreign-paid ones are revenus du patrimoine at 18.6 %). Not modeled: the global option for the progressive scale (2OP) with its allowances, CEHR, CDHR, PEA and life insurance wrappers."
+inputs = ["proceeds"]
+
+[matching]
+method = "average"
+
+[[pools]]
+key = "securities"
+buckets = ["capital", "derivative"]
+carry_years = 10
+
+[[pools]]
+key = "crypto"
+buckets = ["crypto"]
+carry_years = 0
+
+[[allowances]]
+items = ["crypto"]
+amount = 305
+kind = "cliff"
+measure = "proceeds"
+
+[[schedules]]
+key = "pfu"
+label = "PFU, income tax part"
+items = ["capital", "derivative", "crypto", "dividends", "interest"]
+kind = "brackets"
+brackets = [{ rate = 12.8 }]
+
+[[surcharges]]
+label = "Prélèvements sociaux (revenus du patrimoine)"
+items = ["capital", "derivative", "crypto"]
+rate = 18.6
+on = "base"
+
+[[surcharges]]
+label = "Prélèvements sociaux (produits de placement)"
+items = ["dividends", "interest"]
+rate = 17.2
+on = "base"
